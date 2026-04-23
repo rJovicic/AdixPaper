@@ -1,0 +1,12 @@
+{
+  "name": "Adix Paper - Evidencija Održavanja",
+  "short_name": "Adix Paper",
+  "description": "Sustav za evidenciju održavanja strojeva",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e3a8a",
+  "theme_color": "#1e3a8a",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
