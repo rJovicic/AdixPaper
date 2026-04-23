@@ -36,7 +36,7 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_admin
         extract('year', Odrzavanje.datum) == now.year
     ).scalar()
 
-    broj_radnika = db.query(func.count(Korisnik.id)).filter(Korisnik.aktivan == True).scalar()
+    broj_radnika = db.query(func.count(Korisnik.id)).filter(Korisnik.aktivan == True).scalar() or 0
 
     return DashboardStats(
         ukupno_opreme=ukupno_opreme or 0,

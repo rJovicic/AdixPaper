@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from ..database import get_db
-from ..models import Korisnik
+from ..models import Korisnik, RolaEnum
 from ..schemas import Token, KorisnikCreate, KorisnikOut
 from ..auth import verify_password, get_password_hash, create_access_token, get_current_user, require_admin
 from ..config import settings
@@ -41,7 +41,7 @@ def get_me(current_user: Korisnik = Depends(get_current_user)):
 @router.post("/register", response_model=KorisnikOut)
 def register_first_admin(user_data: KorisnikCreate, db: Session = Depends(get_db)):
     # Samo ako nema ni jednog admina
-    admin_count = db.query(Korisnik).filter(Korisnik.rola == "admin").count()
+    admin_count = db.query(Korisnik).filter(Korisnik.rola == RolaEnum.admin).count()
     if admin_count > 0:
         raise HTTPException(status_code=400, detail="Registracija nije dostupna. Kontaktirajte admina.")
 
