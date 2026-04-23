@@ -44,7 +44,6 @@ class Korisnik(Base):
     kreiran = Column(DateTime(timezone=True), server_default=func.now())
     zadnja_prijava = Column(DateTime(timezone=True), nullable=True)
 
-    odrzavanja = relationship("Odrzavanje", foreign_keys="[Odrzavanje.izvodioc_id]", back_populates="izvodioc")
 
 
 class Oprema(Base):
@@ -86,4 +85,4 @@ class Odrzavanje(Base):
     kreirao_id = Column(Integer, ForeignKey("korisnici.id"), nullable=True)
 
     oprema = relationship("Oprema", back_populates="odrzavanja")
-    izvodioc = relationship("Korisnik", foreign_keys=[izvodioc_id], back_populates="odrzavanja")
+    izvodioc = relationship("Korisnik", foreign_keys=[izvodioc_id])
