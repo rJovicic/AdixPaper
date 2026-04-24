@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/axios'
 
@@ -9,8 +9,20 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    const rola = localStorage.getItem('rola')
+    if (token) {
+      navigate(rola === 'radnik' ? '/radnik' : '/admin', { replace: true })
+    }
+  }, [])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!username.trim() || !password.trim()) {
+      setError('Unesite korisničko ime i lozinku')
+      return
+    }
     setLoading(true)
     setError('')
     try {

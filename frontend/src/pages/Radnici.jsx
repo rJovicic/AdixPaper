@@ -43,7 +43,8 @@ export default function Radnici() {
 
   const RolaField = ({ value, onChange }) => (
     <select className="input" value={value} onChange={e => onChange(e.target.value)}>
-      <option value="radnik">Radnik</option>
+      <option value="radnik">Radnik (prijavljuje kvarove)</option>
+      <option value="voditelj">Voditelj održavanja (rješava kvarove)</option>
       <option value="admin">Admin</option>
     </select>
   )
@@ -65,7 +66,7 @@ export default function Radnici() {
           <div key={r.id} className={`card transition-all ${!r.aktivan ? 'opacity-50' : ''}`}>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-bold ${r.rola === 'admin' ? 'bg-purple-500' : 'bg-blue-500'}`}>
+                <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-bold ${r.rola === 'admin' ? 'bg-purple-500' : r.rola === 'voditelj' ? 'bg-orange-500' : 'bg-blue-500'}`}>
                   {r.ime[0]}{r.prezime[0]}
                 </div>
                 <div>
@@ -73,7 +74,7 @@ export default function Radnici() {
                   <p className="text-sm text-gray-500">@{r.username}</p>
                 </div>
               </div>
-              <span className={`text-xs font-medium px-2 py-1 rounded-full ${r.rola === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${r.rola === 'admin' ? 'bg-purple-100 text-purple-700' : r.rola === 'voditelj' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
                 {r.rola}
               </span>
             </div>

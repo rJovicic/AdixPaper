@@ -33,7 +33,7 @@ export default function RadnikView() {
 
   const load = () => {
     api.get('/kvarovi').then(r => setKvarovi(Array.isArray(r.data) ? r.data : []))
-    api.get('/oprema/').then(r => setOprema(Array.isArray(r.data) ? r.data : []))
+    api.get('/oprema').then(r => setOprema(Array.isArray(r.data) ? r.data : []))
   }
 
   useEffect(() => { load() }, [])

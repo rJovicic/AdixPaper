@@ -9,7 +9,7 @@ from ..auth import get_current_user, require_admin
 
 router = APIRouter(prefix="/api/oprema", tags=["oprema"])
 
-@router.get("/", response_model=List[OpremaWithStats])
+@router.get("", response_model=List[OpremaWithStats])
 def get_oprema(
     search: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -66,7 +66,7 @@ def get_oprema_by_id(oprema_id: int, db: Session = Depends(get_db), _: Korisnik 
     item.zadnji_kvar = stats.zadnji
     return item
 
-@router.post("/", response_model=OpremaOut)
+@router.post("", response_model=OpremaOut)
 def create_oprema(data: OpremaCreate, db: Session = Depends(get_db), _: Korisnik = Depends(get_current_user)):
     if data.serijski_broj and db.query(Oprema).filter(Oprema.serijski_broj == data.serijski_broj).first():
         raise HTTPException(status_code=400, detail="Serijski broj već postoji")

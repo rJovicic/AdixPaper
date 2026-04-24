@@ -8,11 +8,11 @@ from ..auth import get_password_hash, require_admin, get_current_user
 
 router = APIRouter(prefix="/api/korisnici", tags=["korisnici"])
 
-@router.get("/", response_model=List[KorisnikOut])
+@router.get("", response_model=List[KorisnikOut])
 def get_korisnici(db: Session = Depends(get_db), _: Korisnik = Depends(require_admin)):
     return db.query(Korisnik).order_by(Korisnik.prezime).all()
 
-@router.post("/", response_model=KorisnikOut)
+@router.post("", response_model=KorisnikOut)
 def create_korisnik(data: KorisnikCreate, db: Session = Depends(get_db), _: Korisnik = Depends(require_admin)):
     if db.query(Korisnik).filter(Korisnik.username == data.username).first():
         raise HTTPException(status_code=400, detail="Username već postoji")
