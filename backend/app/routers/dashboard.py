@@ -1,93 +1,121 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
-from datetime import date, datetime
+from datetime import datetime
 from typing import List
+
 from ..database import get_db
-from ..models import Oprema, Odrzavanje, Korisnik
-from ..schemas import DashboardStats, TroskoviPoMjesecu, OdrzavanjePoVrsti, TopOpremaKvarovi
-from ..auth import require_admin
+from ..models import Oprema, Kvar, Korisnik, StatusKvaraEnum, PrioritetEnum
+from ..schemas import DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu
+from ..auth import require_voditelj_or_admin
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 MJESECI = ["", "Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"]
 
+
 @router.get("/stats", response_model=DashboardStats)
-def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_admin)):
+def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):
     now = datetime.utcnow()
 
-    ukupno_opreme = db.query(func.count(Oprema.id)).scalar()
-    aktivna = db.query(func.count(Oprema.id)).filter(Oprema.status == "Aktivno").scalar()
-    neispravna = db.query(func.count(Oprema.id)).filter(Oprema.status == "Neispravno").scalar()
-    na_servisu = db.query(func.count(Oprema.id)).filter(Oprema.status == "Na servisu").scalar()
+    ukupno_opreme = db.query(func.count(Oprema.id)).scalar() or 0
+    aktivna = db.query(func.count(Oprema.id)).filter(Oprema.status == "Aktivno").scalar() or 0
+    neispravna = db.query(func.count(Oprema.id)).filter(Oprema.status == "Neispravno").scalar() or 0
+    na_servisu = db.query(func.count(Oprema.id)).filter(Oprema.status == "Na servisu").scalar() or 0
 
-    ukupno_odrzavanja = db.query(func.count(Odrzavanje.id)).scalar()
-    odrzavanja_mjesec = db.query(func.count(Odrzavanje.id)).filter(
-        extract('month', Odrzavanje.datum) == now.month,
-        extract('year', Odrzavanje.datum) == now.year
-    ).scalar()
+    otvoreni = db.query(func.count(Kvar.id)).filter(
+        Kvar.status.in_([StatusKvaraEnum.novo, StatusKvaraEnum.u_rjesavanju, StatusKvaraEnum.na_cekanju])
+    ).scalar() or 0
 
-    troskovi_mjesec = db.query(func.coalesce(func.sum(Odrzavanje.troskovi), 0)).filter(
-        extract('month', Odrzavanje.datum) == now.month,
-        extract('year', Odrzavanje.datum) == now.year
-    ).scalar()
+    hitni = db.query(func.count(Kvar.id)).filter(
+        Kvar.prioritet == PrioritetEnum.hitno,
+        Kvar.status.in_([StatusKvaraEnum.novo, StatusKvaraEnum.u_rjesavanju, StatusKvaraEnum.na_cekanju])
+    ).scalar() or 0
 
-    troskovi_godina = db.query(func.coalesce(func.sum(Odrzavanje.troskovi), 0)).filter(
-        extract('year', Odrzavanje.datum) == now.year
-    ).scalar()
+    kvarovi_danas = db.query(func.count(Kvar.id)).filter(
+        extract('day', Kvar.datum_prijave) == now.day,
+        extract('month', Kvar.datum_prijave) == now.month,
+        extract('year', Kvar.datum_prijave) == now.year
+    ).scalar() or 0
+
+    rijeseni_mjesec = db.query(func.count(Kvar.id)).filter(
+        Kvar.status == StatusKvaraEnum.rijeseno,
+        extract('month', Kvar.datum_rjesavanja) == now.month,
+        extract('year', Kvar.datum_rjesavanja) == now.year
+    ).scalar() or 0
+
+    troskovi_mjesec = db.query(func.coalesce(func.sum(Kvar.troskovi), 0)).filter(
+        Kvar.status == StatusKvaraEnum.rijeseno,
+        extract('month', Kvar.datum_rjesavanja) == now.month,
+        extract('year', Kvar.datum_rjesavanja) == now.year
+    ).scalar() or 0
+
+    troskovi_godina = db.query(func.coalesce(func.sum(Kvar.troskovi), 0)).filter(
+        Kvar.status == StatusKvaraEnum.rijeseno,
+        extract('year', Kvar.datum_rjesavanja) == now.year
+    ).scalar() or 0
 
     broj_radnika = db.query(func.count(Korisnik.id)).filter(Korisnik.aktivan == True).scalar() or 0
 
     return DashboardStats(
-        ukupno_opreme=ukupno_opreme or 0,
-        aktivna_oprema=aktivna or 0,
-        neispravna_oprema=neispravna or 0,
-        na_servisu=na_servisu or 0,
-        ukupno_odrzavanja=ukupno_odrzavanja or 0,
-        odrzavanja_ovaj_mjesec=odrzavanja_mjesec or 0,
-        ukupni_troskovi_ovaj_mjesec=float(troskovi_mjesec or 0),
-        ukupni_troskovi_godina=float(troskovi_godina or 0),
-        broj_radnika=broj_radnika or 0
+        ukupno_opreme=ukupno_opreme,
+        aktivna_oprema=aktivna,
+        neispravna_oprema=neispravna,
+        na_servisu=na_servisu,
+        otvoreni_kvarovi=otvoreni,
+        kvarovi_danas=kvarovi_danas,
+        rijeseni_ovaj_mjesec=rijeseni_mjesec,
+        ukupni_troskovi_ovaj_mjesec=float(troskovi_mjesec),
+        ukupni_troskovi_godina=float(troskovi_godina),
+        broj_radnika=broj_radnika,
+        hitni_kvarovi=hitni
     )
 
-@router.get("/troskovi-po-mjesecu", response_model=List[TroskoviPoMjesecu])
-def get_troskovi_po_mjesecu(db: Session = Depends(get_db), _: Korisnik = Depends(require_admin)):
+
+@router.get("/kvarovi-po-mjesecu", response_model=List[KvaroviPoMjesecu])
+def get_kvarovi_po_mjesecu(db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):
     now = datetime.utcnow()
-    result = db.query(
-        extract('month', Odrzavanje.datum).label('mj'),
-        func.coalesce(func.sum(Odrzavanje.troskovi), 0).label('troskovi'),
-        func.count(Odrzavanje.id).label('broj')
+
+    ukupno_result = db.query(
+        extract('month', Kvar.datum_prijave).label('mj'),
+        func.count(Kvar.id).label('ukupno')
     ).filter(
-        extract('year', Odrzavanje.datum) == now.year
-    ).group_by('mj').order_by('mj').all()
+        extract('year', Kvar.datum_prijave) == now.year
+    ).group_by('mj').all()
+
+    rijeseno_result = db.query(
+        extract('month', Kvar.datum_rjesavanja).label('mj'),
+        func.count(Kvar.id).label('rijeseno'),
+        func.coalesce(func.sum(Kvar.troskovi), 0).label('troskovi')
+    ).filter(
+        Kvar.status == StatusKvaraEnum.rijeseno,
+        extract('year', Kvar.datum_rjesavanja) == now.year
+    ).group_by('mj').all()
+
+    rijeseno_map = {int(r.mj): (r.rijeseno, float(r.troskovi)) for r in rijeseno_result}
+    ukupno_map = {int(r.mj): r.ukupno for r in ukupno_result}
+    all_months = sorted(set(list(ukupno_map.keys()) + list(rijeseno_map.keys())))
 
     return [
-        TroskoviPoMjesecu(
-            mjesec=MJESECI[int(r.mj)],
-            troskovi=float(r.troskovi),
-            broj_odrzavanja=r.broj
-        ) for r in result
+        KvaroviPoMjesecu(
+            mjesec=MJESECI[m],
+            ukupno=ukupno_map.get(m, 0),
+            rijeseno=rijeseno_map.get(m, (0, 0))[0],
+            troskovi=rijeseno_map.get(m, (0, 0))[1]
+        ) for m in all_months
     ]
 
-@router.get("/odrzavanje-po-vrsti", response_model=List[OdrzavanjePoVrsti])
-def get_odrzavanje_po_vrsti(db: Session = Depends(get_db), _: Korisnik = Depends(require_admin)):
-    result = db.query(
-        Odrzavanje.vrsta_odrzavanja.label('vrsta'),
-        func.count(Odrzavanje.id).label('broj')
-    ).group_by(Odrzavanje.vrsta_odrzavanja).order_by(func.count(Odrzavanje.id).desc()).all()
 
-    return [OdrzavanjePoVrsti(vrsta=r.vrsta, broj=r.broj) for r in result]
-
-@router.get("/top-kvarovi", response_model=List[TopOpremaKvarovi])
-def get_top_kvarovi(db: Session = Depends(get_db), _: Korisnik = Depends(require_admin)):
+@router.get("/top-oprema", response_model=List[TopOpremaKvarovi])
+def get_top_oprema(db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):
     result = db.query(
         Oprema.naziv,
         Oprema.lokacija,
-        func.count(Odrzavanje.id).label('broj_kvarova'),
-        func.coalesce(func.sum(Odrzavanje.troskovi), 0).label('ukupni_troskovi')
-    ).join(Odrzavanje, Oprema.id == Odrzavanje.oprema_id).group_by(
+        func.count(Kvar.id).label('broj_kvarova'),
+        func.coalesce(func.sum(Kvar.troskovi), 0).label('ukupni_troskovi')
+    ).join(Kvar, Oprema.id == Kvar.oprema_id).group_by(
         Oprema.id, Oprema.naziv, Oprema.lokacija
-    ).order_by(func.count(Odrzavanje.id).desc()).limit(10).all()
+    ).order_by(func.count(Kvar.id).desc()).limit(10).all()
 
     return [
         TopOpremaKvarovi(
@@ -98,24 +126,12 @@ def get_top_kvarovi(db: Session = Depends(get_db), _: Korisnik = Depends(require
         ) for r in result
     ]
 
-@router.get("/aktivnost-radnika")
-def get_aktivnost_radnika(db: Session = Depends(get_db), _: Korisnik = Depends(require_admin)):
-    now = datetime.utcnow()
-    result = db.query(
-        Korisnik.ime,
-        Korisnik.prezime,
-        func.count(Odrzavanje.id).label('broj_odrzavanja'),
-        func.coalesce(func.sum(Odrzavanje.trajanje), 0).label('ukupno_minuta')
-    ).join(Odrzavanje, Korisnik.id == Odrzavanje.izvodioc_id).filter(
-        extract('year', Odrzavanje.datum) == now.year
-    ).group_by(Korisnik.id, Korisnik.ime, Korisnik.prezime).order_by(
-        func.count(Odrzavanje.id).desc()
-    ).limit(20).all()
 
-    return [
-        {
-            "ime": f"{r.ime} {r.prezime}",
-            "broj_odrzavanja": r.broj_odrzavanja,
-            "ukupno_sati": round(r.ukupno_minuta / 60, 1)
-        } for r in result
-    ]
+@router.get("/kvarovi-po-statusu", response_model=List[KvaroviPoStatusu])
+def get_kvarovi_po_statusu(db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):
+    result = db.query(
+        Kvar.status,
+        func.count(Kvar.id).label('broj')
+    ).group_by(Kvar.status).all()
+
+    return [KvaroviPoStatusu(status=r.status.value, broj=r.broj) for r in result]

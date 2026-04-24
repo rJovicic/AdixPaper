@@ -1,14 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, Base
-from .routers import auth, korisnici, oprema, odrzavanje, dashboard
+from .routers import auth, korisnici, oprema, dashboard, kvarovi, notifikacije
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Adix Paper - Sustav za evidenciju održavanja",
-    version="1.0.0",
-    description="API za upravljanje održavanjem strojeva i opreme"
+    title="Adix Paper - Sustav za upravljanje kvarovima",
+    version="2.0.0",
+    description="API za ticket/task sustav održavanja strojeva"
 )
 
 app.add_middleware(
@@ -22,12 +22,13 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(korisnici.router)
 app.include_router(oprema.router)
-app.include_router(odrzavanje.router)
+app.include_router(kvarovi.router)
 app.include_router(dashboard.router)
+app.include_router(notifikacije.router)
 
 @app.get("/")
 def root():
-    return {"message": "Adix Paper API v1.0", "status": "online"}
+    return {"message": "Adix Paper API v2.0", "status": "online"}
 
 @app.get("/health")
 def health():

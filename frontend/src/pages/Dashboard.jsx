@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
-import { Wrench, AlertTriangle, CheckCircle, Clock, TrendingUp, Users, Euro, Activity } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { AlertTriangle, CheckCircle, Clock, TrendingUp, Wrench, Zap } from 'lucide-react'
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell
+} from 'recharts'
 import api from '../api/axios'
+import { SlaBadge } from '../utils/sla'
 
-const COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899']
+const PIE_COLORS = ['#f59e0b', '#3b82f6', '#6b7280', '#10b981']
 
 function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
   const colors = {
@@ -15,128 +20,151 @@ function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
   }
   return (
     <div className="card flex items-center gap-4">
-      <div className={`p-3 rounded-xl ${colors[color]}`}>
-        <Icon size={24} />
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${colors[color]}`}>
+        <Icon size={22} />
       </div>
       <div>
-        <p className="text-sm text-gray-500">{label}</p>
         <p className="text-2xl font-bold text-gray-900">{value}</p>
+        <p className="text-sm text-gray-500">{label}</p>
         {sub && <p className="text-xs text-gray-400">{sub}</p>}
       </div>
     </div>
   )
 }
 
+export function PrioritetBadge({ prioritet }) {
+  const map = {
+    Hitno: 'bg-red-100 text-red-700',
+    Normalno: 'bg-blue-100 text-blue-700',
+    Nisko: 'bg-gray-100 text-gray-600'
+  }
+  return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${map[prioritet] || ''}`}>{prioritet}</span>
+}
+
+export function StatusBadge({ status }) {
+  const map = {
+    'Novo': 'bg-yellow-100 text-yellow-700',
+    'U rješavanju': 'bg-blue-100 text-blue-700',
+    'Na čekanju': 'bg-gray-100 text-gray-600',
+    'Riješeno': 'bg-green-100 text-green-700'
+  }
+  return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${map[status] || ''}`}>{status}</span>
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null)
-  const [troskovi, setTroskovi] = useState([])
-  const [vrste, setVrste] = useState([])
-  const [topKvarovi, setTopKvarovi] = useState([])
-  const [aktivnost, setAktivnost] = useState([])
+  const [kvarovi, setKvarovi] = useState([])
+  const [chartData, setChartData] = useState([])
+  const [statusData, setStatusData] = useState([])
+  const navigate = useNavigate()
 
   useEffect(() => {
-    api.get('/dashboard/stats').then(r => setStats(r.data))
-    api.get('/dashboard/troskovi-po-mjesecu').then(r => setTroskovi(r.data))
-    api.get('/dashboard/odrzavanje-po-vrsti').then(r => setVrste(r.data))
-    api.get('/dashboard/top-kvarovi').then(r => setTopKvarovi(r.data))
-    api.get('/dashboard/aktivnost-radnika').then(r => setAktivnost(r.data))
+    api.get('/dashboard/stats').then(r => setStats(r.data)).catch(() => {})
+    api.get('/kvarovi').then(r => setKvarovi(Array.isArray(r.data) ? r.data.filter(k => k.status !== 'Riješeno').slice(0, 8) : []))
+    api.get('/dashboard/kvarovi-po-mjesecu').then(r => setChartData(Array.isArray(r.data) ? r.data : []))
+    api.get('/dashboard/kvarovi-po-statusu').then(r => setStatusData(Array.isArray(r.data) ? r.data : []))
   }, [])
-
-  if (!stats) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
-    </div>
-  )
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 text-sm">Pregled stanja sustava - {new Date().toLocaleDateString('hr-HR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        <p className="text-gray-500 text-sm">Pregled stanja kvarova i održavanja</p>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard icon={Wrench} label="Ukupno opreme" value={stats.ukupno_opreme} sub={`${stats.aktivna_oprema} aktivno`} color="blue" />
-        <StatCard icon={AlertTriangle} label="Neispravno" value={stats.neispravna_oprema} sub={`${stats.na_servisu} na servisu`} color="red" />
-        <StatCard icon={Activity} label="Održavanja ovaj mj." value={stats.odrzavanja_ovaj_mjesec} sub={`Ukupno: ${stats.ukupno_odrzavanja}`} color="green" />
-        <StatCard icon={Users} label="Aktivni radnici" value={stats.broj_radnika} color="purple" />
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard icon={Euro} label="Troškovi ovaj mj." value={`${stats.ukupni_troskovi_ovaj_mjesec.toFixed(2)} €`} color="yellow" />
-        <StatCard icon={TrendingUp} label="Troškovi ove god." value={`${stats.ukupni_troskovi_godina.toFixed(2)} €`} color="blue" />
-      </div>
-
-      {/* Charts row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card">
-          <h3 className="font-semibold text-gray-800 mb-4">Troškovi po mjesecu ({new Date().getFullYear()})</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={troskovi}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="mjesec" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v) => `${v.toFixed(2)} €`} />
-              <Bar dataKey="troskovi" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Troškovi (€)" />
-            </BarChart>
-          </ResponsiveContainer>
+      {stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          <StatCard icon={AlertTriangle} label="Otvoreni kvarovi" value={stats.otvoreni_kvarovi} color="yellow" />
+          <StatCard icon={Zap} label="Hitni kvarovi" value={stats.hitni_kvarovi} color="red" />
+          <StatCard icon={Clock} label="Kvarovi danas" value={stats.kvarovi_danas} color="blue" />
+          <StatCard icon={CheckCircle} label="Riješeni ovaj mj." value={stats.rijeseni_ovaj_mjesec} color="green" />
+          <StatCard icon={TrendingUp} label="Trošak mj. (€)" value={stats.ukupni_troskovi_ovaj_mjesec.toFixed(0)} color="purple" />
+          <StatCard icon={Wrench} label="Oprema" value={stats.ukupno_opreme} sub={`${stats.neispravna_oprema} neispravnih`} color="blue" />
         </div>
+      )}
 
-        <div className="card">
-          <h3 className="font-semibold text-gray-800 mb-4">Vrste održavanja</h3>
-          {vrste.length > 0 ? (
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie data={vrste} dataKey="broj" nameKey="vrsta" cx="50%" cy="50%" outerRadius={90} label={({ vrsta, percent }) => `${vrsta} ${(percent * 100).toFixed(0)}%`}>
-                  {vrste.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 card">
+          <h2 className="font-semibold text-gray-800 mb-4">Kvarovi po mjesecima ({new Date().getFullYear()})</h2>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                <XAxis dataKey="mjesec" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                 <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : <p className="text-gray-400 text-center py-16">Nema podataka</p>}
-        </div>
-      </div>
-
-      {/* Charts row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card">
-          <h3 className="font-semibold text-gray-800 mb-4">Top 10 opreme po kvarovima</h3>
-          {topKvarovi.length > 0 ? (
-            <div className="space-y-2">
-              {topKvarovi.map((k, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                  <div className="flex items-center gap-3">
-                    <span className="w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold">{i + 1}</span>
-                    <div>
-                      <p className="font-medium text-sm text-gray-800">{k.naziv}</p>
-                      <p className="text-xs text-gray-400">{k.lokacija || '—'}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-gray-800">{k.broj_kvarova} kvarova</p>
-                    <p className="text-xs text-gray-400">{k.ukupni_troskovi.toFixed(2)} €</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : <p className="text-gray-400 text-center py-8">Nema podataka</p>}
-        </div>
-
-        <div className="card">
-          <h3 className="font-semibold text-gray-800 mb-4">Aktivnost radnika (ova godina)</h3>
-          {aktivnost.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={aktivnost} layout="vertical" margin={{ left: 80 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis dataKey="ime" type="category" tick={{ fontSize: 11 }} width={80} />
-                <Tooltip />
-                <Bar dataKey="broj_odrzavanja" fill="#10b981" radius={[0, 4, 4, 0]} name="Broj održavanja" />
+                <Bar dataKey="ukupno" name="Ukupno" fill="#93c5fd" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="rijeseno" name="Riješeno" fill="#3b82f6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          ) : <p className="text-gray-400 text-center py-16">Nema podataka</p>}
+          ) : (
+            <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm">Nema podataka za grafikon</div>
+          )}
         </div>
+
+        <div className="card">
+          <h2 className="font-semibold text-gray-800 mb-4">Status kvarova</h2>
+          {statusData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={statusData} dataKey="broj" nameKey="status" cx="50%" cy="45%" outerRadius={72} label={({ status, broj }) => `${broj}`}>
+                  {statusData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                </Pie>
+                <Tooltip formatter={(v, n) => [v, n]} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[220px] flex items-center justify-center text-gray-400 text-sm">Nema podataka</div>
+          )}
+          <div className="mt-2 space-y-1">
+            {statusData.map((s, i) => (
+              <div key={s.status} className="flex items-center gap-2 text-xs text-gray-600">
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                {s.status}: <span className="font-semibold">{s.broj}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-gray-800">Otvoreni kvarovi</h2>
+          <button onClick={() => navigate('/admin/kvarovi')} className="text-sm text-blue-600 hover:underline">
+            Svi kvarovi →
+          </button>
+        </div>
+        {kvarovi.length === 0 ? (
+          <p className="text-center text-gray-400 py-8 text-sm">Nema otvorenih kvarova</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-gray-500">
+                  <th className="text-left pb-3 font-medium">Naslov</th>
+                  <th className="text-left pb-3 font-medium hidden md:table-cell">Oprema</th>
+                  <th className="text-left pb-3 font-medium">Prioritet</th>
+                  <th className="text-left pb-3 font-medium hidden sm:table-cell">Status</th>
+                  <th className="text-left pb-3 font-medium">SLA</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {kvarovi.map(k => (
+                  <tr
+                    key={k.id}
+                    onClick={() => navigate(`/admin/kvarovi/${k.id}`)}
+                    className="cursor-pointer hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="py-3 font-medium text-gray-900">{k.naslov}</td>
+                    <td className="py-3 text-gray-500 hidden md:table-cell">{k.oprema?.naziv || '-'}</td>
+                    <td className="py-3"><PrioritetBadge prioritet={k.prioritet} /></td>
+                    <td className="py-3 hidden sm:table-cell"><StatusBadge status={k.status} /></td>
+                    <td className="py-3"><SlaBadge kvar={k} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

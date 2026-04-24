@@ -5,6 +5,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "adix-paper-super-secret-key-2024"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_EMAIL: str = "mailto:admin@adixpaper.com"
 
     class Config:
         env_file = ".env"

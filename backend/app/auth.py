@@ -44,6 +44,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 def require_admin(current_user: Korisnik = Depends(get_current_user)) -> Korisnik:
-    if current_user.rola != "admin":
+    if current_user.rola.value != "admin":
         raise HTTPException(status_code=403, detail="Pristup zabranjen - potrebne admin ovlasti")
+    return current_user
+
+def require_voditelj_or_admin(current_user: Korisnik = Depends(get_current_user)) -> Korisnik:
+    if current_user.rola.value not in ("voditelj", "admin"):
+        raise HTTPException(status_code=403, detail="Pristup zabranjen - potrebne voditelj ili admin ovlasti")
     return current_user

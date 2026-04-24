@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from ..database import get_db
-from ..models import Oprema, Odrzavanje, Korisnik
+from ..models import Oprema, Kvar, Korisnik
 from ..schemas import OpremaCreate, OpremaOut, OpremaUpdate, OpremaWithStats
 from ..auth import get_current_user, require_admin
 
@@ -35,15 +35,15 @@ def get_oprema(
     result = []
     for o in oprema_list:
         stats = db.query(
-            func.count(Odrzavanje.id).label("broj"),
-            func.coalesce(func.sum(Odrzavanje.troskovi), 0).label("troskovi"),
-            func.max(Odrzavanje.datum).label("zadnje")
-        ).filter(Odrzavanje.oprema_id == o.id).first()
+            func.count(Kvar.id).label("broj"),
+            func.coalesce(func.sum(Kvar.troskovi), 0).label("troskovi"),
+            func.max(Kvar.datum_prijave).label("zadnji")
+        ).filter(Kvar.oprema_id == o.id).first()
 
         item = OpremaWithStats.model_validate(o)
-        item.broj_odrzavanja = stats.broj or 0
+        item.broj_kvarova = stats.broj or 0
         item.ukupni_troskovi = float(stats.troskovi or 0)
-        item.zadnje_odrzavanje = stats.zadnje
+        item.zadnji_kvar = stats.zadnji
         result.append(item)
 
     return result
@@ -55,15 +55,15 @@ def get_oprema_by_id(oprema_id: int, db: Session = Depends(get_db), _: Korisnik 
         raise HTTPException(status_code=404, detail="Oprema nije pronađena")
 
     stats = db.query(
-        func.count(Odrzavanje.id).label("broj"),
-        func.coalesce(func.sum(Odrzavanje.troskovi), 0).label("troskovi"),
-        func.max(Odrzavanje.datum).label("zadnje")
-    ).filter(Odrzavanje.oprema_id == o.id).first()
+        func.count(Kvar.id).label("broj"),
+        func.coalesce(func.sum(Kvar.troskovi), 0).label("troskovi"),
+        func.max(Kvar.datum_prijave).label("zadnji")
+    ).filter(Kvar.oprema_id == o.id).first()
 
     item = OpremaWithStats.model_validate(o)
-    item.broj_odrzavanja = stats.broj or 0
+    item.broj_kvarova = stats.broj or 0
     item.ukupni_troskovi = float(stats.troskovi or 0)
-    item.zadnje_odrzavanje = stats.zadnje
+    item.zadnji_kvar = stats.zadnji
     return item
 
 @router.post("/", response_model=OpremaOut)

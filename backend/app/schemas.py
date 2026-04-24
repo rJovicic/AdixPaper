@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import date, datetime
 from decimal import Decimal
-from .models import RolaEnum, StatusOpremaEnum, StatusOdrzavanjaEnum, TvrtkaEnum
+from .models import RolaEnum, StatusOpremaEnum, TvrtkaEnum, PrioritetEnum, StatusKvaraEnum
 
 
 # --- AUTH ---
@@ -50,6 +50,15 @@ class KorisnikOut(KorisnikBase):
     class Config:
         from_attributes = True
 
+class KorisnikMini(BaseModel):
+    id: int
+    ime: str
+    prezime: str
+    username: str
+
+    class Config:
+        from_attributes = True
+
 
 # --- OPREMA ---
 class OpremaBase(BaseModel):
@@ -87,48 +96,76 @@ class OpremaOut(OpremaBase):
     class Config:
         from_attributes = True
 
-class OpremaWithStats(OpremaOut):
-    broj_odrzavanja: int = 0
-    ukupni_troskovi: float = 0
-    zadnje_odrzavanje: Optional[date] = None
-
-
-# --- ODRZAVANJE ---
-class OdrzavanjeBase(BaseModel):
-    oprema_id: int
-    datum: date
-    vrsta_odrzavanja: str
-    opis: Optional[str] = None
-    materijal: Optional[str] = None
-    troskovi: Optional[Decimal] = Decimal("0")
-    trajanje: Optional[int] = 0
-    status: Optional[StatusOdrzavanjaEnum] = StatusOdrzavanjaEnum.zavrseno
-    napomene: Optional[str] = None
-    izvodioc_id: Optional[int] = None
-
-class OdrzavanjeCreate(OdrzavanjeBase):
-    pass
-
-class OdrzavanjeUpdate(BaseModel):
-    datum: Optional[date] = None
-    vrsta_odrzavanja: Optional[str] = None
-    opis: Optional[str] = None
-    materijal: Optional[str] = None
-    troskovi: Optional[Decimal] = None
-    trajanje: Optional[int] = None
-    status: Optional[StatusOdrzavanjaEnum] = None
-    napomene: Optional[str] = None
-    izvodioc_id: Optional[int] = None
-
-class OdrzavanjeOut(OdrzavanjeBase):
+class OpremaMini(BaseModel):
     id: int
-    kreiran: datetime
-    kreirao_id: Optional[int] = None
-    oprema_naziv: Optional[str] = None
-    izvodioc_ime: Optional[str] = None
+    naziv: str
+    lokacija: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+class OpremaWithStats(OpremaOut):
+    broj_kvarova: int = 0
+    ukupni_troskovi: float = 0
+    zadnji_kvar: Optional[datetime] = None
+
+
+# --- KVAR ---
+class KvarCreate(BaseModel):
+    oprema_id: int
+    naslov: str
+    opis: Optional[str] = None
+    prioritet: PrioritetEnum = PrioritetEnum.normalno
+    foto_url: Optional[str] = None
+
+class KvarVoditeljUpdate(BaseModel):
+    status: Optional[StatusKvaraEnum] = None
+    voditelj_id: Optional[int] = None
+    sto_je_uradjeno: Optional[str] = None
+    materijal: Optional[str] = None
+    troskovi: Optional[Decimal] = None
+    trajanje_min: Optional[int] = None
+    napomene_voditelja: Optional[str] = None
+    datum_pocetka: Optional[datetime] = None
+    datum_rjesavanja: Optional[datetime] = None
+    prioritet: Optional[PrioritetEnum] = None
+
+class KvarOut(BaseModel):
+    id: int
+    oprema_id: int
+    prijavio_id: int
+    voditelj_id: Optional[int] = None
+    naslov: str
+    opis: Optional[str] = None
+    foto_url: Optional[str] = None
+    prioritet: PrioritetEnum
+    status: StatusKvaraEnum
+    sto_je_uradjeno: Optional[str] = None
+    materijal: Optional[str] = None
+    troskovi: Optional[Decimal] = None
+    trajanje_min: Optional[int] = None
+    napomene_voditelja: Optional[str] = None
+    datum_prijave: datetime
+    datum_pocetka: Optional[datetime] = None
+    datum_rjesavanja: Optional[datetime] = None
+    oprema: Optional[OpremaMini] = None
+    prijavio: Optional[KorisnikMini] = None
+    voditelj: Optional[KorisnikMini] = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- PUSH NOTIFIKACIJE ---
+class PushSubscribeData(BaseModel):
+    endpoint: str
+    p256dh: str
+    auth: str
+
+class PushSend(BaseModel):
+    title: str
+    body: str
+    url: Optional[str] = None
 
 
 # --- DASHBOARD ---
@@ -137,23 +174,26 @@ class DashboardStats(BaseModel):
     aktivna_oprema: int
     neispravna_oprema: int
     na_servisu: int
-    ukupno_odrzavanja: int
-    odrzavanja_ovaj_mjesec: int
+    otvoreni_kvarovi: int
+    kvarovi_danas: int
+    rijeseni_ovaj_mjesec: int
     ukupni_troskovi_ovaj_mjesec: float
     ukupni_troskovi_godina: float
     broj_radnika: int
+    hitni_kvarovi: int
 
-class TroskoviPoMjesecu(BaseModel):
+class KvaroviPoMjesecu(BaseModel):
     mjesec: str
+    ukupno: int
+    rijeseno: int
     troskovi: float
-    broj_odrzavanja: int
-
-class OdrzavanjePoVrsti(BaseModel):
-    vrsta: str
-    broj: int
 
 class TopOpremaKvarovi(BaseModel):
     naziv: str
-    lokacija: Optional[str]
+    lokacija: Optional[str] = None
     broj_kvarova: int
     ukupni_troskovi: float
+
+class KvaroviPoStatusu(BaseModel):
+    status: str
+    broj: int

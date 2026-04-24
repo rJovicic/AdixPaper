@@ -23,7 +23,7 @@ export default function Login() {
       localStorage.setItem('ime', data.ime)
       localStorage.setItem('prezime', data.prezime)
       localStorage.setItem('user_id', data.user_id)
-      navigate(data.rola === 'admin' ? '/admin' : '/radnik')
+      navigate(data.rola === 'radnik' ? '/radnik' : '/admin')
     } catch (err) {
       setError(err.response?.data?.detail || 'Greška pri prijavi')
     } finally {
@@ -39,7 +39,7 @@ export default function Login() {
             <span className="text-3xl font-black text-blue-800">AP</span>
           </div>
           <h1 className="text-3xl font-bold text-white">Adix Paper</h1>
-          <p className="text-blue-200 mt-1">Sustav za evidenciju održavanja</p>
+          <p className="text-blue-200 mt-1">Sustav za upravljanje kvarovima</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">

@@ -2,8 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import AdminLayout from './components/AdminLayout'
 import Dashboard from './pages/Dashboard'
+import Kvarovi from './pages/Kvarovi'
+import KvarDetalji from './pages/KvarDetalji'
 import Oprema from './pages/Oprema'
-import Odrzavanje from './pages/Odrzavanje'
 import Radnici from './pages/Radnici'
 import RadnikView from './pages/RadnikView'
 
@@ -11,7 +12,7 @@ function ProtectedRoute({ children, adminOnly = false }) {
   const token = localStorage.getItem('token')
   const rola = localStorage.getItem('rola')
   if (!token) return <Navigate to="/login" replace />
-  if (adminOnly && rola !== 'admin') return <Navigate to="/radnik" replace />
+  if (adminOnly && rola === 'radnik') return <Navigate to="/radnik" replace />
   return children
 }
 
@@ -26,8 +27,9 @@ export default function App() {
           </ProtectedRoute>
         }>
           <Route index element={<Dashboard />} />
+          <Route path="kvarovi" element={<Kvarovi />} />
+          <Route path="kvarovi/:id" element={<KvarDetalji />} />
           <Route path="oprema" element={<Oprema />} />
-          <Route path="odrzavanje" element={<Odrzavanje />} />
           <Route path="radnici" element={<Radnici />} />
         </Route>
         <Route path="/radnik" element={

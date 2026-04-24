@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Search, Edit2, Trash2, X, CheckCircle, AlertTriangle, Wrench } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, X } from 'lucide-react'
 import api from '../api/axios'
 
 const STATUS_BADGE = {
@@ -8,9 +8,6 @@ const STATUS_BADGE = {
   'Na servisu': 'badge-yellow',
   'Raspisano': 'badge-blue',
 }
-
-const VRSTE = ['Redovno servisiranje', 'Popravak kvara', 'Elektro kvar', 'Preventivno održavanje', 'Godišnji servis', 'Ostalo']
-const STATUSI_ODRZAVANJA = ['Završeno', 'U tijeku', 'Planirano']
 
 function Modal({ title, onClose, children }) {
   return (
@@ -31,13 +28,10 @@ export default function Oprema() {
   const [search, setSearch] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(null)
-  const [showOdrzavanje, setShowOdrzavanje] = useState(null)
-  const [radnici, setRadnici] = useState([])
   const [form, setForm] = useState({ naziv: '', tip: '', tvrtka: 'Cupup d.o.o', proizvodac: '', model: '', serijski_broj: '', lokacija: '', status: 'Aktivno' })
-  const [odrzForm, setOdrzForm] = useState({ oprema_id: null, datum: new Date().toISOString().slice(0, 10), vrsta_odrzavanja: 'Redovno servisiranje', opis: '', materijal: '', troskovi: '', trajanje: '', status: 'Završeno', napomene: '', izvodioc_id: '' })
 
   const load = () => api.get(`/oprema${search ? `?search=${search}` : ''}`).then(r => setOprema(Array.isArray(r.data) ? r.data : []))
-  useEffect(() => { load(); api.get('/korisnici/radnici/lista').then(r => setRadnici(Array.isArray(r.data) ? r.data : [])) }, [])
+  useEffect(() => { load() }, [])
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t) }, [search])
 
   const saveOprema = async () => {
@@ -51,13 +45,6 @@ export default function Oprema() {
   const deleteOprema = async (id, naziv) => {
     if (!confirm(`Obrisati opremu "${naziv}"?`)) return
     await api.delete(`/oprema/${id}`); load()
-  }
-
-  const saveOdrzavanje = async () => {
-    try {
-      await api.post('/odrzavanje', { ...odrzForm, oprema_id: showOdrzavanje.id, troskovi: parseFloat(odrzForm.troskovi) || 0, trajanje: parseInt(odrzForm.trajanje) || 0, izvodioc_id: odrzForm.izvodioc_id || null })
-      load(); setShowOdrzavanje(null)
-    } catch (e) { alert(e.response?.data?.detail || 'Greška') }
   }
 
   const OpremaForm = ({ data, onChange }) => (
@@ -105,7 +92,7 @@ export default function Oprema() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {['ID', 'Naziv', 'Tip', 'Tvrtka', 'Lokacija', 'Status', 'Održavanja', 'Troškovi', ''].map(h => (
+              {['ID', 'Naziv', 'Tip', 'Tvrtka', 'Lokacija', 'Status', 'Kvarovi', 'Troškovi', ''].map(h => (
                 <th key={h} className="text-left px-4 py-3 text-gray-600 font-medium">{h}</th>
               ))}
             </tr>
@@ -119,11 +106,10 @@ export default function Oprema() {
                 <td className="px-4 py-3 text-gray-600">{o.tvrtka || '—'}</td>
                 <td className="px-4 py-3 text-gray-600">{o.lokacija || '—'}</td>
                 <td className="px-4 py-3"><span className={STATUS_BADGE[o.status] || 'badge-blue'}>{o.status}</span></td>
-                <td className="px-4 py-3 text-gray-600">{o.broj_odrzavanja}</td>
-                <td className="px-4 py-3 text-gray-600">{o.ukupni_troskovi.toFixed(2)} €</td>
+                <td className="px-4 py-3 text-gray-600">{o.broj_kvarova}</td>
+                <td className="px-4 py-3 text-gray-600">{(o.ukupni_troskovi || 0).toFixed(2)} €</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
-                    <button onClick={() => setShowOdrzavanje(o)} className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg" title="Unesi održavanje"><Wrench size={16} /></button>
                     <button onClick={() => { setForm(o); setShowEdit(o) }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Uredi"><Edit2 size={16} /></button>
                     <button onClick={() => deleteOprema(o.id, o.naziv)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Obriši"><Trash2 size={16} /></button>
                   </div>
@@ -143,60 +129,6 @@ export default function Oprema() {
           <div className="flex gap-3 mt-6">
             <button onClick={saveOprema} className="btn-primary">Spremi</button>
             <button onClick={() => { setShowAdd(false); setShowEdit(null) }} className="btn-secondary">Odustani</button>
-          </div>
-        </Modal>
-      )}
-
-      {showOdrzavanje && (
-        <Modal title={`Unesi održavanje: ${showOdrzavanje.naziv}`} onClose={() => setShowOdrzavanje(null)}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="label">Datum *</label>
-              <input type="date" className="input" value={odrzForm.datum} onChange={e => setOdrzForm({ ...odrzForm, datum: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Vrsta *</label>
-              <select className="input" value={odrzForm.vrsta_odrzavanja} onChange={e => setOdrzForm({ ...odrzForm, vrsta_odrzavanja: e.target.value })}>
-                {VRSTE.map(v => <option key={v}>{v}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Status</label>
-              <select className="input" value={odrzForm.status} onChange={e => setOdrzForm({ ...odrzForm, status: e.target.value })}>
-                {STATUSI_ODRZAVANJA.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Izvođač</label>
-              <select className="input" value={odrzForm.izvodioc_id} onChange={e => setOdrzForm({ ...odrzForm, izvodioc_id: e.target.value })}>
-                <option value="">— odaberi —</option>
-                {radnici.map(r => <option key={r.id} value={r.id}>{r.ime} {r.prezime}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Troškovi (€)</label>
-              <input type="number" className="input" value={odrzForm.troskovi} onChange={e => setOdrzForm({ ...odrzForm, troskovi: e.target.value })} min="0" step="0.01" />
-            </div>
-            <div>
-              <label className="label">Trajanje (min)</label>
-              <input type="number" className="input" value={odrzForm.trajanje} onChange={e => setOdrzForm({ ...odrzForm, trajanje: e.target.value })} min="0" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Opis radova</label>
-              <textarea className="input h-24 resize-none" value={odrzForm.opis} onChange={e => setOdrzForm({ ...odrzForm, opis: e.target.value })} />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Korišteni materijal</label>
-              <textarea className="input h-20 resize-none" value={odrzForm.materijal} onChange={e => setOdrzForm({ ...odrzForm, materijal: e.target.value })} />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="label">Napomene</label>
-              <textarea className="input h-20 resize-none" value={odrzForm.napomene} onChange={e => setOdrzForm({ ...odrzForm, napomene: e.target.value })} />
-            </div>
-          </div>
-          <div className="flex gap-3 mt-6">
-            <button onClick={saveOdrzavanje} className="btn-primary">Spremi</button>
-            <button onClick={() => setShowOdrzavanje(null)} className="btn-secondary">Odustani</button>
           </div>
         </Modal>
       )}

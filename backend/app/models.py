@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Numeric, ForeignKey, Boolean, Enum
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Numeric, ForeignKey, Boolean, Enum, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -6,8 +6,9 @@ from .database import Base
 
 
 class RolaEnum(str, enum.Enum):
-    admin = "admin"
+    voditelj = "voditelj"
     radnik = "radnik"
+    admin = "admin"
 
 
 class StatusOpremaEnum(str, enum.Enum):
@@ -17,15 +18,30 @@ class StatusOpremaEnum(str, enum.Enum):
     raspisano = "Raspisano"
 
 
-class StatusOdrzavanjaEnum(str, enum.Enum):
-    zavrseno = "Završeno"
-    u_tijeku = "U tijeku"
-    planirano = "Planirano"
-
-
 class TvrtkaEnum(str, enum.Enum):
     cupup = "Cupup d.o.o"
     delt = "Delt papir d.o.o"
+
+
+class PrioritetEnum(str, enum.Enum):
+    hitno = "Hitno"
+    normalno = "Normalno"
+    nisko = "Nisko"
+
+
+class StatusKvaraEnum(str, enum.Enum):
+    novo = "Novo"
+    u_rjesavanju = "U rješavanju"
+    na_cekanju = "Na čekanju"
+    rijeseno = "Riješeno"
+
+
+# SLA sati po prioritetu
+SLA_SATI = {
+    "Hitno": 2,
+    "Normalno": 8,
+    "Nisko": 48,
+}
 
 
 class Korisnik(Base):
@@ -44,6 +60,9 @@ class Korisnik(Base):
     kreiran = Column(DateTime(timezone=True), server_default=func.now())
     zadnja_prijava = Column(DateTime(timezone=True), nullable=True)
 
+    prijavljeni_kvarovi = relationship("Kvar", foreign_keys="Kvar.prijavio_id", back_populates="prijavio")
+    rijesavani_kvarovi = relationship("Kvar", foreign_keys="Kvar.voditelj_id", back_populates="voditelj")
+    push_pretplate = relationship("PushPretplata", back_populates="korisnik")
 
 
 class Oprema(Base):
@@ -63,26 +82,46 @@ class Oprema(Base):
     qr_kod = Column(String(200), nullable=True)
     kreiran = Column(DateTime(timezone=True), server_default=func.now())
 
-    odrzavanja = relationship("Odrzavanje", back_populates="oprema")
+    kvarovi = relationship("Kvar", back_populates="oprema")
 
 
-class Odrzavanje(Base):
-    __tablename__ = "odrzavanje"
+class Kvar(Base):
+    __tablename__ = "kvarovi"
 
     id = Column(Integer, primary_key=True, index=True)
     oprema_id = Column(Integer, ForeignKey("oprema.id"), nullable=False)
-    izvodioc_id = Column(Integer, ForeignKey("korisnici.id"), nullable=True)
-    datum = Column(Date, nullable=False)
-    vrsta_odrzavanja = Column(String(100), nullable=False)
+    prijavio_id = Column(Integer, ForeignKey("korisnici.id"), nullable=False)
+    voditelj_id = Column(Integer, ForeignKey("korisnici.id"), nullable=True)
+
+    naslov = Column(String(200), nullable=False)
     opis = Column(Text, nullable=True)
+    foto_url = Column(String(500), nullable=True)
+    prioritet = Column(Enum(PrioritetEnum), default=PrioritetEnum.normalno, nullable=False)
+    status = Column(Enum(StatusKvaraEnum), default=StatusKvaraEnum.novo, nullable=False)
+
+    sto_je_uradjeno = Column(Text, nullable=True)
     materijal = Column(Text, nullable=True)
     troskovi = Column(Numeric(10, 2), default=0)
-    trajanje = Column(Integer, default=0)
-    status = Column(Enum(StatusOdrzavanjaEnum), default=StatusOdrzavanjaEnum.zavrseno)
-    napomene = Column(Text, nullable=True)
-    foto_url = Column(String(500), nullable=True)
-    kreiran = Column(DateTime(timezone=True), server_default=func.now())
-    kreirao_id = Column(Integer, ForeignKey("korisnici.id"), nullable=True)
+    trajanje_min = Column(Integer, default=0)
+    napomene_voditelja = Column(Text, nullable=True)
 
-    oprema = relationship("Oprema", back_populates="odrzavanja")
-    izvodioc = relationship("Korisnik", foreign_keys=[izvodioc_id])
+    datum_prijave = Column(DateTime(timezone=True), server_default=func.now())
+    datum_pocetka = Column(DateTime(timezone=True), nullable=True)
+    datum_rjesavanja = Column(DateTime(timezone=True), nullable=True)
+
+    oprema = relationship("Oprema", back_populates="kvarovi")
+    prijavio = relationship("Korisnik", foreign_keys=[prijavio_id], back_populates="prijavljeni_kvarovi")
+    voditelj = relationship("Korisnik", foreign_keys=[voditelj_id], back_populates="rijesavani_kvarovi")
+
+
+class PushPretplata(Base):
+    __tablename__ = "push_pretplate"
+
+    id = Column(Integer, primary_key=True, index=True)
+    korisnik_id = Column(Integer, ForeignKey("korisnici.id"), nullable=False)
+    endpoint = Column(Text, nullable=False, unique=True)
+    p256dh = Column(Text, nullable=False)
+    auth = Column(Text, nullable=False)
+    kreiran = Column(DateTime(timezone=True), server_default=func.now())
+
+    korisnik = relationship("Korisnik", back_populates="push_pretplate")
