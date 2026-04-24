@@ -10,12 +10,12 @@ function urlBase64ToUint8Array(base64String) {
 export async function subscribeToPush() {
   const reg = await navigator.serviceWorker.ready
 
-  const { data } = await api.get('/notifikacije/vapid-public-key')
-  if (!data.public_key) {
-    throw new Error('VAPID ključ nije postavljen na serveru')
+  const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY
+  if (!publicKey) {
+    throw new Error('VAPID ključ nije konfiguriran (VITE_VAPID_PUBLIC_KEY)')
   }
 
-  const applicationServerKey = urlBase64ToUint8Array(data.public_key.trim())
+  const applicationServerKey = urlBase64ToUint8Array(publicKey.trim())
 
   const subscription = await reg.pushManager.subscribe({
     userVisibleOnly: true,
