@@ -45,7 +45,7 @@ export default function Odrzavanje() {
   const [statusFilter, setStatusFilter] = useState('')
   const [detail, setDetail] = useState(null)
 
-  const load = () => api.get(`/odrzavanje${statusFilter ? `?status=${statusFilter}` : ''}`).then(r => setRecords(r.data))
+  const load = () => api.get(`/odrzavanje${statusFilter ? `?status=${statusFilter}` : ''}`).then(r => setRecords(Array.isArray(r.data) ? r.data : []))
   useEffect(() => { load() }, [statusFilter])
 
   const deleteRecord = async (id) => {

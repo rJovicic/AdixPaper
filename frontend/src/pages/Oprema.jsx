@@ -36,8 +36,8 @@ export default function Oprema() {
   const [form, setForm] = useState({ naziv: '', tip: '', tvrtka: 'Cupup d.o.o', proizvodac: '', model: '', serijski_broj: '', lokacija: '', status: 'Aktivno' })
   const [odrzForm, setOdrzForm] = useState({ oprema_id: null, datum: new Date().toISOString().slice(0, 10), vrsta_odrzavanja: 'Redovno servisiranje', opis: '', materijal: '', troskovi: '', trajanje: '', status: 'Završeno', napomene: '', izvodioc_id: '' })
 
-  const load = () => api.get(`/oprema${search ? `?search=${search}` : ''}`).then(r => setOprema(r.data))
-  useEffect(() => { load(); api.get('/korisnici/radnici/lista').then(r => setRadnici(r.data)) }, [])
+  const load = () => api.get(`/oprema${search ? `?search=${search}` : ''}`).then(r => setOprema(Array.isArray(r.data) ? r.data : []))
+  useEffect(() => { load(); api.get('/korisnici/radnici/lista').then(r => setRadnici(Array.isArray(r.data) ? r.data : [])) }, [])
   useEffect(() => { const t = setTimeout(load, 300); return () => clearTimeout(t) }, [search])
 
   const saveOprema = async () => {

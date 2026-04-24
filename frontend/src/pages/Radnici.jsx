@@ -24,7 +24,7 @@ export default function Radnici() {
   const [showEdit, setShowEdit] = useState(null)
   const [form, setForm] = useState(emptyForm)
 
-  const load = () => api.get('/korisnici').then(r => setRadnici(r.data))
+  const load = () => api.get('/korisnici').then(r => setRadnici(Array.isArray(r.data) ? r.data : []))
   useEffect(() => { load() }, [])
 
   const save = async () => {

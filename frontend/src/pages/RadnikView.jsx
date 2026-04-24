@@ -19,9 +19,9 @@ export default function RadnikView() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    api.get('/odrzavanje/moje').then(r => setMojaOdrzavanja(r.data))
-    api.get('/oprema').then(r => setOprema(r.data))
-    api.get('/korisnici/radnici/lista').then(r => setRadnici(r.data))
+    api.get('/odrzavanje/moje').then(r => setMojaOdrzavanja(Array.isArray(r.data) ? r.data : []))
+    api.get('/oprema').then(r => setOprema(Array.isArray(r.data) ? r.data : []))
+    api.get('/korisnici/radnici/lista').then(r => setRadnici(Array.isArray(r.data) ? r.data : []))
   }, [])
 
   const logout = () => { localStorage.clear(); navigate('/login') }
