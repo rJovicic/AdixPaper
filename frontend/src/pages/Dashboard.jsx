@@ -78,7 +78,7 @@ export default function Dashboard() {
           <StatCard icon={Zap} label="Hitni kvarovi" value={stats.hitni_kvarovi} color="red" />
           <StatCard icon={Clock} label="Kvarovi danas" value={stats.kvarovi_danas} color="blue" />
           <StatCard icon={CheckCircle} label="Riješeni ovaj mj." value={stats.rijeseni_ovaj_mjesec} color="green" />
-          <StatCard icon={TrendingUp} label="Trošak mj. (€)" value={stats.ukupni_troskovi_ovaj_mjesec.toFixed(0)} color="purple" />
+          <StatCard icon={TrendingUp} label="Trošak mj. (€)" value={(stats.ukupni_troskovi_ovaj_mjesec ?? 0).toFixed(0)} color="purple" />
           <StatCard icon={Wrench} label="Oprema" value={stats.ukupno_opreme} sub={`${stats.neispravna_oprema} neispravnih`} color="blue" />
         </div>
       )}
