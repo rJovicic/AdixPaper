@@ -10,11 +10,7 @@ export default function Login() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    const rola = localStorage.getItem('rola')
-    if (token) {
-      navigate(rola === 'radnik' ? '/radnik' : '/admin', { replace: true })
-    }
+    localStorage.clear()
   }, [])
 
   const handleSubmit = async (e) => {

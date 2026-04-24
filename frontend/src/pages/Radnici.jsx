@@ -28,13 +28,27 @@ export default function Radnici() {
   useEffect(() => { load() }, [])
 
   const save = async () => {
+    if (!form.username?.trim() || !form.ime?.trim() || !form.prezime?.trim()) {
+      alert('Obavezna polja: Korisničko ime, Ime, Prezime')
+      return
+    }
+    if (!showEdit && !form.password?.trim()) {
+      alert('Lozinka je obavezna za novog radnika')
+      return
+    }
     try {
       const payload = { ...form }
       if (showEdit && !payload.password) delete payload.password
       if (showEdit) await api.put(`/korisnici/${showEdit.id}`, payload)
       else await api.post('/korisnici', payload)
-      load(); setShowAdd(false); setShowEdit(null)
-    } catch (e) { alert(e.response?.data?.detail || 'Greška') }
+      await load()
+      setShowAdd(false); setShowEdit(null)
+    } catch (e) {
+      const detail = e.response?.data?.detail
+      const msg = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map(d => d.msg).join(', ') : 'Greška')
+      alert(`Greška pri spremanju: ${msg}`)
+      console.error('Save error:', e.response?.data || e)
+    }
   }
 
   const toggleAktivan = async (r) => {
