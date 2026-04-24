@@ -15,7 +15,7 @@ export async function subscribeToPush() {
     throw new Error('VAPID ključ nije postavljen na serveru')
   }
 
-  const applicationServerKey = urlBase64ToUint8Array(data.public_key)
+  const applicationServerKey = urlBase64ToUint8Array(data.public_key.trim())
 
   const subscription = await reg.pushManager.subscribe({
     userVisibleOnly: true,
