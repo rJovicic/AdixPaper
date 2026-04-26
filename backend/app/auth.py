@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -9,14 +9,32 @@ from .database import get_db
 from .models import Korisnik
 from .config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+MAX_BCRYPT_PASSWORD_BYTES = 72
+
+def role_value(role) -> str:
+    if role is None:
+        return ""
+    value = getattr(role, "value", role)
+    return str(value).strip().lower().split(".")[-1]
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(_password_bytes(plain_password), hashed_password.encode("utf-8"))
+    except (TypeError, ValueError):
+        return False
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    try:
+        return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+def _password_bytes(password: str) -> bytes:
+    value = (password or "").encode("utf-8")
+    if len(value) > MAX_BCRYPT_PASSWORD_BYTES:
+        raise ValueError("Lozinka je predugačka. Koristite najviše 72 bajta.")
+    return value
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
@@ -44,11 +62,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 def require_admin(current_user: Korisnik = Depends(get_current_user)) -> Korisnik:
-    if current_user.rola.value != "admin":
+    if role_value(current_user.rola) != "admin":
         raise HTTPException(status_code=403, detail="Pristup zabranjen - potrebne admin ovlasti")
     return current_user
 
 def require_voditelj_or_admin(current_user: Korisnik = Depends(get_current_user)) -> Korisnik:
-    if current_user.rola.value not in ("voditelj", "admin"):
+    if role_value(current_user.rola) not in ("voditelj", "admin"):
         raise HTTPException(status_code=403, detail="Pristup zabranjen - potrebne voditelj ili admin ovlasti")
     return current_user

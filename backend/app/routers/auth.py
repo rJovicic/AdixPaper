@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from ..database import get_db
 from ..models import Korisnik, RolaEnum
 from ..schemas import Token, KorisnikCreate, KorisnikOut
-from ..auth import verify_password, get_password_hash, create_access_token, get_current_user, require_admin
+from ..auth import verify_password, get_password_hash, create_access_token, get_current_user, role_value
 from ..config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -25,10 +25,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         data={"sub": user.username},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
+    rola = role_value(user.rola)
     return {
         "access_token": token,
         "token_type": "bearer",
-        "rola": user.rola.value,
+        "rola": rola,
+        "role": rola,
         "ime": user.ime,
         "prezime": user.prezime,
         "user_id": user.id
@@ -57,7 +59,7 @@ def register_first_admin(user_data: KorisnikCreate, db: Session = Depends(get_db
         telefon=user_data.telefon,
         odjel=user_data.odjel,
         hashed_password=get_password_hash(user_data.password),
-        rola="admin"
+        rola=RolaEnum.admin
     )
     db.add(user)
     db.commit()

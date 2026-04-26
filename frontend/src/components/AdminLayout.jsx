@@ -2,23 +2,36 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, AlertTriangle, Wrench, Users, LogOut, Menu, X, Bell } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { subscribeToPush } from '../utils/push'
+import api from '../api/axios'
+import { clearSession, getStoredUser, roleLabel, saveSession } from '../utils/auth'
 
 const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/kvarovi', icon: AlertTriangle, label: 'Kvarovi' },
   { to: '/admin/oprema', icon: Wrench, label: 'Oprema' },
-  { to: '/admin/radnici', icon: Users, label: 'Radnici' },
+  { to: '/admin/radnici', icon: Users, label: 'Radnici', adminOnly: true },
 ]
 
 export default function AdminLayout() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
-  const ime = localStorage.getItem('ime') || ''
-  const prezime = localStorage.getItem('prezime') || ''
-  const rola = localStorage.getItem('rola') || ''
+  const [user, setUser] = useState(() => getStoredUser())
+  const ime = user.ime || user.username || 'Korisnik'
+  const prezime = user.prezime || ''
+  const rola = user.rola || ''
+  const displayName = `${ime} ${prezime}`.trim()
+  const initials = `${ime[0] || 'K'}${prezime[0] || ''}`.toUpperCase()
+  const visibleNavItems = navItems.filter(item => !item.adminOnly || rola === 'admin')
 
   useEffect(() => {
+    api.get('/auth/me')
+      .then(({ data }) => setUser(saveSession({ ...data, access_token: localStorage.getItem('token') })))
+      .catch(() => {
+        clearSession()
+        navigate('/login', { replace: true })
+      })
+
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       navigator.serviceWorker.ready.then(reg => {
         reg.pushManager.getSubscription().then(sub => {
@@ -45,7 +58,7 @@ export default function AdminLayout() {
   }
 
   const logout = () => {
-    localStorage.clear()
+    clearSession()
     navigate('/login')
   }
 
@@ -58,13 +71,13 @@ export default function AdminLayout() {
           </div>
           <div>
             <h1 className="text-white font-bold text-lg leading-tight">Adix Paper</h1>
-            <p className="text-blue-300 text-xs capitalize">{rola} panel</p>
+            <p className="text-blue-300 text-xs">{roleLabel(rola)} panel</p>
           </div>
         </div>
       </div>
 
       <nav className="flex-1 p-4 space-y-1">
-        {navItems.map(({ to, icon: Icon, label, end }) => (
+        {visibleNavItems.map(({ to, icon: Icon, label, end }) => (
           <NavLink
             key={to}
             to={to}
@@ -99,11 +112,11 @@ export default function AdminLayout() {
 
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-700">
           <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-            {ime[0]}{prezime[0]}
+            {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white text-sm font-medium truncate">{ime} {prezime}</p>
-            <p className="text-blue-300 text-xs capitalize">{rola}</p>
+            <p className="text-white text-sm font-medium truncate">{displayName}</p>
+            <p className="text-blue-300 text-xs">{roleLabel(rola)}</p>
           </div>
         </div>
         <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-2 text-blue-200 hover:text-white hover:bg-blue-700 rounded-xl transition-colors">

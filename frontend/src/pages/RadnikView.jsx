@@ -3,6 +3,7 @@ import { Plus, LogOut, X, Clock, CheckCircle, AlertTriangle } from 'lucide-react
 import api from '../api/axios'
 import { useNavigate } from 'react-router-dom'
 import { PrioritetBadge, StatusBadge } from './Dashboard'
+import { clearSession, getStoredUser, roleLabel, saveSession } from '../utils/auth'
 
 function Modal({ title, onClose, children }) {
   return (
@@ -26,17 +27,27 @@ export default function RadnikView() {
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [user, setUser] = useState(() => getStoredUser())
   const navigate = useNavigate()
 
-  const ime = localStorage.getItem('ime') || ''
-  const prezime = localStorage.getItem('prezime') || ''
+  const ime = user.ime || user.username || 'Korisnik'
+  const prezime = user.prezime || ''
+  const displayName = `${ime} ${prezime}`.trim()
 
   const load = () => {
     api.get('/kvarovi').then(r => setKvarovi(Array.isArray(r.data) ? r.data : []))
     api.get('/oprema').then(r => setOprema(Array.isArray(r.data) ? r.data : []))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    api.get('/auth/me')
+      .then(({ data }) => setUser(saveSession({ ...data, access_token: localStorage.getItem('token') })))
+      .catch(() => {
+        clearSession()
+        navigate('/login', { replace: true })
+      })
+    load()
+  }, [])
 
   const save = async () => {
     if (!form.oprema_id || !form.naslov) return alert('Odaberite opremu i unesite naslov')
@@ -53,7 +64,7 @@ export default function RadnikView() {
     }
   }
 
-  const logout = () => { localStorage.clear(); navigate('/login') }
+  const logout = () => { clearSession(); navigate('/login') }
 
   const fmt = (dt) => dt ? new Date(dt).toLocaleString('hr-HR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
 
@@ -69,7 +80,7 @@ export default function RadnikView() {
           </div>
           <div>
             <h1 className="font-bold">Adix Paper</h1>
-            <p className="text-blue-200 text-xs">{ime} {prezime}</p>
+            <p className="text-blue-200 text-xs">{displayName} · {roleLabel(user.rola)}</p>
           </div>
         </div>
         <button onClick={logout} className="p-2 hover:bg-blue-700 rounded-lg transition-colors">

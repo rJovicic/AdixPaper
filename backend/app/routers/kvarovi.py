@@ -8,7 +8,7 @@ import json
 from ..database import get_db
 from ..models import Kvar, Oprema, Korisnik, PushPretplata, PrioritetEnum, StatusKvaraEnum, SLA_SATI
 from ..schemas import KvarCreate, KvarVoditeljUpdate, KvarOut
-from ..auth import get_current_user, require_voditelj_or_admin
+from ..auth import get_current_user, require_voditelj_or_admin, role_value
 
 router = APIRouter(prefix="/api/kvarovi", tags=["kvarovi"])
 
@@ -69,7 +69,7 @@ def list_kvarovi(
         joinedload(Kvar.prijavio),
         joinedload(Kvar.voditelj)
     )
-    if current_user.rola.value == "radnik":
+    if role_value(current_user.rola) == "radnik":
         q = q.filter(Kvar.prijavio_id == current_user.id)
     if status:
         q = q.filter(Kvar.status == status)

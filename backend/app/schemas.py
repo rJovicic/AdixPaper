@@ -10,6 +10,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     rola: str
+    role: str
     ime: str
     prezime: str
     user_id: int

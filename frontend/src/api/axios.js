@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { clearSession } from '../utils/auth'
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
@@ -16,7 +17,7 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401 && !window.location.pathname.includes('/login')) {
-      localStorage.clear()
+      clearSession()
       window.location.href = '/login'
     }
     return Promise.reject(err)

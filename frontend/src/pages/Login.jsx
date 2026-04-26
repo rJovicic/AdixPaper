@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/axios'
+import { clearSession, homeForRole, normalizeRole, saveSession } from '../utils/auth'
 
 export default function Login() {
   const [username, setUsername] = useState('')
@@ -10,7 +11,7 @@ export default function Login() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    localStorage.clear()
+    clearSession()
   }, [])
 
   const handleSubmit = async (e) => {
@@ -26,14 +27,18 @@ export default function Login() {
       form.append('username', username)
       form.append('password', password)
       const { data } = await api.post('/auth/login', form)
-      localStorage.setItem('token', data.access_token)
-      localStorage.setItem('rola', data.rola)
-      localStorage.setItem('ime', data.ime)
-      localStorage.setItem('prezime', data.prezime)
-      localStorage.setItem('user_id', data.user_id)
-      navigate(data.rola === 'radnik' ? '/radnik' : '/admin')
+      const loginData = { ...data, rola: normalizeRole(data.rola || data.role) }
+
+      if (!loginData.rola && data.access_token) {
+        localStorage.setItem('token', data.access_token)
+        const me = await api.get('/auth/me')
+        Object.assign(loginData, me.data, { access_token: data.access_token })
+      }
+
+      const user = saveSession(loginData)
+      navigate(homeForRole(user.rola), { replace: true })
     } catch (err) {
-      setError(err.response?.data?.detail || 'Greška pri prijavi')
+      setError(err.response?.data?.detail || err.message || 'Greška pri prijavi')
     } finally {
       setLoading(false)
     }
