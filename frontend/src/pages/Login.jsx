@@ -27,6 +27,10 @@ export default function Login() {
       form.append('username', username)
       form.append('password', password)
       const { data } = await api.post('/auth/login', form)
+      if (!data || typeof data !== 'object') {
+        throw new Error('Frontend nije spojen na backend API. Provjerite VITE_API_URL u Railway frontend servisu.')
+      }
+
       const loginData = { ...data, rola: normalizeRole(data.rola || data.role) }
 
       if (!loginData.rola && data.access_token) {

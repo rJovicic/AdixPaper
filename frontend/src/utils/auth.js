@@ -53,7 +53,7 @@ export function saveSession(data = {}) {
 
   if (!token || !user.rola) {
     clearSession()
-    throw new Error('Backend nije vratio ispravne podatke za prijavu.')
+    throw new Error('Backend nije vratio token i rolu. Provjerite da frontend VITE_API_URL pokazuje na backend URL s /api na kraju.')
   }
 
   localStorage.setItem('token', token)
