@@ -17,6 +17,7 @@ Projekt se deploya kao dva Railway servisa iz istog GitHub repo-a:
    - Varijable postavi prema `frontend/.env.example`.
    - `VITE_API_URL` mora biti javni URL backend servisa s `/api` na kraju.
    - Primjer: `https://adix-backend.up.railway.app/api`
+   - Istu vrijednost mozes postaviti i kao `BACKEND_URL`; frontend server ju koristi za runtime proxy ako build-time `VITE_API_URL` nije uhvacen.
 
 Nakon deploya:
 
