@@ -6,7 +6,7 @@ from datetime import datetime
 import json
 
 from ..database import get_db
-from ..models import Kvar, Oprema, Korisnik, PushPretplata, PrioritetEnum, StatusKvaraEnum, SLA_SATI
+from ..models import Kvar, Oprema, Korisnik, PushPretplata, RolaEnum, PrioritetEnum, StatusKvaraEnum, SLA_SATI
 from ..schemas import KvarCreate, KvarVoditeljUpdate, KvarOut
 from ..auth import get_current_user, require_voditelj_or_admin, role_value
 
@@ -21,7 +21,12 @@ def _send_push_notifications(db: Session, title: str, body: str, url: str = "/")
         if not settings.VAPID_PRIVATE_KEY:
             return
 
-        pretplate = db.query(PushPretplata).all()
+        pretplate = (
+            db.query(PushPretplata)
+            .join(Korisnik, PushPretplata.korisnik_id == Korisnik.id)
+            .filter(Korisnik.aktivan == True, Korisnik.rola.in_([RolaEnum.admin, RolaEnum.voditelj]))
+            .all()
+        )
         mrtve = []
         for p in pretplate:
             try:
@@ -112,9 +117,9 @@ def create_kvar(
     background_tasks.add_task(
         _send_push_notifications,
         db,
-        f"🔧 Novi kvar [{data.prioritet.value}]",
+        f"Novi kvar [{data.prioritet.value}]",
         f"{oprema.naziv}: {data.naslov}",
-        f"/kvarovi/{kvar.id}"
+        f"/admin/kvarovi/{kvar.id}"
     )
 
     return _load_kvar(kvar.id, db)

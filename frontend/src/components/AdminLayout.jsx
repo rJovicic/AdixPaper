@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, AlertTriangle, Wrench, Users, LogOut, Menu, X, Bell } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 import { subscribeToPush } from '../utils/push'
 import api from '../api/axios'
 import { clearSession, getStoredUser, roleLabel, saveSession } from '../utils/auth'
@@ -16,7 +16,9 @@ export default function AdminLayout() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pushEnabled, setPushEnabled] = useState(false)
+  const [toast, setToast] = useState(null)
   const [user, setUser] = useState(() => getStoredUser())
+  const lastSeenKvarId = useRef(null)
   const ime = user.ime || user.username || 'Korisnik'
   const prezime = user.prezime || ''
   const rola = user.rola || ''
@@ -39,7 +41,77 @@ export default function AdminLayout() {
         })
       })
     }
-  }, [])
+  }, [navigate])
+
+  const showKvarNotification = useCallback((kvar, count) => {
+    const oprema = kvar.oprema?.naziv || 'Oprema'
+    const title = count > 1 ? `${count} nova kvara` : 'Novi kvar'
+    const body = `${oprema}: ${kvar.naslov}`
+    const url = `/admin/kvarovi/${kvar.id}`
+
+    setToast({ title, body, url })
+    window.setTimeout(() => setToast(current => current?.url === url ? null : current), 9000)
+
+    if (document.visibilityState === 'visible') return
+    if (!('Notification' in window) || Notification.permission !== 'granted') return
+
+    try {
+      const notification = new Notification(title, { body, tag: `kvar-${kvar.id}` })
+      notification.onclick = () => {
+        window.focus()
+        navigate(url)
+        notification.close()
+      }
+    } catch {
+      // Browser moze odbiti foreground Notification; in-app toast je primarni signal.
+    }
+  }, [navigate])
+
+  useEffect(() => {
+    if (!['admin', 'voditelj'].includes(rola)) return
+
+    let active = true
+    let timer
+
+    const checkNewKvarovi = async () => {
+      try {
+        const { data } = await api.get('/kvarovi')
+        const kvarovi = Array.isArray(data) ? data : []
+        const latestId = kvarovi.reduce((max, kvar) => Math.max(max, Number(kvar.id) || 0), 0)
+
+        if (lastSeenKvarId.current === null) {
+          lastSeenKvarId.current = latestId
+          return
+        }
+
+        const novi = kvarovi
+          .filter(kvar => {
+            const id = Number(kvar.id) || 0
+            const status = String(kvar.status || '').toLowerCase()
+            return id > lastSeenKvarId.current && status === 'novo'
+          })
+          .sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0))
+
+        if (novi.length > 0 && active) {
+          const kvar = novi[0]
+          lastSeenKvarId.current = latestId
+          showKvarNotification(kvar, novi.length)
+        } else {
+          lastSeenKvarId.current = Math.max(lastSeenKvarId.current, latestId)
+        }
+      } catch {
+        // Ako kratko padne mreza ili auth refresh, polling samo preskace taj krug.
+      }
+    }
+
+    checkNewKvarovi()
+    timer = window.setInterval(checkNewKvarovi, 15000)
+
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [rola, showKvarNotification])
 
   const togglePush = async () => {
     try {
@@ -154,6 +226,29 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
+
+      {toast && (
+        <div className="fixed right-4 top-4 z-[60] w-[min(360px,calc(100vw-2rem))] rounded-lg border border-blue-100 bg-white shadow-xl">
+          <div className="flex items-start gap-3 p-4">
+            <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+              <AlertTriangle size={18} />
+            </div>
+            <button
+              onClick={() => {
+                navigate(toast.url)
+                setToast(null)
+              }}
+              className="min-w-0 flex-1 text-left"
+            >
+              <p className="font-semibold text-gray-900">{toast.title}</p>
+              <p className="mt-1 text-sm text-gray-600">{toast.body}</p>
+            </button>
+            <button onClick={() => setToast(null)} className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
