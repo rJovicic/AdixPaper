@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import datetime, timedelta
 from ..database import get_db
 from ..models import Korisnik, RolaEnum
@@ -12,7 +13,8 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(Korisnik).filter(Korisnik.username == form_data.username).first()
+    username = form_data.username.strip()
+    user = db.query(Korisnik).filter(func.lower(Korisnik.username) == username.lower()).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Pogrešan username ili lozinka")
     if not user.aktivan:

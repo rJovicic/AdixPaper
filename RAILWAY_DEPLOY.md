@@ -8,7 +8,8 @@ Projekt se deploya kao dva Railway servisa iz istog GitHub repo-a:
    - Dodaj PostgreSQL service.
    - Varijable postavi prema `backend/.env.example`.
    - `DATABASE_URL` treba referencirati Railway PostgreSQL varijablu: `${{Postgres.DATABASE_URL}}`.
-   - `ADMIN_USERNAME` i `ADMIN_PASSWORD` stvaraju prvog admina samo ako u bazi jos nema admina.
+   - `ADMIN_USERNAME` i `ADMIN_PASSWORD` stvaraju prvog admina.
+   - Ako admin vec postoji i treba reset lozinke, privremeno postavi `ADMIN_RESET_PASSWORD=true`, redeployaj backend, prijavi se, pa vrati na `false`.
 
 2. Frontend servis
    - Root Directory: `/frontend`

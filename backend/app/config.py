@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     VAPID_EMAIL: str = "mailto:admin@adixpaper.com"
     ADMIN_USERNAME: str = ""
     ADMIN_PASSWORD: str = ""
+    ADMIN_RESET_PASSWORD: bool = False
     ADMIN_IME: str = "Admin"
     ADMIN_PREZIME: str = "Adix"
     ADMIN_EMAIL: str = ""

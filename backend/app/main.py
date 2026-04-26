@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import func
 from .auth import get_password_hash
 from .config import settings
 from .database import engine, Base, SessionLocal
@@ -12,23 +13,33 @@ def seed_initial_admin():
     if not settings.ADMIN_USERNAME or not settings.ADMIN_PASSWORD:
         return
 
+    username = settings.ADMIN_USERNAME.strip()
+    if not username:
+        return
+
     db = SessionLocal()
     try:
+        user = db.query(Korisnik).filter(func.lower(Korisnik.username) == username.lower()).first()
         existing_admin = db.query(Korisnik).filter(Korisnik.rola == RolaEnum.admin).first()
-        if existing_admin:
-            return
+        if existing_admin and (user is None or user.id != existing_admin.id):
+            if not settings.ADMIN_RESET_PASSWORD:
+                return
 
-        user = db.query(Korisnik).filter(Korisnik.username == settings.ADMIN_USERNAME).first()
+            user = existing_admin
+
         if user is None:
-            user = Korisnik(username=settings.ADMIN_USERNAME)
+            user = Korisnik(username=username)
             db.add(user)
+        else:
+            user.username = username
 
         user.ime = settings.ADMIN_IME
         user.prezime = settings.ADMIN_PREZIME
         user.email = settings.ADMIN_EMAIL or None
         user.telefon = settings.ADMIN_TELEFON or None
         user.odjel = settings.ADMIN_ODJEL or None
-        user.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
+        if settings.ADMIN_RESET_PASSWORD or not user.hashed_password:
+            user.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
         user.rola = RolaEnum.admin
         user.aktivan = True
         db.commit()
