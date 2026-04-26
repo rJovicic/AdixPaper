@@ -5,12 +5,12 @@ const path = require('path')
 
 const port = Number(process.env.PORT || 3000)
 const distDir = path.join(__dirname, 'dist')
-const apiUrl = process.env.VITE_API_URL || process.env.BACKEND_URL || ''
+const apiUrl = process.env.BACKEND_URL || process.env.VITE_API_URL || ''
 
 function getBackendTarget(reqUrl) {
   if (!apiUrl) return null
 
-  const parsed = new URL(apiUrl)
+  const parsed = new URL(apiUrl.startsWith('http') ? apiUrl : `https://${apiUrl}`)
   const basePath = parsed.pathname.replace(/\/$/, '')
   const requestPath = reqUrl.startsWith('/api') ? reqUrl.slice('/api'.length) || '/' : reqUrl
   const targetPath = `${basePath || '/api'}${requestPath}`.replace(/\/{2,}/g, '/')
@@ -24,11 +24,86 @@ function getBackendTarget(reqUrl) {
   }
 }
 
-function proxyApi(req, res) {
-  const target = getBackendTarget(req.url)
+function sendJson(res, statusCode, payload) {
+  res.writeHead(statusCode, { 'content-type': 'application/json' })
+  res.end(JSON.stringify(payload))
+}
+
+function debugBackend(res) {
+  let target
+  try {
+    target = getBackendTarget('/api/auth/login')
+  } catch (error) {
+    sendJson(res, 500, {
+      configured: Boolean(apiUrl),
+      apiUrl,
+      error: `Neispravan BACKEND_URL/VITE_API_URL: ${error.message}`,
+    })
+    return
+  }
+
   if (!target) {
-    res.writeHead(500, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ detail: 'VITE_API_URL nije postavljen na frontend servisu.' }))
+    sendJson(res, 500, {
+      configured: false,
+      error: 'BACKEND_URL ili VITE_API_URL nije postavljen na frontend servisu.',
+    })
+    return
+  }
+
+  const parsed = new URL(target.origin)
+  const client = parsed.protocol === 'https:' ? https : http
+  const started = Date.now()
+  const req = client.request(
+    {
+      method: 'GET',
+      hostname: parsed.hostname,
+      port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
+      path: '/health',
+      headers: { host: parsed.host },
+      timeout: 8000,
+    },
+    (backendRes) => {
+      let body = ''
+      backendRes.on('data', chunk => { body += chunk.toString() })
+      backendRes.on('end', () => {
+        sendJson(res, 200, {
+          configured: true,
+          apiUrl,
+          loginTarget: `${target.origin}${target.path}`,
+          healthUrl: `${target.origin}/health`,
+          healthStatus: backendRes.statusCode,
+          elapsedMs: Date.now() - started,
+          body: body.slice(0, 500),
+        })
+      })
+    }
+  )
+
+  req.on('timeout', () => req.destroy(new Error('timeout')))
+  req.on('error', (error) => {
+    sendJson(res, 502, {
+      configured: true,
+      apiUrl,
+      loginTarget: `${target.origin}${target.path}`,
+      healthUrl: `${target.origin}/health`,
+      error: error.message,
+      elapsedMs: Date.now() - started,
+    })
+  })
+  req.end()
+}
+
+function proxyApi(req, res) {
+  let target
+  try {
+    target = getBackendTarget(req.url)
+  } catch (error) {
+    sendJson(res, 500, { detail: `Neispravan BACKEND_URL/VITE_API_URL: ${error.message}` })
+    return
+  }
+
+  if (!target) {
+    sendJson(res, 500, { detail: 'BACKEND_URL ili VITE_API_URL nije postavljen na frontend servisu.' })
     return
   }
 
@@ -50,8 +125,7 @@ function proxyApi(req, res) {
   )
 
   proxyReq.on('error', (error) => {
-    res.writeHead(502, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ detail: `Backend API nije dostupan: ${error.message}` }))
+    sendJson(res, 502, { detail: `Backend API nije dostupan: ${error.message}` })
   })
 
   req.pipe(proxyReq)
@@ -92,6 +166,11 @@ function contentType(filePath) {
 }
 
 http.createServer((req, res) => {
+  if (req.url === '/__debug/backend') {
+    debugBackend(res)
+    return
+  }
+
   if (req.url.startsWith('/api/')) {
     proxyApi(req, res)
     return
