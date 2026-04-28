@@ -131,6 +131,28 @@ class KvarVoditeljUpdate(BaseModel):
     datum_rjesavanja: Optional[datetime] = None
     prioritet: Optional[PrioritetEnum] = None
 
+
+class KvarKomentarCreate(BaseModel):
+    tekst: str
+    interno: bool = False
+
+
+class KvarDogadjajOut(BaseModel):
+    id: int
+    kvar_id: int
+    korisnik_id: Optional[int] = None
+    tip: str
+    naslov: str
+    opis: Optional[str] = None
+    podaci: Optional[dict] = None
+    interno: bool
+    kreiran: datetime
+    korisnik: Optional[KorisnikMini] = None
+
+    class Config:
+        from_attributes = True
+
+
 class KvarOut(BaseModel):
     id: int
     oprema_id: int
@@ -182,6 +204,9 @@ class DashboardStats(BaseModel):
     ukupni_troskovi_godina: float
     broj_radnika: int
     hitni_kvarovi: int
+    sla_kasni: int
+    sla_uskoro: int
+    prosjecno_vrijeme_rjesavanja_min: float
 
 class KvaroviPoMjesecu(BaseModel):
     mjesec: str

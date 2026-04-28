@@ -20,6 +20,7 @@ export default function AdminLayout() {
   const [toast, setToast] = useState(null)
   const [user, setUser] = useState(() => getStoredUser())
   const lastSeenKvarId = useRef(null)
+  const notifiedKvarIds = useRef(new Set())
   const ime = user.ime || user.username || 'Korisnik'
   const prezime = user.prezime || ''
   const rola = user.rola || ''
@@ -45,6 +46,10 @@ export default function AdminLayout() {
   }, [navigate])
 
   const showKvarNotification = useCallback((kvar, count) => {
+    const kvarId = Number(kvar.id) || 0
+    if (kvarId && notifiedKvarIds.current.has(kvarId)) return
+    if (kvarId) notifiedKvarIds.current.add(kvarId)
+
     const oprema = kvar.oprema?.naziv || 'Oprema'
     const title = count > 1 ? `${count} nova kvara` : 'Novi kvar'
     const body = `${oprema}: ${kvar.naslov}`
@@ -67,6 +72,28 @@ export default function AdminLayout() {
       // Browser moze odbiti foreground Notification; in-app toast je primarni signal.
     }
   }, [navigate])
+
+  useEffect(() => {
+    if (!['admin', 'voditelj'].includes(rola)) return
+    if (!('EventSource' in window)) return
+
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    const source = new EventSource(`/api/kvarovi/stream?token=${encodeURIComponent(token)}`)
+    source.onmessage = event => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.type !== 'new_kvar') return
+        lastSeenKvarId.current = Math.max(lastSeenKvarId.current || 0, Number(data.id) || 0)
+        showKvarNotification(data, 1)
+      } catch {
+        // Ako stream vrati ping ili neispravan payload, ignoriramo ga.
+      }
+    }
+
+    return () => source.close()
+  }, [rola, showKvarNotification])
 
   useEffect(() => {
     if (!['admin', 'voditelj'].includes(rola)) return

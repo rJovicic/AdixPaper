@@ -62,6 +62,7 @@ class Korisnik(Base):
 
     prijavljeni_kvarovi = relationship("Kvar", foreign_keys="Kvar.prijavio_id", back_populates="prijavio")
     rijesavani_kvarovi = relationship("Kvar", foreign_keys="Kvar.voditelj_id", back_populates="voditelj")
+    kvar_dogadjaji = relationship("KvarDogadjaj", back_populates="korisnik")
     push_pretplate = relationship("PushPretplata", back_populates="korisnik")
 
 
@@ -112,6 +113,24 @@ class Kvar(Base):
     oprema = relationship("Oprema", back_populates="kvarovi")
     prijavio = relationship("Korisnik", foreign_keys=[prijavio_id], back_populates="prijavljeni_kvarovi")
     voditelj = relationship("Korisnik", foreign_keys=[voditelj_id], back_populates="rijesavani_kvarovi")
+    dogadjaji = relationship("KvarDogadjaj", back_populates="kvar", cascade="all, delete-orphan", order_by="KvarDogadjaj.kreiran")
+
+
+class KvarDogadjaj(Base):
+    __tablename__ = "kvar_dogadjaji"
+
+    id = Column(Integer, primary_key=True, index=True)
+    kvar_id = Column(Integer, ForeignKey("kvarovi.id"), nullable=False, index=True)
+    korisnik_id = Column(Integer, ForeignKey("korisnici.id"), nullable=True)
+    tip = Column(String(40), nullable=False, index=True)
+    naslov = Column(String(200), nullable=False)
+    opis = Column(Text, nullable=True)
+    podaci = Column(JSON, nullable=True)
+    interno = Column(Boolean, default=False, nullable=False)
+    kreiran = Column(DateTime(timezone=True), server_default=func.now())
+
+    kvar = relationship("Kvar", back_populates="dogadjaji")
+    korisnik = relationship("Korisnik", back_populates="kvar_dogadjaji")
 
 
 class PushPretplata(Base):

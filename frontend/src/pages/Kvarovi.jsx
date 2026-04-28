@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Filter, RefreshCw } from 'lucide-react'
+import { FileSpreadsheet, FileText, Filter, RefreshCw } from 'lucide-react'
 import api from '../api/axios'
 import { SlaBadge } from '../utils/sla'
 import { PrioritetBadge, StatusBadge } from './Dashboard'
@@ -9,22 +9,42 @@ export default function Kvarovi() {
   const [kvarovi, setKvarovi] = useState([])
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPrioritet, setFilterPrioritet] = useState('')
+  const [filterSla, setFilterSla] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
-  const load = () => {
-    setLoading(true)
+  const buildParams = () => {
     const params = new URLSearchParams()
     if (filterStatus) params.set('status', filterStatus)
     if (filterPrioritet) params.set('prioritet', filterPrioritet)
+    if (filterSla) params.set('sla', filterSla)
+    return params
+  }
+
+  const load = () => {
+    setLoading(true)
+    const params = buildParams()
     api.get(`/kvarovi?${params}`)
       .then(r => setKvarovi(Array.isArray(r.data) ? r.data : []))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [filterStatus, filterPrioritet])
+  useEffect(() => { load() }, [filterStatus, filterPrioritet, filterSla])
 
   const fmt = (dt) => dt ? new Date(dt).toLocaleString('hr-HR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'
+  const downloadExport = async (format) => {
+    const params = buildParams()
+    const response = await api.get(`/kvarovi/export.${format}?${params}`, { responseType: 'blob' })
+    const blob = new Blob([response.data])
+    const href = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = href
+    link.download = `adix-paper-kvarovi.${format}`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(href)
+  }
 
   return (
     <div className="space-y-6">
@@ -33,9 +53,17 @@ export default function Kvarovi() {
           <h1 className="text-2xl font-bold text-gray-900">Kvarovi</h1>
           <p className="text-gray-500 text-sm">{kvarovi.length} zapisa</p>
         </div>
-        <button onClick={load} disabled={loading} className="btn-secondary flex items-center gap-2">
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Osvježi
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => downloadExport('xlsx')} className="btn-secondary flex items-center gap-2">
+            <FileSpreadsheet size={16} /> Excel
+          </button>
+          <button onClick={() => downloadExport('pdf')} className="btn-secondary flex items-center gap-2">
+            <FileText size={16} /> PDF
+          </button>
+          <button onClick={load} disabled={loading} className="btn-secondary flex items-center gap-2">
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Osvježi
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -64,8 +92,18 @@ export default function Kvarovi() {
           <option value="Normalno">Normalno</option>
           <option value="Nisko">Nisko</option>
         </select>
-        {(filterStatus || filterPrioritet) && (
-          <button onClick={() => { setFilterStatus(''); setFilterPrioritet('') }} className="text-sm text-gray-500 hover:text-gray-700 underline">
+        <select
+          className="input py-1.5 text-sm w-auto"
+          value={filterSla}
+          onChange={e => setFilterSla(e.target.value)}
+        >
+          <option value="">Svi SLA statusi</option>
+          <option value="kasni">SLA kasni</option>
+          <option value="uskoro">SLA uskoro ističe</option>
+          <option value="ok">SLA u roku</option>
+        </select>
+        {(filterStatus || filterPrioritet || filterSla) && (
+          <button onClick={() => { setFilterStatus(''); setFilterPrioritet(''); setFilterSla('') }} className="text-sm text-gray-500 hover:text-gray-700 underline">
             Očisti filtere
           </button>
         )}

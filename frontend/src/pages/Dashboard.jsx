@@ -10,6 +10,12 @@ import { SlaBadge } from '../utils/sla'
 
 const PIE_COLORS = ['#f59e0b', '#3b82f6', '#6b7280', '#10b981']
 
+function durationLabel(minutes = 0) {
+  if (!minutes) return '0m'
+  if (minutes < 60) return `${Math.round(minutes)}m`
+  return `${(minutes / 60).toFixed(1)}h`
+}
+
 function StatCard({ icon: Icon, label, value, sub, color = 'blue' }) {
   const colors = {
     blue: 'bg-blue-50 text-blue-600',
@@ -56,6 +62,7 @@ export default function Dashboard() {
   const [kvarovi, setKvarovi] = useState([])
   const [chartData, setChartData] = useState([])
   const [statusData, setStatusData] = useState([])
+  const [topOprema, setTopOprema] = useState([])
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -63,6 +70,7 @@ export default function Dashboard() {
     api.get('/kvarovi').then(r => setKvarovi(Array.isArray(r.data) ? r.data.filter(k => k.status !== 'Riješeno').slice(0, 8) : []))
     api.get('/dashboard/kvarovi-po-mjesecu').then(r => setChartData(Array.isArray(r.data) ? r.data : []))
     api.get('/dashboard/kvarovi-po-statusu').then(r => setStatusData(Array.isArray(r.data) ? r.data : []))
+    api.get('/dashboard/top-oprema').then(r => setTopOprema(Array.isArray(r.data) ? r.data : []))
   }, [])
 
   return (
@@ -76,8 +84,11 @@ export default function Dashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <StatCard icon={AlertTriangle} label="Otvoreni kvarovi" value={stats.otvoreni_kvarovi} color="yellow" />
           <StatCard icon={Zap} label="Hitni kvarovi" value={stats.hitni_kvarovi} color="red" />
+          <StatCard icon={AlertTriangle} label="SLA kasni" value={stats.sla_kasni ?? 0} color="red" />
+          <StatCard icon={Clock} label="SLA uskoro" value={stats.sla_uskoro ?? 0} color="yellow" />
           <StatCard icon={Clock} label="Kvarovi danas" value={stats.kvarovi_danas} color="blue" />
           <StatCard icon={CheckCircle} label="Riješeni ovaj mj." value={stats.rijeseni_ovaj_mjesec} color="green" />
+          <StatCard icon={CheckCircle} label="Prosjek rješ." value={durationLabel(stats.prosjecno_vrijeme_rjesavanja_min)} color="green" />
           <StatCard icon={TrendingUp} label="Trošak mj. (€)" value={(stats.ukupni_troskovi_ovaj_mjesec ?? 0).toFixed(0)} color="purple" />
           <StatCard icon={Wrench} label="Oprema" value={stats.ukupno_opreme} sub={`${stats.neispravna_oprema} neispravnih`} color="blue" />
         </div>
@@ -124,6 +135,41 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-semibold text-gray-800">Oprema s najviše kvarova</h2>
+          <button onClick={() => navigate('/admin/oprema')} className="text-sm text-blue-600 hover:underline">
+            Oprema →
+          </button>
+        </div>
+        {topOprema.length === 0 ? (
+          <p className="text-center text-gray-400 py-8 text-sm">Nema dovoljno podataka za rang listu</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-gray-500">
+                  <th className="text-left pb-3 font-medium">Oprema</th>
+                  <th className="text-left pb-3 font-medium hidden md:table-cell">Lokacija</th>
+                  <th className="text-left pb-3 font-medium">Kvarovi</th>
+                  <th className="text-left pb-3 font-medium">Trošak</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {topOprema.slice(0, 6).map((item, index) => (
+                  <tr key={`${item.naziv}-${index}`}>
+                    <td className="py-3 font-medium text-gray-900">{item.naziv}</td>
+                    <td className="py-3 text-gray-500 hidden md:table-cell">{item.lokacija || '-'}</td>
+                    <td className="py-3 text-gray-700">{item.broj_kvarova}</td>
+                    <td className="py-3 text-gray-700">{(item.ukupni_troskovi ?? 0).toFixed(2)} €</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="card">

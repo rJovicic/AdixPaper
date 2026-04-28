@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clock, User, Wrench, Save, CheckCircle, Play, Pause } from 'lucide-react'
+import { ArrowLeft, Clock, User, Wrench, Save, CheckCircle, Play, Pause, History, MessageSquare, Send, Lock } from 'lucide-react'
 import api from '../api/axios'
 import { SlaBadge } from '../utils/sla'
 import { PrioritetBadge, StatusBadge } from './Dashboard'
@@ -24,20 +24,30 @@ export default function KvarDetalji() {
   })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
+  const [events, setEvents] = useState([])
+  const [comment, setComment] = useState('')
+  const [internalComment, setInternalComment] = useState(false)
+  const [commentSaving, setCommentSaving] = useState(false)
 
-  const load = () => api.get(`/kvarovi/${id}`).then(r => {
-    setKvar(r.data)
+  const load = async () => {
+    const [kvarResponse, eventsResponse] = await Promise.all([
+      api.get(`/kvarovi/${id}`),
+      api.get(`/kvarovi/${id}/dogadjaji`).catch(() => ({ data: [] }))
+    ])
+    const data = kvarResponse.data
+    setKvar(data)
+    setEvents(Array.isArray(eventsResponse.data) ? eventsResponse.data : [])
     setForm({
-      status: r.data.status,
-      voditelj_id: r.data.voditelj_id || '',
-      sto_je_uradjeno: r.data.sto_je_uradjeno || '',
-      materijal: r.data.materijal || '',
-      troskovi: r.data.troskovi || '',
-      trajanje_min: r.data.trajanje_min || '',
-      napomene_voditelja: r.data.napomene_voditelja || '',
-      prioritet: r.data.prioritet
+      status: data.status,
+      voditelj_id: data.voditelj_id || '',
+      sto_je_uradjeno: data.sto_je_uradjeno || '',
+      materijal: data.materijal || '',
+      troskovi: data.troskovi || '',
+      trajanje_min: data.trajanje_min || '',
+      napomene_voditelja: data.napomene_voditelja || '',
+      prioritet: data.prioritet
     })
-  })
+  }
 
   useEffect(() => { load() }, [id])
 
@@ -65,8 +75,34 @@ export default function KvarDetalji() {
 
   const setStatus = (status) => save({ status })
 
+  const addComment = async () => {
+    const tekst = comment.trim()
+    if (!tekst) return
+
+    setCommentSaving(true)
+    setMsg('')
+    try {
+      await api.post(`/kvarovi/${id}/komentari`, { tekst, interno: internalComment })
+      setComment('')
+      setInternalComment(false)
+      await load()
+    } catch (e) {
+      setMsg(e.response?.data?.detail || 'Greška pri spremanju komentara')
+    } finally {
+      setCommentSaving(false)
+    }
+  }
+
   const fmt = (dt) => dt ? new Date(dt).toLocaleString('hr-HR') : '—'
   const fmtDate = (dt) => dt ? new Date(dt).toLocaleDateString('hr-HR') : '—'
+  const eventColor = (tip) => ({
+    created: 'bg-blue-50 text-blue-700',
+    status: 'bg-yellow-50 text-yellow-700',
+    prioritet: 'bg-red-50 text-red-700',
+    assignment: 'bg-purple-50 text-purple-700',
+    details: 'bg-gray-50 text-gray-700',
+    komentar: 'bg-green-50 text-green-700'
+  }[tip] || 'bg-gray-50 text-gray-700')
 
   if (!kvar) return <div className="text-center py-20 text-gray-400">Učitavanje...</div>
 
@@ -195,6 +231,70 @@ export default function KvarDetalji() {
           </button>
           <button onClick={() => navigate('/admin/kvarovi')} className="btn-secondary">Odustani</button>
           {msg && <span className={`text-sm ${msg.includes('Greška') ? 'text-red-500' : 'text-green-600'}`}>{msg}</span>}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="flex items-center gap-2 mb-4">
+          <History size={18} className="text-blue-600" />
+          <h3 className="font-semibold text-gray-700">Timeline i komentari</h3>
+        </div>
+
+        <div className="space-y-3 mb-5">
+          {events.length === 0 ? (
+            <p className="text-sm text-gray-400">Još nema zapisa aktivnosti za ovaj kvar.</p>
+          ) : events.map(event => (
+            <div key={event.id} className="flex gap-3">
+              <div className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${eventColor(event.tip)}`}>
+                {event.tip === 'komentar' ? <MessageSquare size={15} /> : <History size={15} />}
+              </div>
+              <div className="min-w-0 flex-1 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-gray-800">{event.naslov}</p>
+                  {event.interno && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                      <Lock size={11} /> interno
+                    </span>
+                  )}
+                </div>
+                {event.opis && <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">{event.opis}</p>}
+                <p className="mt-1 text-xs text-gray-400">
+                  {fmt(event.kreiran)}
+                  {event.korisnik ? ` · ${event.korisnik.ime} ${event.korisnik.prezime}` : ''}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-lg border border-gray-100 bg-white p-3">
+          <Field label="Dodaj komentar">
+            <textarea
+              className="input"
+              rows={3}
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="Napiši što se dogodilo, što se čeka ili što treba napraviti..."
+            />
+          </Field>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={internalComment}
+                onChange={e => setInternalComment(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              Interna napomena
+            </label>
+            <button
+              onClick={addComment}
+              disabled={commentSaving || !comment.trim()}
+              className="btn-primary flex items-center gap-2 disabled:opacity-50"
+            >
+              <Send size={16} /> {commentSaving ? 'Spremanje...' : 'Dodaj komentar'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

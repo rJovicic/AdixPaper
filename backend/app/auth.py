@@ -42,7 +42,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Korisnik:
+def get_user_from_token(token: str, db: Session) -> Korisnik:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Neispravni podaci za prijavu",
@@ -60,6 +60,9 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None:
         raise credentials_exception
     return user
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Korisnik:
+    return get_user_from_token(token, db)
 
 def require_admin(current_user: Korisnik = Depends(get_current_user)) -> Korisnik:
     if role_value(current_user.rola) != "admin":

@@ -2,16 +2,32 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from ..database import get_db
-from ..models import Oprema, Kvar, Korisnik, StatusKvaraEnum, PrioritetEnum
+from ..models import Oprema, Kvar, Korisnik, StatusKvaraEnum, PrioritetEnum, SLA_SATI
 from ..schemas import DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu
 from ..auth import require_voditelj_or_admin
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 MJESECI = ["", "Jan", "Feb", "Mar", "Apr", "Maj", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"]
+OPEN_STATUSES = [StatusKvaraEnum.novo, StatusKvaraEnum.u_rjesavanju, StatusKvaraEnum.na_cekanju]
+
+
+def _enum_value(value) -> str:
+    raw = getattr(value, "value", value)
+    return str(raw) if raw is not None else ""
+
+
+def _sla_ratio(kvar: Kvar, now: datetime) -> Optional[float]:
+    if kvar.status == StatusKvaraEnum.rijeseno or not kvar.datum_prijave:
+        return None
+    limit = SLA_SATI.get(_enum_value(kvar.prioritet))
+    if not limit:
+        return None
+    elapsed = (now - kvar.datum_prijave.replace(tzinfo=None)).total_seconds() / 3600
+    return elapsed / limit
 
 
 @router.get("/stats", response_model=DashboardStats)
@@ -23,13 +39,11 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
     neispravna = db.query(func.count(Oprema.id)).filter(Oprema.status == "Neispravno").scalar() or 0
     na_servisu = db.query(func.count(Oprema.id)).filter(Oprema.status == "Na servisu").scalar() or 0
 
-    otvoreni = db.query(func.count(Kvar.id)).filter(
-        Kvar.status.in_([StatusKvaraEnum.novo, StatusKvaraEnum.u_rjesavanju, StatusKvaraEnum.na_cekanju])
-    ).scalar() or 0
+    otvoreni = db.query(func.count(Kvar.id)).filter(Kvar.status.in_(OPEN_STATUSES)).scalar() or 0
 
     hitni = db.query(func.count(Kvar.id)).filter(
         Kvar.prioritet == PrioritetEnum.hitno,
-        Kvar.status.in_([StatusKvaraEnum.novo, StatusKvaraEnum.u_rjesavanju, StatusKvaraEnum.na_cekanju])
+        Kvar.status.in_(OPEN_STATUSES)
     ).scalar() or 0
 
     kvarovi_danas = db.query(func.count(Kvar.id)).filter(
@@ -56,6 +70,23 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
     ).scalar() or 0
 
     broj_radnika = db.query(func.count(Korisnik.id)).filter(Korisnik.aktivan == True).scalar() or 0
+    otvoreni_records = db.query(Kvar).filter(Kvar.status.in_(OPEN_STATUSES)).all()
+    sla_ratios = [_sla_ratio(k, now) for k in otvoreni_records]
+    sla_kasni = len([r for r in sla_ratios if r is not None and r >= 1])
+    sla_uskoro = len([r for r in sla_ratios if r is not None and 0.75 <= r < 1])
+
+    rijeseni_records = db.query(Kvar).filter(
+        Kvar.status == StatusKvaraEnum.rijeseno,
+        Kvar.datum_prijave.isnot(None),
+        Kvar.datum_rjesavanja.isnot(None),
+        extract('month', Kvar.datum_rjesavanja) == now.month,
+        extract('year', Kvar.datum_rjesavanja) == now.year
+    ).all()
+    trajanja = [
+        (k.datum_rjesavanja.replace(tzinfo=None) - k.datum_prijave.replace(tzinfo=None)).total_seconds() / 60
+        for k in rijeseni_records
+    ]
+    prosjek_min = sum(trajanja) / len(trajanja) if trajanja else 0
 
     return DashboardStats(
         ukupno_opreme=ukupno_opreme,
@@ -68,7 +99,10 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
         ukupni_troskovi_ovaj_mjesec=float(troskovi_mjesec),
         ukupni_troskovi_godina=float(troskovi_godina),
         broj_radnika=broj_radnika,
-        hitni_kvarovi=hitni
+        hitni_kvarovi=hitni,
+        sla_kasni=sla_kasni,
+        sla_uskoro=sla_uskoro,
+        prosjecno_vrijeme_rjesavanja_min=round(prosjek_min, 1)
     )
 
 
