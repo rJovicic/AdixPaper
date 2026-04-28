@@ -3,6 +3,7 @@ import { LayoutDashboard, AlertTriangle, Wrench, Users, LogOut, Menu, X, Bell } 
 import { useCallback, useRef, useState, useEffect } from 'react'
 import { subscribeToPush } from '../utils/push'
 import api from '../api/axios'
+import BrandLogo from './BrandLogo'
 import { clearSession, getStoredUser, roleLabel, saveSession } from '../utils/auth'
 
 const navItems = [
@@ -138,8 +139,8 @@ export default function AdminLayout() {
     <div className="flex flex-col h-full">
       <div className="p-6 border-b border-blue-700">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
-            <span className="text-blue-800 font-black text-sm">AP</span>
+          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden p-1">
+            <BrandLogo />
           </div>
           <div>
             <h1 className="text-white font-bold text-lg leading-tight">Adix Paper</h1>

@@ -3,6 +3,7 @@ import { Plus, LogOut, X, Clock, CheckCircle, AlertTriangle } from 'lucide-react
 import api from '../api/axios'
 import { useNavigate } from 'react-router-dom'
 import { PrioritetBadge, StatusBadge } from './Dashboard'
+import BrandLogo from '../components/BrandLogo'
 import { clearSession, getStoredUser, roleLabel, saveSession } from '../utils/auth'
 
 function Modal({ title, onClose, children }) {
@@ -75,8 +76,8 @@ export default function RadnikView() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-blue-800 text-white px-4 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center">
-            <span className="text-blue-800 font-black text-xs">AP</span>
+          <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center overflow-hidden p-1">
+            <BrandLogo />
           </div>
           <div>
             <h1 className="font-bold">Adix Paper</h1>

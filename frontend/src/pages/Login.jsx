@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api/axios'
+import BrandLogo from '../components/BrandLogo'
 import { clearSession, homeForRole, normalizeRole, saveSession } from '../utils/auth'
 
 export default function Login() {
@@ -52,8 +53,8 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-600 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-white rounded-2xl shadow-xl mb-4">
-            <span className="text-3xl font-black text-blue-800">AP</span>
+          <div className="inline-flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl bg-white p-2 shadow-xl mb-4">
+            <BrandLogo />
           </div>
           <h1 className="text-3xl font-bold text-white">Adix Paper</h1>
           <p className="text-blue-200 mt-1">Sustav za upravljanje kvarovima</p>
