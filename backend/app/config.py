@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = ""
     ADMIN_TELEFON: str = ""
     ADMIN_ODJEL: str = "Administracija"
+    AUTO_SEED_SPARE_PARTS: bool = True
+    RESET_USERNAME: str = ""
+    RESET_PASSWORD: str = ""
 
     class Config:
         env_file = ".env"

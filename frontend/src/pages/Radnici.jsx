@@ -23,6 +23,9 @@ export default function Radnici() {
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   const load = () => api.get('/korisnici').then(r => setRadnici(Array.isArray(r.data) ? r.data : []))
   useEffect(() => { load() }, [])
@@ -36,6 +39,9 @@ export default function Radnici() {
       alert('Lozinka je obavezna za novog radnika')
       return
     }
+    setSaving(true)
+    setError('')
+    setSuccess('')
     try {
       const payload = { ...form }
       if (showEdit && !payload.password) delete payload.password
@@ -43,11 +49,15 @@ export default function Radnici() {
       else await api.post('/korisnici', payload)
       await load()
       setShowAdd(false); setShowEdit(null)
+      setSuccess(showEdit ? 'Radnik je ažuriran.' : 'Radnik je dodan.')
+      window.setTimeout(() => setSuccess(''), 3500)
     } catch (e) {
       const detail = e.response?.data?.detail
-      const msg = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map(d => d.msg).join(', ') : 'Greška')
-      alert(`Greška pri spremanju: ${msg}`)
+      const msg = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.map(d => d.msg).join(', ') : e.message || 'Greška')
+      setError(`Greška pri spremanju: ${msg}`)
       console.error('Save error:', e.response?.data || e)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -74,6 +84,17 @@ export default function Radnici() {
           <Plus size={18} /> Dodaj radnika
         </button>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          {success}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {radnici.map(r => (
@@ -131,7 +152,9 @@ export default function Radnici() {
             </div>
           </div>
           <div className="flex gap-3 mt-6">
-            <button onClick={save} className="btn-primary">Spremi</button>
+            <button onClick={save} disabled={saving} className="btn-primary disabled:opacity-50">
+              {saving ? 'Spremanje...' : 'Spremi'}
+            </button>
             <button onClick={() => { setShowAdd(false); setShowEdit(null) }} className="btn-secondary">Odustani</button>
           </div>
         </Modal>
