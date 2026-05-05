@@ -84,6 +84,50 @@ class Oprema(Base):
     kreiran = Column(DateTime(timezone=True), server_default=func.now())
 
     kvarovi = relationship("Kvar", back_populates="oprema")
+    komponente = relationship("KomponentaOpreme", back_populates="oprema", cascade="all, delete-orphan")
+
+
+class KomponentaOpreme(Base):
+    __tablename__ = "komponente_opreme"
+
+    id = Column(Integer, primary_key=True, index=True)
+    oprema_id = Column(Integer, ForeignKey("oprema.id"), nullable=False, index=True)
+    naziv = Column(String(150), nullable=False, index=True)
+    opis = Column(Text, nullable=True)
+    aktivna = Column(Boolean, default=True, nullable=False)
+    kreiran = Column(DateTime(timezone=True), server_default=func.now())
+
+    oprema = relationship("Oprema", back_populates="komponente")
+    kvarovi = relationship("Kvar", back_populates="komponenta")
+
+
+class Dobavljac(Base):
+    __tablename__ = "dobavljaci"
+
+    id = Column(Integer, primary_key=True, index=True)
+    naziv = Column(String(180), unique=True, nullable=False, index=True)
+    oznaka = Column(String(40), nullable=True)
+    aktivan = Column(Boolean, default=True, nullable=False)
+    kreiran = Column(DateTime(timezone=True), server_default=func.now())
+
+    rezervni_dijelovi = relationship("RezervniDio", back_populates="dobavljac")
+
+
+class RezervniDio(Base):
+    __tablename__ = "rezervni_dijelovi"
+
+    id = Column(Integer, primary_key=True, index=True)
+    naziv = Column(String(220), nullable=False, index=True)
+    sifra = Column(String(100), nullable=True, index=True)
+    dobavljac_id = Column(Integer, ForeignKey("dobavljaci.id"), nullable=False, index=True)
+    jedinica = Column(String(30), default="kom", nullable=False)
+    zaliha = Column(Numeric(10, 2), nullable=True)
+    cijena = Column(Numeric(10, 2), nullable=True)
+    aktivan = Column(Boolean, default=True, nullable=False)
+    kreiran = Column(DateTime(timezone=True), server_default=func.now())
+
+    dobavljac = relationship("Dobavljac", back_populates="rezervni_dijelovi")
+    utrosci = relationship("KvarRezervniDio", back_populates="rezervni_dio")
 
 
 class Kvar(Base):
@@ -91,6 +135,7 @@ class Kvar(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     oprema_id = Column(Integer, ForeignKey("oprema.id"), nullable=False)
+    komponenta_id = Column(Integer, ForeignKey("komponente_opreme.id"), nullable=True)
     prijavio_id = Column(Integer, ForeignKey("korisnici.id"), nullable=False)
     voditelj_id = Column(Integer, ForeignKey("korisnici.id"), nullable=True)
 
@@ -111,9 +156,25 @@ class Kvar(Base):
     datum_rjesavanja = Column(DateTime(timezone=True), nullable=True)
 
     oprema = relationship("Oprema", back_populates="kvarovi")
+    komponenta = relationship("KomponentaOpreme", back_populates="kvarovi")
     prijavio = relationship("Korisnik", foreign_keys=[prijavio_id], back_populates="prijavljeni_kvarovi")
     voditelj = relationship("Korisnik", foreign_keys=[voditelj_id], back_populates="rijesavani_kvarovi")
     dogadjaji = relationship("KvarDogadjaj", back_populates="kvar", cascade="all, delete-orphan", order_by="KvarDogadjaj.kreiran")
+    utroseni_dijelovi = relationship("KvarRezervniDio", back_populates="kvar", cascade="all, delete-orphan")
+
+
+class KvarRezervniDio(Base):
+    __tablename__ = "kvar_rezervni_dijelovi"
+
+    id = Column(Integer, primary_key=True, index=True)
+    kvar_id = Column(Integer, ForeignKey("kvarovi.id"), nullable=False, index=True)
+    rezervni_dio_id = Column(Integer, ForeignKey("rezervni_dijelovi.id"), nullable=False, index=True)
+    kolicina = Column(Numeric(10, 2), default=1, nullable=False)
+    napomena = Column(Text, nullable=True)
+    kreiran = Column(DateTime(timezone=True), server_default=func.now())
+
+    kvar = relationship("Kvar", back_populates="utroseni_dijelovi")
+    rezervni_dio = relationship("RezervniDio", back_populates="utrosci")
 
 
 class KvarDogadjaj(Base):

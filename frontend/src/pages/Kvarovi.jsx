@@ -46,6 +46,20 @@ export default function Kvarovi() {
     window.URL.revokeObjectURL(href)
   }
 
+  const downloadPartsExport = async () => {
+    const params = buildParams()
+    const response = await api.get(`/kvarovi/export-dijelovi.xlsx?${params}`, { responseType: 'blob' })
+    const blob = new Blob([response.data])
+    const href = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = href
+    link.download = 'adix-paper-utroseni-dijelovi.xlsx'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(href)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -56,6 +70,9 @@ export default function Kvarovi() {
         <div className="flex flex-wrap gap-2">
           <button onClick={() => downloadExport('xlsx')} className="btn-secondary flex items-center gap-2">
             <FileSpreadsheet size={16} /> Excel
+          </button>
+          <button onClick={downloadPartsExport} className="btn-secondary flex items-center gap-2">
+            <FileSpreadsheet size={16} /> Dijelovi
           </button>
           <button onClick={() => downloadExport('pdf')} className="btn-secondary flex items-center gap-2">
             <FileText size={16} /> PDF
@@ -120,6 +137,7 @@ export default function Kvarovi() {
                   <th className="text-left px-4 py-3 font-medium">#</th>
                   <th className="text-left px-4 py-3 font-medium">Naslov</th>
                   <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Oprema</th>
+                  <th className="text-left px-4 py-3 font-medium hidden xl:table-cell">Komponenta</th>
                   <th className="text-left px-4 py-3 font-medium">Prior.</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>
                   <th className="text-left px-4 py-3 font-medium hidden lg:table-cell">SLA</th>
@@ -137,6 +155,7 @@ export default function Kvarovi() {
                     <td className="px-4 py-3 text-gray-400">{k.id}</td>
                     <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate">{k.naslov}</td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell max-w-[150px] truncate">{k.oprema?.naziv || '-'}</td>
+                    <td className="px-4 py-3 text-gray-500 hidden xl:table-cell max-w-[150px] truncate">{k.komponenta?.naziv || '—'}</td>
                     <td className="px-4 py-3"><PrioritetBadge prioritet={k.prioritet} /></td>
                     <td className="px-4 py-3"><StatusBadge status={k.status} /></td>
                     <td className="px-4 py-3 hidden lg:table-cell"><SlaBadge kvar={k} /></td>

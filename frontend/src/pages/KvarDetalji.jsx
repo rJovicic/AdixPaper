@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clock, User, Wrench, Save, CheckCircle, Play, Pause, History, MessageSquare, Send, Lock } from 'lucide-react'
+import { ArrowLeft, Clock, User, Wrench, Save, CheckCircle, Play, Pause, History, MessageSquare, Send, Lock, PackagePlus, Trash2 } from 'lucide-react'
 import api from '../api/axios'
 import { SlaBadge } from '../utils/sla'
 import { PrioritetBadge, StatusBadge } from './Dashboard'
@@ -19,8 +19,8 @@ export default function KvarDetalji() {
   const navigate = useNavigate()
   const [kvar, setKvar] = useState(null)
   const [form, setForm] = useState({
-    status: '', voditelj_id: '', sto_je_uradjeno: '', materijal: '',
-    troskovi: '', trajanje_min: '', napomene_voditelja: '', prioritet: ''
+    status: '', voditelj_id: '', komponenta_id: '', sto_je_uradjeno: '', materijal: '',
+    troskovi: '', trajanje_min: '', napomene_voditelja: '', prioritet: '', utroseni_dijelovi: []
   })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
@@ -28,24 +28,40 @@ export default function KvarDetalji() {
   const [comment, setComment] = useState('')
   const [internalComment, setInternalComment] = useState(false)
   const [commentSaving, setCommentSaving] = useState(false)
+  const [komponente, setKomponente] = useState([])
+  const [parts, setParts] = useState([])
 
   const load = async () => {
-    const [kvarResponse, eventsResponse] = await Promise.all([
+    const [kvarResponse, eventsResponse, partsResponse] = await Promise.all([
       api.get(`/kvarovi/${id}`),
-      api.get(`/kvarovi/${id}/dogadjaji`).catch(() => ({ data: [] }))
+      api.get(`/kvarovi/${id}/dogadjaji`).catch(() => ({ data: [] })),
+      api.get('/rezervni-dijelovi').catch(() => ({ data: [] }))
     ])
     const data = kvarResponse.data
+    const selectedParts = Array.isArray(data.utroseni_dijelovi) ? data.utroseni_dijelovi.map(item => ({
+      rezervni_dio_id: item.rezervni_dio_id,
+      kolicina: item.kolicina || 1,
+      napomena: item.napomena || ''
+    })) : []
     setKvar(data)
     setEvents(Array.isArray(eventsResponse.data) ? eventsResponse.data : [])
+    setParts(Array.isArray(partsResponse.data) ? partsResponse.data : [])
+    if (data.oprema_id) {
+      api.get(`/oprema/${data.oprema_id}/komponente`)
+        .then(r => setKomponente(Array.isArray(r.data) ? r.data : []))
+        .catch(() => setKomponente([]))
+    }
     setForm({
       status: data.status,
       voditelj_id: data.voditelj_id || '',
+      komponenta_id: data.komponenta_id || '',
       sto_je_uradjeno: data.sto_je_uradjeno || '',
       materijal: data.materijal || '',
       troskovi: data.troskovi || '',
       trajanje_min: data.trajanje_min || '',
       napomene_voditelja: data.napomene_voditelja || '',
-      prioritet: data.prioritet
+      prioritet: data.prioritet,
+      utroseni_dijelovi: selectedParts
     })
   }
 
@@ -61,6 +77,15 @@ export default function KvarDetalji() {
       if (payload.trajanje_min === '' || payload.trajanje_min === null) delete payload.trajanje_min
       else payload.trajanje_min = parseInt(payload.trajanje_min) || 0
       if (!payload.voditelj_id) delete payload.voditelj_id
+      if (!payload.komponenta_id) payload.komponenta_id = null
+      else payload.komponenta_id = parseInt(payload.komponenta_id)
+      payload.utroseni_dijelovi = (payload.utroseni_dijelovi || [])
+        .filter(item => item.rezervni_dio_id)
+        .map(item => ({
+          rezervni_dio_id: parseInt(item.rezervni_dio_id),
+          kolicina: Number(item.kolicina) || 1,
+          napomena: item.napomena || null
+        }))
 
       await api.put(`/kvarovi/${id}`, payload)
       setMsg('Spremljeno!')
@@ -74,6 +99,26 @@ export default function KvarDetalji() {
   }
 
   const setStatus = (status) => save({ status })
+
+  const addPartRow = () => {
+    setForm({
+      ...form,
+      utroseni_dijelovi: [
+        ...(form.utroseni_dijelovi || []),
+        { rezervni_dio_id: parts[0]?.id || '', kolicina: 1, napomena: '' }
+      ]
+    })
+  }
+
+  const updatePartRow = (index, patch) => {
+    const next = [...(form.utroseni_dijelovi || [])]
+    next[index] = { ...next[index], ...patch }
+    setForm({ ...form, utroseni_dijelovi: next })
+  }
+
+  const removePartRow = (index) => {
+    setForm({ ...form, utroseni_dijelovi: (form.utroseni_dijelovi || []).filter((_, i) => i !== index) })
+  }
 
   const addComment = async () => {
     const tekst = comment.trim()
@@ -129,6 +174,7 @@ export default function KvarDetalji() {
         <div className="card">
           <div className="flex items-center gap-2 text-gray-500 mb-2"><Wrench size={15} /> Oprema</div>
           <p className="font-semibold text-gray-800">{kvar.oprema?.naziv || '—'}</p>
+          <p className="text-gray-500">{kvar.komponenta?.naziv || 'Općenito / nije specificirano'}</p>
           {kvar.oprema?.lokacija && <p className="text-gray-500">{kvar.oprema.lokacija}</p>}
         </div>
         <div className="card">
@@ -194,6 +240,12 @@ export default function KvarDetalji() {
               <option value="Nisko">Nisko</option>
             </select>
           </Field>
+          <Field label="Komponenta">
+            <select className="input" value={form.komponenta_id} onChange={e => setForm({ ...form, komponenta_id: e.target.value })}>
+              <option value="">Općenito / nije specificirano</option>
+              {komponente.map(k => <option key={k.id} value={k.id}>{k.naziv}</option>)}
+            </select>
+          </Field>
           <Field label="Troškovi (€)">
             <input type="number" step="0.01" min="0" className="input" value={form.troskovi}
               onChange={e => setForm({ ...form, troskovi: e.target.value })} placeholder="0.00" />
@@ -209,11 +261,11 @@ export default function KvarDetalji() {
                 placeholder="Opis radova..." />
             </Field>
           </div>
-          <div className="md:col-span-2">
+          <div>
             <Field label="Materijal i dijelovi">
               <textarea className="input" rows={2} value={form.materijal}
                 onChange={e => setForm({ ...form, materijal: e.target.value })}
-                placeholder="Utrošeni materijal..." />
+                placeholder="Dodatni ručni opis materijala..." />
             </Field>
           </div>
           <div className="md:col-span-2">
@@ -223,6 +275,48 @@ export default function KvarDetalji() {
                 placeholder="Interne napomene..." />
             </Field>
           </div>
+        </div>
+
+        <div className="mt-6 rounded-lg border border-gray-100 bg-gray-50 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h4 className="font-semibold text-gray-800">Utrošeni rezervni dijelovi</h4>
+              <p className="text-xs text-gray-500">Dijelovi se koriste za odvojeni Excel izvoz po dobavljaču.</p>
+            </div>
+            <button onClick={addPartRow} disabled={parts.length === 0} className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-50">
+              <PackagePlus size={15} /> Dodaj dio
+            </button>
+          </div>
+          {parts.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-400">
+              Nema aktivnih rezervnih dijelova. Dodajte ih u sekciji “Dijelovi”.
+            </p>
+          ) : (form.utroseni_dijelovi || []).length === 0 ? (
+            <p className="rounded-lg border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-400">Nije odabran nijedan dio za ovaj kvar.</p>
+          ) : (
+            <div className="space-y-2">
+              {(form.utroseni_dijelovi || []).map((item, index) => {
+                const selected = parts.find(part => Number(part.id) === Number(item.rezervni_dio_id))
+                return (
+                  <div key={index} className="grid grid-cols-1 gap-2 rounded-lg border border-gray-100 bg-white p-3 md:grid-cols-[1fr_90px_1fr_36px]">
+                    <select className="input" value={item.rezervni_dio_id || ''} onChange={e => updatePartRow(index, { rezervni_dio_id: e.target.value })}>
+                      <option value="">Odaberi dio</option>
+                      {parts.map(part => (
+                        <option key={part.id} value={part.id}>
+                          {part.naziv}{part.sifra ? ` · ${part.sifra}` : ''}{part.dobavljac?.naziv ? ` · ${part.dobavljac.naziv}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <input className="input" type="number" min="0.01" step="0.01" value={item.kolicina} onChange={e => updatePartRow(index, { kolicina: e.target.value })} />
+                    <input className="input" value={item.napomena || ''} onChange={e => updatePartRow(index, { napomena: e.target.value })} placeholder={selected?.dobavljac?.naziv || 'Napomena'} />
+                    <button onClick={() => removePartRow(index)} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Ukloni">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3 mt-6">

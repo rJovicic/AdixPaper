@@ -105,6 +105,39 @@ class OpremaMini(BaseModel):
     class Config:
         from_attributes = True
 
+
+class KomponentaBase(BaseModel):
+    naziv: str
+    opis: Optional[str] = None
+    aktivna: bool = True
+
+
+class KomponentaCreate(KomponentaBase):
+    oprema_id: Optional[int] = None
+
+
+class KomponentaUpdate(BaseModel):
+    naziv: Optional[str] = None
+    opis: Optional[str] = None
+    aktivna: Optional[bool] = None
+
+
+class KomponentaOut(KomponentaBase):
+    id: int
+    oprema_id: int
+    kreiran: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class KomponentaMini(BaseModel):
+    id: int
+    naziv: str
+
+    class Config:
+        from_attributes = True
+
 class OpremaWithStats(OpremaOut):
     broj_kvarova: int = 0
     ukupni_troskovi: float = 0
@@ -114,14 +147,22 @@ class OpremaWithStats(OpremaOut):
 # --- KVAR ---
 class KvarCreate(BaseModel):
     oprema_id: int
+    komponenta_id: Optional[int] = None
     naslov: str
     opis: Optional[str] = None
     prioritet: PrioritetEnum = PrioritetEnum.normalno
     foto_url: Optional[str] = None
 
+
+class KvarRezervniDioInput(BaseModel):
+    rezervni_dio_id: int
+    kolicina: Decimal = Decimal("1")
+    napomena: Optional[str] = None
+
 class KvarVoditeljUpdate(BaseModel):
     status: Optional[StatusKvaraEnum] = None
     voditelj_id: Optional[int] = None
+    komponenta_id: Optional[int] = None
     sto_je_uradjeno: Optional[str] = None
     materijal: Optional[str] = None
     troskovi: Optional[Decimal] = None
@@ -130,6 +171,7 @@ class KvarVoditeljUpdate(BaseModel):
     datum_pocetka: Optional[datetime] = None
     datum_rjesavanja: Optional[datetime] = None
     prioritet: Optional[PrioritetEnum] = None
+    utroseni_dijelovi: Optional[List[KvarRezervniDioInput]] = None
 
 
 class KvarKomentarCreate(BaseModel):
@@ -153,9 +195,79 @@ class KvarDogadjajOut(BaseModel):
         from_attributes = True
 
 
+class DobavljacBase(BaseModel):
+    naziv: str
+    oznaka: Optional[str] = None
+    aktivan: bool = True
+
+
+class DobavljacCreate(DobavljacBase):
+    pass
+
+
+class DobavljacUpdate(BaseModel):
+    naziv: Optional[str] = None
+    oznaka: Optional[str] = None
+    aktivan: Optional[bool] = None
+
+
+class DobavljacOut(DobavljacBase):
+    id: int
+    kreiran: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RezervniDioBase(BaseModel):
+    naziv: str
+    sifra: Optional[str] = None
+    dobavljac_id: int
+    jedinica: str = "kom"
+    zaliha: Optional[Decimal] = None
+    cijena: Optional[Decimal] = None
+    aktivan: bool = True
+
+
+class RezervniDioCreate(RezervniDioBase):
+    pass
+
+
+class RezervniDioUpdate(BaseModel):
+    naziv: Optional[str] = None
+    sifra: Optional[str] = None
+    dobavljac_id: Optional[int] = None
+    jedinica: Optional[str] = None
+    zaliha: Optional[Decimal] = None
+    cijena: Optional[Decimal] = None
+    aktivan: Optional[bool] = None
+
+
+class RezervniDioOut(RezervniDioBase):
+    id: int
+    kreiran: datetime
+    dobavljac: Optional[DobavljacOut] = None
+
+    class Config:
+        from_attributes = True
+
+
+class KvarRezervniDioOut(BaseModel):
+    id: int
+    kvar_id: int
+    rezervni_dio_id: int
+    kolicina: Decimal
+    napomena: Optional[str] = None
+    rezervni_dio: Optional[RezervniDioOut] = None
+
+    class Config:
+        from_attributes = True
+
+
 class KvarOut(BaseModel):
     id: int
     oprema_id: int
+    komponenta_id: Optional[int] = None
     prijavio_id: int
     voditelj_id: Optional[int] = None
     naslov: str
@@ -172,8 +284,10 @@ class KvarOut(BaseModel):
     datum_pocetka: Optional[datetime] = None
     datum_rjesavanja: Optional[datetime] = None
     oprema: Optional[OpremaMini] = None
+    komponenta: Optional[KomponentaMini] = None
     prijavio: Optional[KorisnikMini] = None
     voditelj: Optional[KorisnikMini] = None
+    utroseni_dijelovi: List[KvarRezervniDioOut] = []
 
     class Config:
         from_attributes = True
@@ -193,17 +307,22 @@ class PushSend(BaseModel):
 
 # --- DASHBOARD ---
 class DashboardStats(BaseModel):
+    ukupno_kvarova: int
     ukupno_opreme: int
     aktivna_oprema: int
     neispravna_oprema: int
     na_servisu: int
     otvoreni_kvarovi: int
+    u_rjesavanju_kvarovi: int
+    rijeseni_kvarovi: int
     kvarovi_danas: int
     rijeseni_ovaj_mjesec: int
     ukupni_troskovi_ovaj_mjesec: float
     ukupni_troskovi_godina: float
     broj_radnika: int
     hitni_kvarovi: int
+    ukupni_zastoj_min: int
+    rezervni_dijelovi_ovaj_mjesec: float
     sla_kasni: int
     sla_uskoro: int
     prosjecno_vrijeme_rjesavanja_min: float
@@ -223,3 +342,22 @@ class TopOpremaKvarovi(BaseModel):
 class KvaroviPoStatusu(BaseModel):
     status: str
     broj: int
+
+
+class KvaroviPoPrioritetu(BaseModel):
+    prioritet: str
+    broj: int
+
+
+class TopKomponentaKvarovi(BaseModel):
+    naziv: str
+    oprema: Optional[str] = None
+    broj_kvarova: int
+
+
+class SparePartUsageSummary(BaseModel):
+    naziv: str
+    sifra: Optional[str] = None
+    dobavljac: str
+    kolicina: float
+    trosak: float

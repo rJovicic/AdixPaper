@@ -20,11 +20,12 @@ function Modal({ title, onClose, children }) {
   )
 }
 
-const emptyForm = { oprema_id: '', naslov: '', opis: '', prioritet: 'Normalno' }
+const emptyForm = { oprema_id: '', komponenta_id: '', naslov: '', opis: '', prioritet: 'Normalno' }
 
 export default function RadnikView() {
   const [kvarovi, setKvarovi] = useState([])
   const [oprema, setOprema] = useState([])
+  const [komponente, setKomponente] = useState([])
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
@@ -50,11 +51,26 @@ export default function RadnikView() {
     load()
   }, [])
 
+  useEffect(() => {
+    if (!form.oprema_id) {
+      setKomponente([])
+      return
+    }
+    api.get(`/oprema/${form.oprema_id}/komponente`)
+      .then(r => setKomponente(Array.isArray(r.data) ? r.data.filter(k => k.aktivna) : []))
+      .catch(() => setKomponente([]))
+  }, [form.oprema_id])
+
   const save = async () => {
     if (!form.oprema_id || !form.naslov) return alert('Odaberite opremu i unesite naslov')
+    if (komponente.length > 0 && !form.komponenta_id) return alert('Odaberite komponentu stroja')
     setSaving(true)
     try {
-      await api.post('/kvarovi', { ...form, oprema_id: parseInt(form.oprema_id) })
+      await api.post('/kvarovi', {
+        ...form,
+        oprema_id: parseInt(form.oprema_id),
+        komponenta_id: form.komponenta_id ? parseInt(form.komponenta_id) : null
+      })
       setShowAdd(false)
       setForm(emptyForm)
       load()
@@ -125,6 +141,7 @@ export default function RadnikView() {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-gray-900 truncate">{k.naslov}</p>
                       <p className="text-sm text-gray-500">{k.oprema?.naziv || '—'}</p>
+                      {k.komponenta && <p className="text-xs text-gray-400">{k.komponenta.naziv}</p>}
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <PrioritetBadge prioritet={k.prioritet} />
@@ -152,7 +169,7 @@ export default function RadnikView() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-gray-700 text-sm">{k.naslov}</p>
-                      <p className="text-xs text-gray-400">{k.oprema?.naziv || '—'} · {fmt(k.datum_rjesavanja)}</p>
+                      <p className="text-xs text-gray-400">{k.oprema?.naziv || '—'}{k.komponenta ? ` · ${k.komponenta.naziv}` : ''} · {fmt(k.datum_rjesavanja)}</p>
                     </div>
                     <StatusBadge status={k.status} />
                   </div>
@@ -173,6 +190,18 @@ export default function RadnikView() {
                 {oprema.map(o => (
                   <option key={o.id} value={o.id}>{o.naziv}{o.lokacija ? ` (${o.lokacija})` : ''}</option>
                 ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Komponenta stroja *</label>
+              <select
+                className="input"
+                value={form.komponenta_id}
+                onChange={e => setForm({ ...form, komponenta_id: e.target.value })}
+                disabled={!form.oprema_id || komponente.length === 0}
+              >
+                <option value="">{komponente.length === 0 ? 'Općenito / nije specificirano' : '— Odaberite komponentu —'}</option>
+                {komponente.map(k => <option key={k.id} value={k.id}>{k.naziv}</option>)}
               </select>
             </div>
             <div>

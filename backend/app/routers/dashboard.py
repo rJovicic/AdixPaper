@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import List, Optional
 
 from ..database import get_db
-from ..models import Oprema, Kvar, Korisnik, StatusKvaraEnum, PrioritetEnum, SLA_SATI
-from ..schemas import DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu
+from ..models import Oprema, Kvar, Korisnik, StatusKvaraEnum, PrioritetEnum, SLA_SATI, KomponentaOpreme, KvarRezervniDio, RezervniDio, Dobavljac
+from ..schemas import DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
 from ..auth import require_voditelj_or_admin
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -34,12 +34,15 @@ def _sla_ratio(kvar: Kvar, now: datetime) -> Optional[float]:
 def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):
     now = datetime.utcnow()
 
+    ukupno_kvarova = db.query(func.count(Kvar.id)).scalar() or 0
     ukupno_opreme = db.query(func.count(Oprema.id)).scalar() or 0
     aktivna = db.query(func.count(Oprema.id)).filter(Oprema.status == "Aktivno").scalar() or 0
     neispravna = db.query(func.count(Oprema.id)).filter(Oprema.status == "Neispravno").scalar() or 0
     na_servisu = db.query(func.count(Oprema.id)).filter(Oprema.status == "Na servisu").scalar() or 0
 
     otvoreni = db.query(func.count(Kvar.id)).filter(Kvar.status.in_(OPEN_STATUSES)).scalar() or 0
+    u_rjesavanju = db.query(func.count(Kvar.id)).filter(Kvar.status == StatusKvaraEnum.u_rjesavanju).scalar() or 0
+    rijeseni_svi = db.query(func.count(Kvar.id)).filter(Kvar.status == StatusKvaraEnum.rijeseno).scalar() or 0
 
     hitni = db.query(func.count(Kvar.id)).filter(
         Kvar.prioritet == PrioritetEnum.hitno,
@@ -69,6 +72,16 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
         extract('year', Kvar.datum_rjesavanja) == now.year
     ).scalar() or 0
 
+    zastoj_min = db.query(func.coalesce(func.sum(Kvar.trajanje_min), 0)).scalar() or 0
+    dijelovi_mjesec = db.query(
+        func.coalesce(func.sum(KvarRezervniDio.kolicina * func.coalesce(RezervniDio.cijena, 0)), 0)
+    ).join(Kvar, KvarRezervniDio.kvar_id == Kvar.id).join(
+        RezervniDio, KvarRezervniDio.rezervni_dio_id == RezervniDio.id
+    ).filter(
+        extract('month', Kvar.datum_prijave) == now.month,
+        extract('year', Kvar.datum_prijave) == now.year
+    ).scalar() or 0
+
     broj_radnika = db.query(func.count(Korisnik.id)).filter(Korisnik.aktivan == True).scalar() or 0
     otvoreni_records = db.query(Kvar).filter(Kvar.status.in_(OPEN_STATUSES)).all()
     sla_ratios = [_sla_ratio(k, now) for k in otvoreni_records]
@@ -89,17 +102,22 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
     prosjek_min = sum(trajanja) / len(trajanja) if trajanja else 0
 
     return DashboardStats(
+        ukupno_kvarova=ukupno_kvarova,
         ukupno_opreme=ukupno_opreme,
         aktivna_oprema=aktivna,
         neispravna_oprema=neispravna,
         na_servisu=na_servisu,
         otvoreni_kvarovi=otvoreni,
+        u_rjesavanju_kvarovi=u_rjesavanju,
+        rijeseni_kvarovi=rijeseni_svi,
         kvarovi_danas=kvarovi_danas,
         rijeseni_ovaj_mjesec=rijeseni_mjesec,
         ukupni_troskovi_ovaj_mjesec=float(troskovi_mjesec),
         ukupni_troskovi_godina=float(troskovi_godina),
         broj_radnika=broj_radnika,
         hitni_kvarovi=hitni,
+        ukupni_zastoj_min=int(zastoj_min or 0),
+        rezervni_dijelovi_ovaj_mjesec=float(dijelovi_mjesec or 0),
         sla_kasni=sla_kasni,
         sla_uskoro=sla_uskoro,
         prosjecno_vrijeme_rjesavanja_min=round(prosjek_min, 1)
@@ -169,3 +187,59 @@ def get_kvarovi_po_statusu(db: Session = Depends(get_db), _: Korisnik = Depends(
     ).group_by(Kvar.status).all()
 
     return [KvaroviPoStatusu(status=r.status.value, broj=r.broj) for r in result]
+
+
+@router.get("/kvarovi-po-prioritetu", response_model=List[KvaroviPoPrioritetu])
+def get_kvarovi_po_prioritetu(db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):
+    result = db.query(
+        Kvar.prioritet,
+        func.count(Kvar.id).label('broj')
+    ).group_by(Kvar.prioritet).all()
+
+    return [KvaroviPoPrioritetu(prioritet=r.prioritet.value, broj=r.broj) for r in result]
+
+
+@router.get("/top-komponente", response_model=List[TopKomponentaKvarovi])
+def get_top_komponente(db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):
+    result = db.query(
+        KomponentaOpreme.naziv,
+        Oprema.naziv.label("oprema"),
+        func.count(Kvar.id).label("broj_kvarova"),
+    ).join(Kvar, KomponentaOpreme.id == Kvar.komponenta_id).join(
+        Oprema, KomponentaOpreme.oprema_id == Oprema.id
+    ).group_by(
+        KomponentaOpreme.id, KomponentaOpreme.naziv, Oprema.naziv
+    ).order_by(func.count(Kvar.id).desc()).limit(10).all()
+
+    return [
+        TopKomponentaKvarovi(naziv=r.naziv, oprema=r.oprema, broj_kvarova=r.broj_kvarova)
+        for r in result
+    ]
+
+
+@router.get("/utrosak-dijelova", response_model=List[SparePartUsageSummary])
+def get_utrosak_dijelova(db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):
+    result = db.query(
+        RezervniDio.naziv,
+        RezervniDio.sifra,
+        Dobavljac.naziv.label("dobavljac"),
+        func.coalesce(RezervniDio.cijena, 0).label("cijena"),
+        func.sum(KvarRezervniDio.kolicina).label("kolicina"),
+    ).join(KvarRezervniDio, RezervniDio.id == KvarRezervniDio.rezervni_dio_id).join(
+        Dobavljac, RezervniDio.dobavljac_id == Dobavljac.id
+    ).group_by(
+        RezervniDio.id, RezervniDio.naziv, RezervniDio.sifra, RezervniDio.cijena, Dobavljac.naziv
+    ).order_by(func.sum(KvarRezervniDio.kolicina).desc()).limit(10).all()
+
+    items = []
+    for r in result:
+        qty = float(r.kolicina or 0)
+        price = float(r.cijena or 0)
+        items.append(SparePartUsageSummary(
+            naziv=r.naziv,
+            sifra=r.sifra,
+            dobavljac=r.dobavljac,
+            kolicina=qty,
+            trosak=qty * price,
+        ))
+    return items

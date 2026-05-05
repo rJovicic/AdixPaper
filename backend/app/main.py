@@ -1,13 +1,44 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func
+from sqlalchemy import func, inspect, text
 from .auth import get_password_hash
 from .config import settings
 from .database import engine, Base, SessionLocal
-from .models import Korisnik, RolaEnum
-from .routers import auth, korisnici, oprema, dashboard, kvarovi, notifikacije
+from .models import Korisnik, RolaEnum, Dobavljac
+from .routers import auth, korisnici, oprema, dashboard, kvarovi, notifikacije, rezervni_dijelovi
 
 Base.metadata.create_all(bind=engine)
+
+
+def ensure_additive_schema():
+    inspector = inspect(engine)
+    if "kvarovi" not in inspector.get_table_names():
+        return
+
+    kvarovi_columns = {column["name"] for column in inspector.get_columns("kvarovi")}
+    dijelovi_columns = {column["name"] for column in inspector.get_columns("rezervni_dijelovi")} if "rezervni_dijelovi" in inspector.get_table_names() else set()
+    with engine.begin() as connection:
+        if "komponenta_id" not in kvarovi_columns:
+            connection.execute(text("ALTER TABLE kvarovi ADD COLUMN komponenta_id INTEGER"))
+        if dijelovi_columns and "zaliha" not in dijelovi_columns:
+            connection.execute(text("ALTER TABLE rezervni_dijelovi ADD COLUMN zaliha NUMERIC(10, 2)"))
+
+
+def seed_initial_suppliers():
+    db = SessionLocal()
+    try:
+        for naziv, oznaka in [("Cupup d.o.o", "CUPUP"), ("Delt papir d.o.o", "DELT")]:
+            exists = db.query(Dobavljac).filter(func.lower(Dobavljac.naziv) == naziv.lower()).first()
+            if not exists:
+                db.add(Dobavljac(naziv=naziv, oznaka=oznaka, aktivan=True))
+        db.commit()
+    finally:
+        db.close()
+
+
+ensure_additive_schema()
+Base.metadata.create_all(bind=engine)
+seed_initial_suppliers()
 
 def seed_initial_admin():
     if not settings.ADMIN_USERNAME or not settings.ADMIN_PASSWORD:
@@ -72,6 +103,7 @@ app.include_router(oprema.router)
 app.include_router(kvarovi.router)
 app.include_router(dashboard.router)
 app.include_router(notifikacije.router)
+app.include_router(rezervni_dijelovi.router)
 
 @app.get("/")
 def root():

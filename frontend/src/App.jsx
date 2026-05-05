@@ -8,6 +8,7 @@ import KvarDetalji from './pages/KvarDetalji'
 import Oprema from './pages/Oprema'
 import Radnici from './pages/Radnici'
 import RadnikView from './pages/RadnikView'
+import RezervniDijelovi from './pages/RezervniDijelovi'
 import api from './api/axios'
 import { clearSession, getStoredUser, hasRole, homeForRole, saveSession } from './utils/auth'
 
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="kvarovi" element={<Kvarovi />} />
           <Route path="kvarovi/:id" element={<KvarDetalji />} />
           <Route path="oprema" element={<Oprema />} />
+          <Route path="rezervni-dijelovi" element={<RezervniDijelovi />} />
           <Route path="radnici" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <Radnici />

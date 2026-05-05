@@ -29,6 +29,8 @@ export default function Oprema() {
   const [showAdd, setShowAdd] = useState(false)
   const [showEdit, setShowEdit] = useState(null)
   const [form, setForm] = useState({ naziv: '', tip: '', tvrtka: 'Cupup d.o.o', proizvodac: '', model: '', serijski_broj: '', lokacija: '', status: 'Aktivno' })
+  const [components, setComponents] = useState([])
+  const [newComponent, setNewComponent] = useState('')
 
   const load = () => api.get(`/oprema${search ? `?search=${search}` : ''}`).then(r => setOprema(Array.isArray(r.data) ? r.data : []))
   useEffect(() => { load() }, [])
@@ -40,6 +42,29 @@ export default function Oprema() {
       else await api.post('/oprema', form)
       load(); setShowAdd(false); setShowEdit(null)
     } catch (e) { alert(e.response?.data?.detail || 'Greška') }
+  }
+
+  const loadComponents = (opremaId) => {
+    if (!opremaId) {
+      setComponents([])
+      return
+    }
+    api.get(`/oprema/${opremaId}/komponente`)
+      .then(r => setComponents(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setComponents([]))
+  }
+
+  const addComponent = async () => {
+    const naziv = newComponent.trim()
+    if (!showEdit || !naziv) return
+    await api.post(`/oprema/${showEdit.id}/komponente`, { naziv, aktivna: true })
+    setNewComponent('')
+    loadComponents(showEdit.id)
+  }
+
+  const toggleComponent = async (component) => {
+    await api.put(`/oprema/komponente/${component.id}`, { aktivna: !component.aktivna })
+    loadComponents(showEdit.id)
   }
 
   const deleteOprema = async (id, naziv) => {
@@ -110,7 +135,7 @@ export default function Oprema() {
                 <td className="px-4 py-3 text-gray-600">{(o.ukupni_troskovi || 0).toFixed(2)} €</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
-                    <button onClick={() => { setForm(o); setShowEdit(o) }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Uredi"><Edit2 size={16} /></button>
+                    <button onClick={() => { setForm(o); setShowEdit(o); loadComponents(o.id) }} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Uredi"><Edit2 size={16} /></button>
                     <button onClick={() => deleteOprema(o.id, o.naziv)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Obriši"><Trash2 size={16} /></button>
                   </div>
                 </td>
@@ -126,6 +151,28 @@ export default function Oprema() {
       {(showAdd || showEdit) && (
         <Modal title={showEdit ? `Uredi: ${showEdit.naziv}` : 'Dodaj novu opremu'} onClose={() => { setShowAdd(false); setShowEdit(null) }}>
           <OpremaForm data={form} onChange={setForm} />
+          {showEdit && (
+            <div className="mt-6 rounded-lg border border-gray-100 bg-gray-50 p-4">
+              <h3 className="mb-3 font-semibold text-gray-800">Komponente / podsklopovi</h3>
+              <div className="mb-3 flex gap-2">
+                <input className="input" value={newComponent} onChange={e => setNewComponent(e.target.value)} placeholder="npr. Transporter, nož, senzor..." />
+                <button onClick={addComponent} className="btn-secondary whitespace-nowrap">Dodaj</button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {components.map(component => (
+                  <button
+                    key={component.id}
+                    onClick={() => toggleComponent(component)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${component.aktivna ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400 line-through'}`}
+                    title={component.aktivna ? 'Klik za deaktivaciju' : 'Klik za aktivaciju'}
+                  >
+                    {component.naziv}
+                  </button>
+                ))}
+                {components.length === 0 && <p className="text-sm text-gray-400">Nema unesenih komponenti za ovu opremu.</p>}
+              </div>
+            </div>
+          )}
           <div className="flex gap-3 mt-6">
             <button onClick={saveOprema} className="btn-primary">Spremi</button>
             <button onClick={() => { setShowAdd(false); setShowEdit(null) }} className="btn-secondary">Odustani</button>

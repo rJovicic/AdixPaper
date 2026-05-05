@@ -9,7 +9,20 @@ import asyncio
 import json
 
 from ..database import get_db
-from ..models import Kvar, Oprema, Korisnik, PushPretplata, KvarDogadjaj, RolaEnum, PrioritetEnum, StatusKvaraEnum, SLA_SATI
+from ..models import (
+    Kvar,
+    Oprema,
+    Korisnik,
+    PushPretplata,
+    KvarDogadjaj,
+    KvarRezervniDio,
+    KomponentaOpreme,
+    RezervniDio,
+    RolaEnum,
+    PrioritetEnum,
+    StatusKvaraEnum,
+    SLA_SATI,
+)
 from ..schemas import KvarCreate, KvarVoditeljUpdate, KvarOut, KvarKomentarCreate, KvarDogadjajOut
 from ..auth import get_current_user, get_user_from_token, require_voditelj_or_admin, role_value
 
@@ -103,8 +116,10 @@ def _query_kvarovi(
 ) -> List[Kvar]:
     q = db.query(Kvar).options(
         joinedload(Kvar.oprema),
+        joinedload(Kvar.komponenta),
         joinedload(Kvar.prijavio),
-        joinedload(Kvar.voditelj)
+        joinedload(Kvar.voditelj),
+        joinedload(Kvar.utroseni_dijelovi).joinedload(KvarRezervniDio.rezervni_dio).joinedload(RezervniDio.dobavljac),
     )
     if role_value(current_user.rola) == "radnik":
         q = q.filter(Kvar.prijavio_id == current_user.id)
@@ -178,8 +193,10 @@ def _send_push_notifications(db: Session, title: str, body: str, url: str = "/")
 def _load_kvar(kvar_id: int, db: Session) -> Kvar:
     kvar = db.query(Kvar).options(
         joinedload(Kvar.oprema),
+        joinedload(Kvar.komponenta),
         joinedload(Kvar.prijavio),
-        joinedload(Kvar.voditelj)
+        joinedload(Kvar.voditelj),
+        joinedload(Kvar.utroseni_dijelovi).joinedload(KvarRezervniDio.rezervni_dio).joinedload(RezervniDio.dobavljac),
     ).filter(Kvar.id == kvar_id).first()
     if not kvar:
         raise HTTPException(status_code=404, detail="Kvar nije pronađen")
@@ -250,6 +267,11 @@ def export_kvarovi_xlsx(
         cell.fill = PatternFill("solid", fgColor="1E3A8A")
 
     for k in records:
+        dijelovi = "; ".join(
+            f"{u.rezervni_dio.naziv} x {float(u.kolicina or 0):g}"
+            for u in (k.utroseni_dijelovi or [])
+            if u.rezervni_dio
+        )
         ws.append([
             k.id,
             k.naslov,
@@ -265,7 +287,7 @@ def export_kvarovi_xlsx(
             k.datum_rjesavanja,
             k.trajanje_min or 0,
             float(k.troskovi or 0),
-            k.materijal or "",
+            dijelovi or k.materijal or "",
             k.sto_je_uradjeno or "",
         ])
 
@@ -277,6 +299,84 @@ def export_kvarovi_xlsx(
     wb.save(output)
     output.seek(0)
     headers = {"Content-Disposition": 'attachment; filename="adix-paper-kvarovi.xlsx"'}
+    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)
+
+
+@router.get("/export-dijelovi.xlsx")
+def export_utroseni_dijelovi_xlsx(
+    status: Optional[str] = None,
+    prioritet: Optional[str] = None,
+    oprema_id: Optional[int] = None,
+    sla: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Korisnik = Depends(require_voditelj_or_admin),
+):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    records = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla)
+    kvar_ids = [k.id for k in records]
+    utrosci = []
+    if kvar_ids:
+        utrosci = db.query(KvarRezervniDio).options(
+            joinedload(KvarRezervniDio.kvar).joinedload(Kvar.oprema),
+            joinedload(KvarRezervniDio.kvar).joinedload(Kvar.komponenta),
+            joinedload(KvarRezervniDio.rezervni_dio).joinedload(RezervniDio.dobavljac),
+        ).filter(KvarRezervniDio.kvar_id.in_(kvar_ids)).all()
+
+    wb = Workbook()
+    default = wb.active
+    wb.remove(default)
+
+    grouped = {}
+    for item in utrosci:
+        supplier = item.rezervni_dio.dobavljac.naziv if item.rezervni_dio and item.rezervni_dio.dobavljac else "Bez dobavljaca"
+        grouped.setdefault(supplier, []).append(item)
+
+    if not grouped:
+        grouped["Nema utroska"] = []
+
+    for supplier, rows in grouped.items():
+        title = supplier[:31] or "Dobavljac"
+        ws = wb.create_sheet(title=title)
+        headers = [
+            "Dobavljac", "Kvar ID", "Datum", "Oprema", "Komponenta", "Dio",
+            "Sifra", "Kolicina", "Jedinica", "Zaliha", "Cijena EUR", "Ukupno EUR", "Napomena"
+        ]
+        ws.append(headers)
+        for cell in ws[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="111827")
+
+        for item in rows:
+            dio = item.rezervni_dio
+            kvar = item.kvar
+            qty = float(item.kolicina or 0)
+            price = float(dio.cijena or 0) if dio else 0
+            ws.append([
+                supplier,
+                kvar.id if kvar else "",
+                kvar.datum_prijave if kvar else "",
+                kvar.oprema.naziv if kvar and kvar.oprema else "",
+                kvar.komponenta.naziv if kvar and kvar.komponenta else "",
+                dio.naziv if dio else "",
+                dio.sifra if dio else "",
+                qty,
+                dio.jedinica if dio else "",
+                float(dio.zaliha or 0) if dio and dio.zaliha is not None else "",
+                price,
+                qty * price,
+                item.napomena or "",
+            ])
+
+        for column in ws.columns:
+            max_len = max(len(str(cell.value or "")) for cell in column)
+            ws.column_dimensions[column[0].column_letter].width = min(max(max_len + 2, 10), 42)
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    headers = {"Content-Disposition": 'attachment; filename="adix-paper-utroseni-dijelovi.xlsx"'}
     return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)
 
 
@@ -351,9 +451,18 @@ def create_kvar(
     oprema = db.query(Oprema).filter(Oprema.id == data.oprema_id).first()
     if not oprema:
         raise HTTPException(status_code=404, detail="Oprema nije pronađena")
+    if data.komponenta_id:
+        komponenta = db.query(KomponentaOpreme).filter(
+            KomponentaOpreme.id == data.komponenta_id,
+            KomponentaOpreme.oprema_id == data.oprema_id,
+            KomponentaOpreme.aktivna == True,
+        ).first()
+        if not komponenta:
+            raise HTTPException(status_code=404, detail="Komponenta nije pronađena za odabranu opremu")
 
     kvar = Kvar(
         oprema_id=data.oprema_id,
+        komponenta_id=data.komponenta_id,
         prijavio_id=current_user.id,
         naslov=data.naslov,
         opis=data.opis,
@@ -370,7 +479,7 @@ def create_kvar(
         "created",
         "Kvar prijavljen",
         data.opis,
-        {"prioritet": data.prioritet.value, "status": StatusKvaraEnum.novo.value},
+        {"prioritet": data.prioritet.value, "status": StatusKvaraEnum.novo.value, "komponenta_id": data.komponenta_id},
     )
     db.commit()
     db.refresh(kvar)
@@ -441,9 +550,19 @@ def update_kvar(
         raise HTTPException(status_code=404, detail="Kvar nije pronađen")
 
     update_data = data.model_dump(exclude_unset=True)
+    parts_payload = update_data.pop("utroseni_dijelovi", None)
     old_status = _enum_value(kvar.status)
     old_prioritet = _enum_value(kvar.prioritet)
     old_voditelj_id = kvar.voditelj_id
+    old_komponenta_id = kvar.komponenta_id
+
+    if "komponenta_id" in update_data and update_data["komponenta_id"]:
+        component = db.query(KomponentaOpreme).filter(
+            KomponentaOpreme.id == update_data["komponenta_id"],
+            KomponentaOpreme.oprema_id == kvar.oprema_id,
+        ).first()
+        if not component:
+            raise HTTPException(status_code=404, detail="Komponenta nije pronađena za odabranu opremu")
 
     if "status" in update_data:
         new_status = update_data["status"]
@@ -489,6 +608,15 @@ def update_kvar(
             "Promijenjen voditelj kvara",
             podaci={"old": old_voditelj_id, "new": kvar.voditelj_id},
         )
+    if old_komponenta_id != kvar.komponenta_id:
+        _add_event(
+            db,
+            kvar,
+            current_user,
+            "component",
+            "Promijenjena komponenta kvara",
+            podaci={"old": old_komponenta_id, "new": kvar.komponenta_id},
+        )
 
     detail_fields = {"sto_je_uradjeno", "materijal", "troskovi", "trajanje_min", "napomene_voditelja"}
     changed_details = sorted(detail_fields.intersection(update_data.keys()))
@@ -501,6 +629,28 @@ def update_kvar(
             "Ažurirani detalji rješavanja",
             podaci={"fields": changed_details},
             interno=changed_details == ["napomene_voditelja"],
+        )
+
+    if parts_payload is not None:
+        db.query(KvarRezervniDio).filter(KvarRezervniDio.kvar_id == kvar.id).delete()
+        for item in parts_payload:
+            if item.kolicina <= 0:
+                raise HTTPException(status_code=400, detail="Količina rezervnog dijela mora biti veća od nule")
+            if not db.query(RezervniDio.id).filter(RezervniDio.id == item.rezervni_dio_id, RezervniDio.aktivan == True).first():
+                raise HTTPException(status_code=404, detail="Rezervni dio nije pronađen")
+            db.add(KvarRezervniDio(
+                kvar_id=kvar.id,
+                rezervni_dio_id=item.rezervni_dio_id,
+                kolicina=item.kolicina,
+                napomena=item.napomena,
+            ))
+        _add_event(
+            db,
+            kvar,
+            current_user,
+            "parts",
+            "Ažurirani utrošeni rezervni dijelovi",
+            podaci={"count": len(parts_payload)},
         )
 
     db.commit()

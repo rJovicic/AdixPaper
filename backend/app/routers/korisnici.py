@@ -4,7 +4,7 @@ from typing import List
 from ..database import get_db
 from ..models import Korisnik
 from ..schemas import KorisnikCreate, KorisnikOut, KorisnikUpdate
-from ..auth import get_password_hash, require_admin, get_current_user
+from ..auth import get_password_hash, require_admin, require_voditelj_or_admin
 
 router = APIRouter(prefix="/api/korisnici", tags=["korisnici"])
 
@@ -62,5 +62,5 @@ def delete_korisnik(user_id: int, db: Session = Depends(get_db), current_user: K
     return {"detail": "Korisnik deaktiviran"}
 
 @router.get("/radnici/lista", response_model=List[KorisnikOut])
-def get_radnici(db: Session = Depends(get_db), _: Korisnik = Depends(get_current_user)):
+def get_radnici(db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):
     return db.query(Korisnik).filter(Korisnik.aktivan == True).order_by(Korisnik.prezime).all()
