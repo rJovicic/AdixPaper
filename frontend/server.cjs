@@ -6,6 +6,7 @@ const path = require('path')
 const port = Number(process.env.PORT || 3000)
 const distDir = path.join(__dirname, 'dist')
 const apiUrl = process.env.BACKEND_URL || process.env.VITE_API_URL || ''
+const buildCommit = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT_SHA || 'local'
 
 function getBackendTarget(reqUrl) {
   if (!apiUrl) return null
@@ -31,6 +32,14 @@ function sendJson(res, statusCode, payload) {
 
 function health(res) {
   sendJson(res, 200, { status: 'ok' })
+}
+
+function version(res) {
+  sendJson(res, 200, {
+    status: 'ok',
+    commit: buildCommit,
+    startedAt: new Date().toISOString(),
+  })
 }
 
 function debugBackend(res) {
@@ -150,9 +159,20 @@ function serveStatic(req, res) {
       res.end('Not found')
     })
     .on('open', () => {
-      res.writeHead(200, { 'content-type': contentType(finalPath) })
+      res.writeHead(200, {
+        'content-type': contentType(finalPath),
+        'cache-control': cacheControl(finalPath),
+      })
     })
     .pipe(res)
+}
+
+function cacheControl(filePath) {
+  const ext = path.extname(filePath)
+  if (ext === '.html' || path.basename(filePath) === 'sw.js' || path.basename(filePath) === 'manifest.json') {
+    return 'no-store, max-age=0'
+  }
+  return 'public, max-age=31536000, immutable'
 }
 
 function contentType(filePath) {
@@ -172,6 +192,11 @@ function contentType(filePath) {
 http.createServer((req, res) => {
   if (req.url === '/health') {
     health(res)
+    return
+  }
+
+  if (req.url === '/__debug/version') {
+    version(res)
     return
   }
 
