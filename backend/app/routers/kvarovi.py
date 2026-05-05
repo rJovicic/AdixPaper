@@ -634,15 +634,19 @@ def update_kvar(
     if parts_payload is not None:
         db.query(KvarRezervniDio).filter(KvarRezervniDio.kvar_id == kvar.id).delete()
         for item in parts_payload:
-            if item.kolicina <= 0:
+            rezervni_dio_id = item.get("rezervni_dio_id") if isinstance(item, dict) else item.rezervni_dio_id
+            kolicina = item.get("kolicina") if isinstance(item, dict) else item.kolicina
+            napomena = item.get("napomena") if isinstance(item, dict) else item.napomena
+
+            if kolicina <= 0:
                 raise HTTPException(status_code=400, detail="Količina rezervnog dijela mora biti veća od nule")
-            if not db.query(RezervniDio.id).filter(RezervniDio.id == item.rezervni_dio_id, RezervniDio.aktivan == True).first():
+            if not db.query(RezervniDio.id).filter(RezervniDio.id == rezervni_dio_id, RezervniDio.aktivan == True).first():
                 raise HTTPException(status_code=404, detail="Rezervni dio nije pronađen")
             db.add(KvarRezervniDio(
                 kvar_id=kvar.id,
-                rezervni_dio_id=item.rezervni_dio_id,
-                kolicina=item.kolicina,
-                napomena=item.napomena,
+                rezervni_dio_id=rezervni_dio_id,
+                kolicina=kolicina,
+                napomena=napomena,
             ))
         _add_event(
             db,

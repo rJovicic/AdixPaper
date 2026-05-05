@@ -14,6 +14,14 @@ function Field({ label, children }) {
   )
 }
 
+function apiErrorMessage(error, fallback = 'Greška') {
+  const detail = error.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) return detail.map(item => item.msg || JSON.stringify(item)).join(', ')
+  if (detail && typeof detail === 'object') return JSON.stringify(detail)
+  return error.message || fallback
+}
+
 function partLabel(part) {
   if (!part) return ''
   return `${part.naziv}${part.sifra ? ` · ${part.sifra}` : ''}${part.dobavljac?.naziv ? ` · ${part.dobavljac.naziv}` : ''}`
@@ -157,7 +165,7 @@ export default function KvarDetalji() {
       await load()
       setTimeout(() => setMsg(''), 3000)
     } catch (e) {
-      setMsg(e.response?.data?.detail || 'Greška')
+      setMsg(apiErrorMessage(e))
     } finally {
       setSaving(false)
     }
