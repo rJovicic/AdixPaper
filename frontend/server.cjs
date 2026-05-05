@@ -29,6 +29,10 @@ function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload))
 }
 
+function health(res) {
+  sendJson(res, 200, { status: 'ok' })
+}
+
 function debugBackend(res) {
   let target
   try {
@@ -166,6 +170,11 @@ function contentType(filePath) {
 }
 
 http.createServer((req, res) => {
+  if (req.url === '/health') {
+    health(res)
+    return
+  }
+
   if (req.url === '/__debug/backend') {
     debugBackend(res)
     return
