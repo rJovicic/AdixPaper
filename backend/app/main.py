@@ -59,8 +59,11 @@ def seed_spare_parts():
 
     db = SessionLocal()
     try:
+        existing_parts = db.query(func.count(RezervniDio.id)).scalar() or 0
+        if existing_parts > 0:
+            return
+
         created = 0
-        updated = 0
         with seed_file.open("r", encoding="utf-8", newline="") as handle:
             for row in csv.DictReader(handle):
                 supplier_name = (row.get("supplier") or "").strip()
@@ -85,7 +88,7 @@ def seed_spare_parts():
                     part = query.filter(func.lower(RezervniDio.naziv) == part_name.lower()).first()
 
                 if part:
-                    updated += 1
+                    continue
                 else:
                     part = RezervniDio(dobavljac_id=supplier.id)
                     db.add(part)
@@ -99,8 +102,8 @@ def seed_spare_parts():
                 part.aktivan = True
 
         db.commit()
-        if created or updated:
-            print(f"Seed spare parts completed: created={created}, updated={updated}")
+        if created:
+            print(f"Seed spare parts completed: created={created}")
     except Exception as exc:
         db.rollback()
         print(f"Seed spare parts skipped due to error: {exc}")
