@@ -9,9 +9,9 @@ import { clearSession, getStoredUser, roleLabel, saveSession } from '../utils/au
 const navItems = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/kvarovi', icon: AlertTriangle, label: 'Kvarovi' },
-  { to: '/admin/oprema', icon: Wrench, label: 'Oprema' },
-  { to: '/admin/rezervni-dijelovi', icon: PackageSearch, label: 'Dijelovi' },
-  { to: '/admin/radnici', icon: Users, label: 'Radnici', adminOnly: true },
+  { to: '/admin/oprema', icon: Wrench, label: 'Mašine' },
+  { to: '/admin/rezervni-dijelovi', icon: PackageSearch, label: 'Rezervni dijelovi' },
+  { to: '/admin/radnici', icon: Users, label: 'Profili', adminOnly: true },
 ]
 
 export default function AdminLayout() {
@@ -51,7 +51,7 @@ export default function AdminLayout() {
     if (kvarId && notifiedKvarIds.current.has(kvarId)) return
     if (kvarId) notifiedKvarIds.current.add(kvarId)
 
-    const oprema = kvar.oprema?.naziv || 'Oprema'
+    const oprema = kvar.oprema?.naziv || 'Mašina'
     const title = count > 1 ? `${count} nova kvara` : 'Novi kvar'
     const body = `${oprema}: ${kvar.naslov}`
     const url = `/admin/kvarovi/${kvar.id}`

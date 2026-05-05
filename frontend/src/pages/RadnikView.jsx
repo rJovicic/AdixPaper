@@ -184,7 +184,7 @@ export default function RadnikView() {
         <Modal title="Prijavi kvar" onClose={() => setShowAdd(false)}>
           <div className="space-y-4">
             <div>
-              <label className="label">Oprema *</label>
+              <label className="label">Mašina *</label>
               <select className="input" value={form.oprema_id} onChange={e => setForm({ ...form, oprema_id: e.target.value })}>
                 <option value="">— Odaberite opremu —</option>
                 {oprema.map(o => (

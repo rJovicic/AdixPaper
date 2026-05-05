@@ -36,7 +36,7 @@ export default function Radnici() {
       return
     }
     if (!showEdit && !form.password?.trim()) {
-      alert('Lozinka je obavezna za novog radnika')
+      alert('Lozinka je obavezna za novi profil')
       return
     }
     setSaving(true)
@@ -77,11 +77,11 @@ export default function Radnici() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Radnici</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Profili</h1>
           <p className="text-gray-500 text-sm">{radnici.filter(r => r.aktivan).length} aktivnih</p>
         </div>
         <button onClick={() => { setForm(emptyForm); setShowAdd(true) }} className="btn-primary flex items-center gap-2">
-          <Plus size={18} /> Dodaj radnika
+          <Plus size={18} /> Dodaj profil
         </button>
       </div>
 
@@ -129,12 +129,12 @@ export default function Radnici() {
           </div>
         ))}
         {radnici.length === 0 && (
-          <p className="col-span-3 text-center text-gray-400 py-12">Nema radnika</p>
+          <p className="col-span-3 text-center text-gray-400 py-12">Nema profila</p>
         )}
       </div>
 
       {(showAdd || showEdit) && (
-        <Modal title={showEdit ? 'Uredi radnika' : 'Dodaj radnika'} onClose={() => { setShowAdd(false); setShowEdit(null) }}>
+        <Modal title={showEdit ? 'Uredi profil' : 'Dodaj profil'} onClose={() => { setShowAdd(false); setShowEdit(null) }}>
           <div className="space-y-4">
             {[['username', 'Korisničko ime *'], ['ime', 'Ime *'], ['prezime', 'Prezime *'], ['email', 'Email'], ['telefon', 'Telefon'], ['odjel', 'Odjel']].map(([k, l]) => (
               <div key={k}>

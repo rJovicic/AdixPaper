@@ -23,6 +23,7 @@ export default function RezervniDijelovi() {
   const [parts, setParts] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [search, setSearch] = useState('')
+  const [supplierFilter, setSupplierFilter] = useState('')
   const [partForm, setPartForm] = useState(emptyPart)
   const [supplierForm, setSupplierForm] = useState(emptySupplier)
   const [editingPart, setEditingPart] = useState(null)
@@ -42,11 +43,12 @@ export default function RezervniDijelovi() {
 
   const filteredParts = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return parts
-    return parts.filter(part =>
-      `${part.naziv} ${part.sifra || ''} ${part.dobavljac?.naziv || ''}`.toLowerCase().includes(q)
-    )
-  }, [parts, search])
+    return parts.filter(part => {
+      const supplierMatch = !supplierFilter || Number(part.dobavljac_id || part.dobavljac?.id) === Number(supplierFilter)
+      const queryMatch = !q || `${part.naziv} ${part.sifra || ''} ${part.dobavljac?.naziv || ''}`.toLowerCase().includes(q)
+      return supplierMatch && queryMatch
+    })
+  }, [parts, search, supplierFilter])
 
   const openNewPart = () => {
     setEditingPart(null)
@@ -97,13 +99,19 @@ export default function RezervniDijelovi() {
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setShowSupplier(true)} className="btn-secondary">Dodaj dobavljača</button>
-          <button onClick={openNewPart} className="btn-primary flex items-center gap-2"><PackagePlus size={18} /> Dodaj dio</button>
+          <button onClick={openNewPart} className="btn-primary flex items-center gap-2"><PackagePlus size={18} /> Dodaj rezervni dio</button>
         </div>
       </div>
 
-      <div className="relative max-w-xl">
-        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input className="input pl-10" value={search} onChange={e => setSearch(e.target.value)} placeholder="Pretraži po nazivu, šifri ili dobavljaču..." />
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_260px]">
+        <div className="relative">
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input className="input pl-10" value={search} onChange={e => setSearch(e.target.value)} placeholder="Pretraži po nazivu, šifri ili dobavljaču..." />
+        </div>
+        <select className="input" value={supplierFilter} onChange={e => setSupplierFilter(e.target.value)}>
+          <option value="">Svi dobavljači</option>
+          {suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.naziv}</option>)}
+        </select>
       </div>
 
       <div className="card p-0">

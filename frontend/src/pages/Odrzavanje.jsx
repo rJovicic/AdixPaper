@@ -18,7 +18,7 @@ function DetailModal({ record, onClose }) {
         </div>
         <div className="p-6 space-y-3">
           {[
-            ['Oprema', record.oprema_naziv],
+            ['Mašina', record.oprema_naziv],
             ['Datum', record.datum],
             ['Vrsta', record.vrsta_odrzavanja],
             ['Status', record.status],
@@ -73,7 +73,7 @@ export default function Odrzavanje() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              {['#', 'Oprema', 'Datum', 'Vrsta', 'Izvođač', 'Trajanje', 'Troškovi', 'Status', ''].map(h => (
+              {['#', 'Mašina', 'Datum', 'Vrsta', 'Izvođač', 'Trajanje', 'Troškovi', 'Status', ''].map(h => (
                 <th key={h} className="text-left px-4 py-3 text-gray-600 font-medium">{h}</th>
               ))}
             </tr>

@@ -121,8 +121,8 @@ export default function Dashboard() {
           <StatCard icon={CheckCircle} label="Riješeni ovaj mj." value={stats.rijeseni_ovaj_mjesec} color="green" />
           <StatCard icon={CheckCircle} label="Prosjek rješ." value={durationLabel(stats.prosjecno_vrijeme_rjesavanja_min)} color="green" />
           <StatCard icon={TrendingUp} label="Trošak mj." value={moneyLabel(stats.ukupni_troskovi_ovaj_mjesec)} color="purple" />
-          <StatCard icon={PackageSearch} label="Dijelovi mj." value={moneyLabel(stats.rezervni_dijelovi_ovaj_mjesec)} color="zinc" />
-          <StatCard icon={Factory} label="Oprema" value={stats.ukupno_opreme} sub={`${stats.neispravna_oprema} neispravnih`} color="blue" />
+          <StatCard icon={PackageSearch} label="Rezervni dijelovi mj." value={moneyLabel(stats.rezervni_dijelovi_ovaj_mjesec)} color="zinc" />
+          <StatCard icon={Factory} label="Mašine" value={stats.ukupno_opreme} sub={`${stats.neispravna_oprema} neispravnih`} color="blue" />
         </div>
       )}
 
@@ -224,9 +224,9 @@ export default function Dashboard() {
 
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-gray-800">Oprema s najviše kvarova</h2>
+          <h2 className="font-semibold text-gray-800">Mašine s najviše kvarova</h2>
           <button onClick={() => navigate('/admin/oprema')} className="text-sm text-blue-600 hover:underline">
-            Oprema →
+            Mašine →
           </button>
         </div>
         {topOprema.length === 0 ? (
@@ -236,7 +236,7 @@ export default function Dashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 text-gray-500">
-                  <th className="text-left pb-3 font-medium">Oprema</th>
+                  <th className="text-left pb-3 font-medium">Mašina</th>
                   <th className="text-left pb-3 font-medium hidden md:table-cell">Lokacija</th>
                   <th className="text-left pb-3 font-medium">Kvarovi</th>
                   <th className="text-left pb-3 font-medium">Trošak</th>
@@ -272,7 +272,7 @@ export default function Dashboard() {
               <thead>
                 <tr className="border-b border-gray-100 text-gray-500">
                   <th className="text-left pb-3 font-medium">Naslov</th>
-                  <th className="text-left pb-3 font-medium hidden md:table-cell">Oprema</th>
+                  <th className="text-left pb-3 font-medium hidden md:table-cell">Mašina</th>
                   <th className="text-left pb-3 font-medium">Prioritet</th>
                   <th className="text-left pb-3 font-medium hidden sm:table-cell">Status</th>
                   <th className="text-left pb-3 font-medium">SLA</th>

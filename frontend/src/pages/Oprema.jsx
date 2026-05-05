@@ -68,7 +68,7 @@ export default function Oprema() {
   }
 
   const deleteOprema = async (id, naziv) => {
-    if (!confirm(`Obrisati opremu "${naziv}"?`)) return
+    if (!confirm(`Obrisati mašinu "${naziv}"?`)) return
     await api.delete(`/oprema/${id}`); load()
   }
 
@@ -100,17 +100,17 @@ export default function Oprema() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Oprema</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Mašine</h1>
           <p className="text-gray-500 text-sm">{oprema.length} uređaja</p>
         </div>
         <button onClick={() => { setForm({ naziv: '', tip: '', tvrtka: 'Cupup d.o.o', proizvodac: '', model: '', serijski_broj: '', lokacija: '', status: 'Aktivno' }); setShowAdd(true) }} className="btn-primary flex items-center gap-2">
-          <Plus size={18} /> Dodaj opremu
+          <Plus size={18} /> Dodaj mašinu
         </button>
       </div>
 
       <div className="relative">
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input className="input pl-10" placeholder="Pretraži opremu..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="input pl-10" placeholder="Pretraži mašine..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       <div className="card overflow-x-auto p-0">
@@ -142,14 +142,14 @@ export default function Oprema() {
               </tr>
             ))}
             {oprema.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">Nema opreme</td></tr>
+              <tr><td colSpan={9} className="px-4 py-12 text-center text-gray-400">Nema mašina</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
       {(showAdd || showEdit) && (
-        <Modal title={showEdit ? `Uredi: ${showEdit.naziv}` : 'Dodaj novu opremu'} onClose={() => { setShowAdd(false); setShowEdit(null) }}>
+        <Modal title={showEdit ? `Uredi: ${showEdit.naziv}` : 'Dodaj novu mašinu'} onClose={() => { setShowAdd(false); setShowEdit(null) }}>
           <OpremaForm data={form} onChange={setForm} />
           {showEdit && (
             <div className="mt-6 rounded-lg border border-gray-100 bg-gray-50 p-4">
@@ -169,7 +169,7 @@ export default function Oprema() {
                     {component.naziv}
                   </button>
                 ))}
-                {components.length === 0 && <p className="text-sm text-gray-400">Nema unesenih komponenti za ovu opremu.</p>}
+                {components.length === 0 && <p className="text-sm text-gray-400">Nema unesenih komponenti za ovu mašinu.</p>}
               </div>
             </div>
           )}

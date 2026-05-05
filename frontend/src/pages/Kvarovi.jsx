@@ -72,7 +72,7 @@ export default function Kvarovi() {
             <FileSpreadsheet size={16} /> Excel
           </button>
           <button onClick={downloadPartsExport} className="btn-secondary flex items-center gap-2">
-            <FileSpreadsheet size={16} /> Dijelovi
+            <FileSpreadsheet size={16} /> Rezervni dijelovi
           </button>
           <button onClick={() => downloadExport('pdf')} className="btn-secondary flex items-center gap-2">
             <FileText size={16} /> PDF
@@ -136,7 +136,7 @@ export default function Kvarovi() {
                 <tr className="bg-gray-50 border-b border-gray-100 text-gray-500">
                   <th className="text-left px-4 py-3 font-medium">#</th>
                   <th className="text-left px-4 py-3 font-medium">Naslov</th>
-                  <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Oprema</th>
+                  <th className="text-left px-4 py-3 font-medium hidden md:table-cell">Mašina</th>
                   <th className="text-left px-4 py-3 font-medium hidden xl:table-cell">Komponenta</th>
                   <th className="text-left px-4 py-3 font-medium">Prior.</th>
                   <th className="text-left px-4 py-3 font-medium">Status</th>

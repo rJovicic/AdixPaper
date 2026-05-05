@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clock, User, Wrench, Save, CheckCircle, Play, Pause, History, MessageSquare, Send, Lock, PackagePlus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Clock, User, Wrench, Save, CheckCircle, Play, Pause, History, MessageSquare, Send, Lock, PackagePlus, Trash2, Search } from 'lucide-react'
 import api from '../api/axios'
 import { SlaBadge } from '../utils/sla'
 import { PrioritetBadge, StatusBadge } from './Dashboard'
@@ -10,6 +10,71 @@ function Field({ label, children }) {
     <div>
       <label className="label">{label}</label>
       {children}
+    </div>
+  )
+}
+
+function partLabel(part) {
+  if (!part) return ''
+  return `${part.naziv}${part.sifra ? ` · ${part.sifra}` : ''}${part.dobavljac?.naziv ? ` · ${part.dobavljac.naziv}` : ''}`
+}
+
+function PartPicker({ parts, value, onChange }) {
+  const selected = parts.find(part => Number(part.id) === Number(value))
+  const [query, setQuery] = useState(partLabel(selected))
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    setQuery(partLabel(selected))
+  }, [selected?.id])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const source = q
+      ? parts.filter(part => partLabel(part).toLowerCase().includes(q))
+      : parts
+    return source.slice(0, 30)
+  }, [parts, query])
+
+  return (
+    <div className="relative">
+      <Search size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-gray-400" />
+      <input
+        className="input pl-9"
+        value={query}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onChange={e => {
+          setQuery(e.target.value)
+          setOpen(true)
+          if (!e.target.value.trim()) onChange('')
+        }}
+        placeholder="Traži po nazivu, šifri ili dobavljaču..."
+      />
+      {open && (
+        <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-30 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-3 text-sm text-gray-400">Nema rezultata</div>
+          ) : filtered.map(part => (
+            <button
+              key={part.id}
+              type="button"
+              onMouseDown={event => event.preventDefault()}
+              onClick={() => {
+                onChange(part.id)
+                setQuery(partLabel(part))
+                setOpen(false)
+              }}
+              className={`block w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 ${Number(part.id) === Number(value) ? 'bg-zinc-100' : ''}`}
+            >
+              <span className="block truncate font-medium text-gray-900">{part.naziv}</span>
+              <span className="block truncate text-xs text-gray-500">
+                {part.sifra || 'Bez šifre'} · {part.dobavljac?.naziv || 'Bez dobavljača'}{part.zaliha !== null && part.zaliha !== undefined ? ` · zaliha ${Number(part.zaliha).toFixed(2)}` : ''}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -105,7 +170,7 @@ export default function KvarDetalji() {
       ...form,
       utroseni_dijelovi: [
         ...(form.utroseni_dijelovi || []),
-        { rezervni_dio_id: parts[0]?.id || '', kolicina: 1, napomena: '' }
+        { rezervni_dio_id: '', kolicina: 1, napomena: '' }
       ]
     })
   }
@@ -172,7 +237,7 @@ export default function KvarDetalji() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
         <div className="card">
-          <div className="flex items-center gap-2 text-gray-500 mb-2"><Wrench size={15} /> Oprema</div>
+          <div className="flex items-center gap-2 text-gray-500 mb-2"><Wrench size={15} /> Mašina</div>
           <p className="font-semibold text-gray-800">{kvar.oprema?.naziv || '—'}</p>
           <p className="text-gray-500">{kvar.komponenta?.naziv || 'Općenito / nije specificirano'}</p>
           {kvar.oprema?.lokacija && <p className="text-gray-500">{kvar.oprema.lokacija}</p>}
@@ -281,34 +346,30 @@ export default function KvarDetalji() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h4 className="font-semibold text-gray-800">Utrošeni rezervni dijelovi</h4>
-              <p className="text-xs text-gray-500">Dijelovi se koriste za odvojeni Excel izvoz po dobavljaču.</p>
+              <p className="text-xs text-gray-500">Pretraži po nazivu, šifri ili dobavljaču.</p>
             </div>
             <button onClick={addPartRow} disabled={parts.length === 0} className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-50">
-              <PackagePlus size={15} /> Dodaj dio
+              <PackagePlus size={15} /> Dodaj rezervni dio
             </button>
           </div>
           {parts.length === 0 ? (
             <p className="rounded-lg border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-400">
-              Nema aktivnih rezervnih dijelova. Dodajte ih u sekciji “Dijelovi”.
+              Nema aktivnih rezervnih dijelova. Dodajte ih u sekciji “Rezervni dijelovi”.
             </p>
           ) : (form.utroseni_dijelovi || []).length === 0 ? (
             <p className="rounded-lg border border-dashed border-gray-200 bg-white p-4 text-sm text-gray-400">Nije odabran nijedan dio za ovaj kvar.</p>
           ) : (
             <div className="space-y-2">
               {(form.utroseni_dijelovi || []).map((item, index) => {
-                const selected = parts.find(part => Number(part.id) === Number(item.rezervni_dio_id))
                 return (
                   <div key={index} className="grid grid-cols-1 gap-2 rounded-lg border border-gray-100 bg-white p-3 md:grid-cols-[1fr_90px_1fr_36px]">
-                    <select className="input" value={item.rezervni_dio_id || ''} onChange={e => updatePartRow(index, { rezervni_dio_id: e.target.value })}>
-                      <option value="">Odaberi dio</option>
-                      {parts.map(part => (
-                        <option key={part.id} value={part.id}>
-                          {part.naziv}{part.sifra ? ` · ${part.sifra}` : ''}{part.dobavljac?.naziv ? ` · ${part.dobavljac.naziv}` : ''}
-                        </option>
-                      ))}
-                    </select>
+                    <PartPicker
+                      parts={parts}
+                      value={item.rezervni_dio_id}
+                      onChange={value => updatePartRow(index, { rezervni_dio_id: value })}
+                    />
                     <input className="input" type="number" min="0.01" step="0.01" value={item.kolicina} onChange={e => updatePartRow(index, { kolicina: e.target.value })} />
-                    <input className="input" value={item.napomena || ''} onChange={e => updatePartRow(index, { napomena: e.target.value })} placeholder={selected?.dobavljac?.naziv || 'Napomena'} />
+                    <input className="input" value={item.napomena || ''} onChange={e => updatePartRow(index, { napomena: e.target.value })} placeholder="Napomena" />
                     <button onClick={() => removePartRow(index)} className="rounded-lg p-2 text-red-600 hover:bg-red-50" title="Ukloni">
                       <Trash2 size={16} />
                     </button>
