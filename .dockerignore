@@ -1,0 +1,14 @@
+.git
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.db
+**/.env
+**/.env.*
+!**/.env.example
+.claude
+.impeccable
+e2e
+*.md

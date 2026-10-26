@@ -1,30 +1,7 @@
 # Railway deploy
 
-Projekt se deploya kao dva Railway servisa iz istog GitHub repo-a:
+AdixPaper deploys as **one** Railway service built from the root `Dockerfile`
+(React is built and served by FastAPI on the same origin) plus a Railway Postgres.
 
-1. Backend servis
-   - Root Directory: `/backend`
-   - Config file: `/backend/railway.toml`
-   - Dodaj PostgreSQL service.
-   - Varijable postavi prema `backend/.env.example`.
-   - `DATABASE_URL` treba referencirati Railway PostgreSQL varijablu: `${{Postgres.DATABASE_URL}}`.
-   - `ADMIN_USERNAME` i `ADMIN_PASSWORD` stvaraju prvog admina.
-   - Ako admin vec postoji i treba reset lozinke, privremeno postavi `ADMIN_RESET_PASSWORD=true`, redeployaj backend, prijavi se, pa vrati na `false`.
-
-2. Frontend servis
-   - Root Directory: `/frontend`
-   - Config file: `/frontend/railway.toml`
-   - Varijable postavi prema `frontend/.env.example`.
-   - `VITE_API_URL` ili `BACKEND_URL` mora biti javni URL backend servisa s `/api` na kraju.
-   - Primjer: `https://adix-backend.up.railway.app/api`
-   - Istu vrijednost mozes postaviti i kao `BACKEND_URL`; frontend server ju koristi za runtime proxy ako build-time `VITE_API_URL` nije uhvacen.
-   - Debug provjera: otvori `https://frontend-url.up.railway.app/__debug/backend`.
-
-Nakon deploya:
-
-- Otvori frontend Railway URL.
-- Prijavi se s vrijednostima iz `ADMIN_USERNAME` i `ADMIN_PASSWORD`.
-- U panelu `Radnici` dodaj radnika s rolom `radnik`.
-- Na mobitelu se prijavi s tim radnikom i testiraj prijavu kvarova.
-
-Ako promijenis `VITE_API_URL`, frontend se mora redeployati jer Vite varijable ulaze u build.
+Required variables on the app service: `DATABASE_URL=${{Postgres.DATABASE_URL}}`,
+`SECRET_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`. Health check: `GET /health`.

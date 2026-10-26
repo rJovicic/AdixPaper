@@ -1,198 +1,42 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func, inspect, text
-from decimal import Decimal, InvalidOperation
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
-import csv
-from .auth import get_password_hash
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from sqlalchemy import text
+
+from . import bootstrap
 from .config import settings
-from .database import engine, Base, SessionLocal
-from .models import Korisnik, RolaEnum, Dobavljac, RezervniDio
+from .database import engine
 from .routers import auth, korisnici, oprema, dashboard, kvarovi, notifikacije, rezervni_dijelovi
 
-Base.metadata.create_all(bind=engine)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 
-def ensure_additive_schema():
-    inspector = inspect(engine)
-    table_names = set(inspector.get_table_names())
-    kvarovi_columns = {column["name"] for column in inspector.get_columns("kvarovi")} if "kvarovi" in table_names else set()
-    dijelovi_columns = {column["name"] for column in inspector.get_columns("rezervni_dijelovi")} if "rezervni_dijelovi" in table_names else set()
-    with engine.begin() as connection:
-        if "komponenta_id" not in kvarovi_columns:
-            connection.execute(text("ALTER TABLE kvarovi ADD COLUMN komponenta_id INTEGER"))
-        if dijelovi_columns and "zaliha" not in dijelovi_columns:
-            connection.execute(text("ALTER TABLE rezervni_dijelovi ADD COLUMN zaliha NUMERIC(10, 2)"))
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    bootstrap.run()
+    yield
 
-
-def seed_initial_suppliers():
-    db = SessionLocal()
-    try:
-        for naziv, oznaka in [("Cupup d.o.o", "CUPUP"), ("Delt papir d.o.o", "DELT")]:
-            exists = db.query(Dobavljac).filter(func.lower(Dobavljac.naziv) == naziv.lower()).first()
-            if not exists:
-                db.add(Dobavljac(naziv=naziv, oznaka=oznaka, aktivan=True))
-        db.commit()
-    finally:
-        db.close()
-
-
-def _decimal_or_none(value: str):
-    if value is None:
-        return None
-    text_value = str(value).strip().replace(",", ".")
-    if not text_value:
-        return None
-    try:
-        return Decimal(text_value)
-    except (InvalidOperation, ValueError):
-        return None
-
-
-def seed_spare_parts():
-    if not settings.AUTO_SEED_SPARE_PARTS:
-        return
-
-    seed_file = Path(__file__).resolve().parent / "seed_data" / "spareparts.csv"
-    if not seed_file.exists():
-        return
-
-    db = SessionLocal()
-    try:
-        existing_parts = db.query(func.count(RezervniDio.id)).scalar() or 0
-        if existing_parts > 0:
-            return
-
-        created = 0
-        with seed_file.open("r", encoding="utf-8", newline="") as handle:
-            for row in csv.DictReader(handle):
-                supplier_name = (row.get("supplier") or "").strip()
-                part_name = (row.get("part_name") or "").strip()
-                if not supplier_name or not part_name:
-                    continue
-
-                supplier = db.query(Dobavljac).filter(func.lower(Dobavljac.naziv) == supplier_name.lower()).first()
-                if not supplier:
-                    supplier = Dobavljac(
-                        naziv=supplier_name,
-                        oznaka=(row.get("supplier_code") or "").strip() or None,
-                        aktivan=True,
-                    )
-                    db.add(supplier)
-                    db.flush()
-
-                part_code = (row.get("part_code") or "").strip() or None
-                query = db.query(RezervniDio).filter(RezervniDio.dobavljac_id == supplier.id)
-                part = query.filter(RezervniDio.sifra == part_code).first() if part_code else None
-                if not part:
-                    part = query.filter(func.lower(RezervniDio.naziv) == part_name.lower()).first()
-
-                if part:
-                    continue
-                else:
-                    part = RezervniDio(dobavljac_id=supplier.id)
-                    db.add(part)
-                    created += 1
-
-                part.sifra = part_code
-                part.naziv = part_name
-                part.jedinica = (row.get("unit") or "kom").strip() or "kom"
-                part.zaliha = _decimal_or_none(row.get("stock"))
-                part.cijena = _decimal_or_none(row.get("price"))
-                part.aktivan = True
-
-        db.commit()
-        if created:
-            print(f"Seed spare parts completed: created={created}")
-    except Exception as exc:
-        db.rollback()
-        print(f"Seed spare parts skipped due to error: {exc}")
-    finally:
-        db.close()
-
-
-def reset_user_password_from_env():
-    username = settings.RESET_USERNAME.strip()
-    password = settings.RESET_PASSWORD
-    if not username or not password:
-        return
-
-    db = SessionLocal()
-    try:
-        user = db.query(Korisnik).filter(func.lower(Korisnik.username) == username.lower()).first()
-        if not user:
-            print(f"Password reset skipped: user not found ({username})")
-            return
-        user.hashed_password = get_password_hash(password)
-        user.aktivan = True
-        db.commit()
-        print(f"Password reset applied for {user.username}")
-    finally:
-        db.close()
-
-
-ensure_additive_schema()
-Base.metadata.create_all(bind=engine)
-seed_initial_suppliers()
-seed_spare_parts()
-
-def seed_initial_admin():
-    if not settings.ADMIN_USERNAME or not settings.ADMIN_PASSWORD:
-        return
-
-    username = settings.ADMIN_USERNAME.strip()
-    if not username:
-        return
-
-    db = SessionLocal()
-    try:
-        user = db.query(Korisnik).filter(func.lower(Korisnik.username) == username.lower()).first()
-        existing_admin = db.query(Korisnik).filter(Korisnik.rola == RolaEnum.admin).first()
-        if existing_admin and (user is None or user.id != existing_admin.id):
-            if not settings.ADMIN_RESET_PASSWORD:
-                return
-
-            user = existing_admin
-
-        if user is None:
-            user = Korisnik(username=username)
-            db.add(user)
-        else:
-            user.username = username
-
-        user.ime = settings.ADMIN_IME
-        user.prezime = settings.ADMIN_PREZIME
-        user.email = settings.ADMIN_EMAIL or None
-        user.telefon = settings.ADMIN_TELEFON or None
-        user.odjel = settings.ADMIN_ODJEL or None
-        if settings.ADMIN_RESET_PASSWORD or not user.hashed_password:
-            user.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
-        user.rola = RolaEnum.admin
-        user.aktivan = True
-        db.commit()
-    finally:
-        db.close()
-
-seed_initial_admin()
-reset_user_password_from_env()
-
-cors_origins = ["*"] if settings.CORS_ORIGINS.strip() == "*" else [
-    origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()
-]
 
 app = FastAPI(
     title="Adix Paper - Sustav za upravljanje kvarovima",
-    version="2.0.0",
-    description="API za ticket/task sustav održavanja strojeva"
+    version="2.1.0",
+    description="API za ticket/task sustav održavanja strojeva",
+    lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=settings.CORS_ORIGINS.strip() != "*",
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+cors_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
+if cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.include_router(auth.router)
 app.include_router(korisnici.router)
@@ -202,10 +46,52 @@ app.include_router(dashboard.router)
 app.include_router(notifikacije.router)
 app.include_router(rezervni_dijelovi.router)
 
-@app.get("/")
-def root():
-    return {"message": "Adix Paper API v2.0", "status": "online"}
 
-@app.get("/health")
+@app.get("/health", include_in_schema=False)
 def health():
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception:
+        logging.getLogger("adixpaper").exception("Health check: database unreachable")
+        return JSONResponse({"status": "error", "database": "unreachable"}, status_code=503)
     return {"status": "ok"}
+
+
+# --- Frontend (single-page app) -------------------------------------------------
+# The production image places the Vite build in FRONTEND_DIST. Without it (local API
+# development) only the API is served and the Vite dev server proxies /api here.
+frontend_dist = Path(settings.FRONTEND_DIST).resolve()
+NO_CACHE_FILES = {"index.html", "sw.js", "manifest.json"}
+
+
+def _frontend_file(path: Path) -> FileResponse:
+    if path.name in NO_CACHE_FILES:
+        headers = {"Cache-Control": "no-cache"}
+    elif path.parent.name == "assets":
+        # Vite fingerprints everything under /assets, so it can be cached forever.
+        headers = {"Cache-Control": "public, max-age=31536000, immutable"}
+    else:
+        headers = {"Cache-Control": "public, max-age=86400"}
+    return FileResponse(path, headers=headers)
+
+
+if (frontend_dist / "index.html").is_file():
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def spa(full_path: str):
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        candidate = (frontend_dist / full_path).resolve()
+        if full_path and candidate.is_file() and candidate.is_relative_to(frontend_dist):
+            return _frontend_file(candidate)
+        if Path(full_path).suffix:
+            # A missing asset must 404, not silently return the HTML shell.
+            raise HTTPException(status_code=404, detail="Not Found")
+        return _frontend_file(frontend_dist / "index.html")
+
+else:
+
+    @app.get("/", include_in_schema=False)
+    def root():
+        return {"message": "Adix Paper API", "status": "online"}
