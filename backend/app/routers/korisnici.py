@@ -16,7 +16,7 @@ def get_korisnici(db: Session = Depends(get_db), _: Korisnik = Depends(require_a
 @router.post("", response_model=KorisnikOut)
 def create_korisnik(data: KorisnikCreate, db: Session = Depends(get_db), _: Korisnik = Depends(require_admin)):
     if db.query(Korisnik).filter(func.lower(Korisnik.username) == data.username.lower()).first():
-        raise HTTPException(status_code=400, detail="Username već postoji")
+        raise HTTPException(status_code=400, detail="Korisničko ime već postoji")
     if data.email and db.query(Korisnik).filter(Korisnik.email == data.email).first():
         raise HTTPException(status_code=400, detail="Email već postoji")
 

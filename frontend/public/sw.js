@@ -1,6 +1,7 @@
+/* global clients */
 self.addEventListener('push', event => {
   let data = {}
-  try { data = event.data.json() } catch (e) { data = { title: 'Adix Paper', body: event.data?.text() || '' } }
+  try { data = event.data.json() } catch { data = { title: 'Adix Paper', body: event.data?.text() || '' } }
 
   const options = {
     body: data.body || '',

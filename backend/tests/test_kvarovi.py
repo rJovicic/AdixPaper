@@ -96,6 +96,7 @@ def test_exports_and_dashboard(client, admin):
         assert client.get(f"/api/dashboard/{path}", headers=admin).status_code == 200, path
     stats = client.get("/api/dashboard/stats", headers=admin).json()
     assert stats["kvarovi_danas"] >= 1
+    assert stats["zastoj_ovaj_mjesec_min"] <= stats["ukupni_zastoj_min"]
 
 
 def test_machine_with_faults_cannot_be_deleted(client, admin, make_user, machine):
@@ -115,3 +116,21 @@ def test_component_must_belong_to_machine(client, admin, make_user, machine):
     comp = client.post(f"/api/oprema/{other['id']}/komponente", json={"naziv": "Senzor"}, headers=admin).json()
     response = client.post("/api/kvarovi", json={"oprema_id": machine["id"], "komponenta_id": comp["id"], "naslov": "X"}, headers=worker)
     assert response.status_code == 404
+
+
+def test_resaving_unchanged_details_does_not_spam_the_timeline(client, admin, make_user, machine):
+    _, worker = make_user()
+    kvar = report(client, worker, machine)
+    supplier = client.get("/api/rezervni-dijelovi/dobavljaci", headers=admin).json()[0]
+    part = client.post("/api/rezervni-dijelovi", json={"naziv": "Remen", "dobavljac_id": supplier["id"]}, headers=admin).json()
+    payload = {
+        "sto_je_uradjeno": "Zategnut remen", "troskovi": 0, "trajanje_min": 30, "materijal": "", "napomene_voditelja": "",
+        "utroseni_dijelovi": [{"rezervni_dio_id": part["id"], "kolicina": 1, "napomena": ""}],
+    }
+    assert client.put(f"/api/kvarovi/{kvar['id']}", json=payload, headers=admin).status_code == 200
+    first = client.get(f"/api/kvarovi/{kvar['id']}/dogadjaji", headers=admin).json()
+    # Same values again, plus taking the fault: only status and the automatic assignment are new.
+    assert client.put(f"/api/kvarovi/{kvar['id']}", json={**payload, "status": "U rješavanju"}, headers=admin).status_code == 200
+    second = client.get(f"/api/kvarovi/{kvar['id']}/dogadjaji", headers=admin).json()
+    assert [e["tip"] for e in second[len(first):]] == ["status", "assignment"]
+    assert len(client.get(f"/api/kvarovi/{kvar['id']}", headers=admin).json()["utroseni_dijelovi"]) == 1

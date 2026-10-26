@@ -1,109 +1,145 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import api from '../api/axios'
+import { useEffect, useRef, useState } from 'react'
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { AlertTriangle, Eye, EyeOff } from 'lucide-react'
 import BrandLogo from '../components/BrandLogo'
-import { clearSession, homeForRole, normalizeRole, saveSession } from '../utils/auth'
+import Field from '../components/ui/Field'
+import LanguageSwitch from '../components/ui/LanguageSwitch'
+import { useAuth } from '../auth/AuthProvider'
+import { homeForRole } from '../auth/session'
+import { errorMessage } from '../api/client'
+import { useI18n } from '../i18n'
 
 export default function Login() {
+  const i18n = useI18n()
+  const { t } = i18n
+  const { user, signIn } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [params] = useSearchParams()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
+  const [showPassword, setShowPassword] = useState(false)
+  const [errors, setErrors] = useState({})
+  const [formError, setFormError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const usernameRef = useRef(null)
+  const passwordRef = useRef(null)
+  const reason = params.get('reason')
 
   useEffect(() => {
-    clearSession()
-  }, [])
+    document.title = `${t('login.title')} · ${t('app.name')}`
+  }, [t])
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!username.trim() || !password.trim()) {
-      setError('Unesite korisničko ime i lozinku')
-      return
-    }
-    setLoading(true)
-    setError('')
+  if (user && !submitting) return <Navigate to={homeForRole(user.rola)} replace />
+
+  const submit = async (event) => {
+    event.preventDefault()
+    const nextErrors = {}
+    if (!username.trim()) nextErrors.username = t('errors.required')
+    if (!password) nextErrors.password = t('errors.required')
+    setErrors(nextErrors)
+    setFormError('')
+    if (nextErrors.username) return usernameRef.current?.focus()
+    if (nextErrors.password) return passwordRef.current?.focus()
+
+    setSubmitting(true)
     try {
-      const form = new FormData()
-      form.append('username', username)
-      form.append('password', password)
-      const { data } = await api.post('/auth/login', form)
-      if (!data || typeof data !== 'object') {
-        throw new Error('Frontend nije spojen na backend API. Provjerite VITE_API_URL u Railway frontend servisu.')
-      }
-
-      const loginData = { ...data, rola: normalizeRole(data.rola || data.role) }
-
-      if (!loginData.rola && data.access_token) {
-        localStorage.setItem('token', data.access_token)
-        const me = await api.get('/auth/me')
-        Object.assign(loginData, me.data, { access_token: data.access_token })
-      }
-
-      const user = saveSession(loginData)
-      navigate(homeForRole(user.rola), { replace: true })
-    } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Greška pri prijavi')
-    } finally {
-      setLoading(false)
+      const signedIn = await signIn(username.trim(), password)
+      const from = location.state?.from
+      const target = from && from.startsWith(homeForRole(signedIn.rola)) ? from : homeForRole(signedIn.rola)
+      navigate(target, { replace: true })
+    } catch (error) {
+      setFormError(error?.message === 'bad-response' ? t('login.badResponse') : errorMessage(error, i18n))
+      setPassword('')
+      setSubmitting(false)
+      passwordRef.current?.focus()
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-600 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl bg-white p-2 shadow-xl mb-4">
-            <BrandLogo />
-          </div>
-          <h1 className="text-3xl font-bold text-white">Adix Paper</h1>
-          <p className="text-blue-200 mt-1">Sustav za upravljanje kvarovima</p>
-        </div>
+  const notice = reason === 'expired' ? t('login.expired') : reason === 'signedOut' ? t('login.signedOut') : ''
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">Prijava u sustav</h2>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 mb-4 text-sm">
-              {error}
-            </div>
-          )}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="label">Korisničko ime</label>
-              <input
-                type="text"
-                className="input"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder="username"
-                required
-                autoFocus
-              />
-            </div>
-            <div>
-              <label className="label">Lozinka</label>
-              <input
-                type="password"
-                className="input"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full btn-primary py-3 text-base mt-2 disabled:opacity-50"
-            >
-              {loading ? 'Prijavljivanje...' : 'Prijavi se'}
-            </button>
-          </form>
-        </div>
-        <p className="text-center text-blue-200 text-sm mt-4">
-          Cupup d.o.o &amp; Delt papir d.o.o
-        </p>
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <div className="flex justify-end px-4 pt-4">
+        <LanguageSwitch />
       </div>
+      <main className="flex flex-1 items-start justify-center px-4 pb-10 pt-6 sm:items-center sm:pt-0">
+        <div className="enter-rise w-full max-w-[25rem]">
+          <section aria-labelledby="login-title" className="surface overflow-hidden">
+            <header className="flex items-center gap-4 border-b border-rule px-6 py-5">
+              <BrandLogo size="lg" />
+              <div className="min-w-0">
+                <p className="text-xl font-semibold leading-tight text-ink">{t('app.name')}</p>
+                <p className="mt-0.5 text-ink-2">{t('app.tagline')}</p>
+              </div>
+            </header>
+
+            <form onSubmit={submit} noValidate className="space-y-5 px-6 py-6">
+              <h1 id="login-title" className="text-lg font-semibold text-ink">{t('login.title')}</h1>
+
+              {notice && !formError && (
+                <p role="status" className="rounded border border-rule bg-ground/60 px-3 py-2.5 text-sm text-ink-2">{notice}</p>
+              )}
+              {formError && (
+                <p role="alert" className="flex items-start gap-2 rounded border border-urgent/30 bg-urgent-wash px-3 py-2.5 text-sm font-medium text-urgent">
+                  <AlertTriangle size={17} aria-hidden="true" className="mt-0.5 shrink-0" />
+                  {formError}
+                </p>
+              )}
+
+              <Field label={t('login.username')} error={errors.username} required>
+                {(props) => (
+                  <input
+                    {...props}
+                    ref={usernameRef}
+                    className="control"
+                    name="username"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    autoFocus
+                    value={username}
+                    onChange={(event) => setUsername(event.target.value)}
+                  />
+                )}
+              </Field>
+
+              <Field label={t('login.password')} error={errors.password} required>
+                {(props) => (
+                  <div className="relative">
+                    <input
+                      {...props}
+                      ref={passwordRef}
+                      className="control pr-12"
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((value) => !value)}
+                      className="btn-icon absolute right-0.5 top-1/2 -translate-y-1/2"
+                      aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
+                      aria-pressed={showPassword}
+                    >
+                      {showPassword ? <EyeOff size={19} aria-hidden="true" /> : <Eye size={19} aria-hidden="true" />}
+                    </button>
+                  </div>
+                )}
+              </Field>
+
+              <button type="submit" disabled={submitting} className="btn-primary btn-lg w-full">
+                {submitting ? t('login.submitting') : t('login.submit')}
+              </button>
+              <p className="text-sm text-ink-2">{t('login.help')}</p>
+            </form>
+          </section>
+          <p className="mt-5 text-center text-meta text-ink-3">{t('app.companies')}</p>
+        </div>
+      </main>
     </div>
   )
 }

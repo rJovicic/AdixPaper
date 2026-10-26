@@ -1,87 +1,65 @@
-import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import { I18nProvider } from './i18n'
+import { AuthProvider, useAuth } from './auth/AuthProvider'
+import { homeForRole } from './auth/session'
+import { ToastProvider } from './components/ui/Toast'
+import RequireRole from './components/RequireRole'
+import WorkerShell from './components/WorkerShell'
+import { LoadingRows } from './components/ui/States'
 import Login from './pages/Login'
-import AdminLayout from './components/AdminLayout'
-import Dashboard from './pages/Dashboard'
-import Kvarovi from './pages/Kvarovi'
-import KvarDetalji from './pages/KvarDetalji'
-import Oprema from './pages/Oprema'
-import Radnici from './pages/Radnici'
-import RadnikView from './pages/RadnikView'
-import RezervniDijelovi from './pages/RezervniDijelovi'
-import api from './api/axios'
-import { clearSession, getStoredUser, hasRole, homeForRole, saveSession } from './utils/auth'
+import NotFound from './pages/NotFound'
+import MyFaults from './pages/worker/MyFaults'
+import ReportFault from './pages/worker/ReportFault'
+import WorkerFault from './pages/worker/WorkerFault'
 
-function ProtectedRoute({ children, allowedRoles }) {
-  const token = localStorage.getItem('token')
-  const [status, setStatus] = useState(token ? 'checking' : 'logged-out')
-  const [user, setUser] = useState(() => getStoredUser())
+// Lead/admin screens (and the chart library) load only for leads, keeping the worker's phone bundle small.
+const AdminShell = lazy(() => import('./components/AdminShell'))
+const Dashboard = lazy(() => import('./pages/admin/Dashboard'))
+const Faults = lazy(() => import('./pages/admin/Faults'))
+const FaultDetail = lazy(() => import('./pages/admin/FaultDetail'))
+const Machines = lazy(() => import('./pages/admin/Machines'))
+const SpareParts = lazy(() => import('./pages/admin/SpareParts'))
+const Users = lazy(() => import('./pages/admin/Users'))
 
-  useEffect(() => {
-    let active = true
-    if (!token) {
-      setStatus('logged-out')
-      return
-    }
+const pageFallback = <div className="surface mx-auto mt-8 max-w-3xl"><LoadingRows rows={4} /></div>
 
-    const stored = getStoredUser()
-    if (stored.rola) {
-      setUser(stored)
-      setStatus('ready')
-      return
-    }
-
-    api.get('/auth/me')
-      .then(({ data }) => {
-        if (!active) return
-        const syncedUser = saveSession({ ...data, access_token: token })
-        setUser(syncedUser)
-        setStatus('ready')
-      })
-      .catch(() => {
-        if (!active) return
-        clearSession()
-        setStatus('logged-out')
-      })
-
-    return () => { active = false }
-  }, [token])
-
-  if (!token) return <Navigate to="/login" replace />
-  if (status === 'checking') return <div className="min-h-screen grid place-items-center text-gray-400">Provjera prijave...</div>
-  if (status === 'logged-out') return <Navigate to="/login" replace />
-  if (!hasRole(user, allowedRoles)) return <Navigate to={homeForRole(user.rola)} replace />
-  return children
+function Home() {
+  const { user } = useAuth()
+  return <Navigate to={user ? homeForRole(user.rola) : '/login'} replace />
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/admin" element={
-          <ProtectedRoute allowedRoles={['admin', 'voditelj']}>
-            <AdminLayout />
-          </ProtectedRoute>
-        }>
-          <Route index element={<Dashboard />} />
-          <Route path="kvarovi" element={<Kvarovi />} />
-          <Route path="kvarovi/:id" element={<KvarDetalji />} />
-          <Route path="oprema" element={<Oprema />} />
-          <Route path="rezervni-dijelovi" element={<RezervniDijelovi />} />
-          <Route path="radnici" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <Radnici />
-            </ProtectedRoute>
-          } />
-        </Route>
-        <Route path="/radnik" element={
-          <ProtectedRoute allowedRoles={['radnik']}>
-            <RadnikView />
-          </ProtectedRoute>
-        } />
-        <Route path="/" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <I18nProvider>
+      <BrowserRouter>
+        <ToastProvider>
+          <AuthProvider>
+            <Suspense fallback={pageFallback}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/radnik" element={<RequireRole roles={['radnik']}><WorkerShell /></RequireRole>}>
+                <Route index element={<MyFaults />} />
+                <Route path="prijava" element={<ReportFault />} />
+                <Route path="kvar/:id" element={<WorkerFault />} />
+              </Route>
+              <Route path="/admin" element={<RequireRole roles={['admin', 'voditelj']}><AdminShell /></RequireRole>}>
+                <Route index element={<Dashboard />} />
+                <Route path="kvarovi" element={<Faults />} />
+                <Route path="kvarovi/:id" element={<FaultDetail />} />
+                <Route path="oprema" element={<Machines />} />
+                <Route path="rezervni-dijelovi" element={<SpareParts />} />
+                <Route path="korisnici" element={<RequireRole roles={['admin']}><Users /></RequireRole>} />
+                <Route path="radnici" element={<Navigate to="/admin/korisnici" replace />} />
+                <Route path="*" element={<NotFound />} />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            </Suspense>
+          </AuthProvider>
+        </ToastProvider>
+      </BrowserRouter>
+    </I18nProvider>
   )
 }

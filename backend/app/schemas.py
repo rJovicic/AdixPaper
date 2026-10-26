@@ -356,6 +356,7 @@ class DashboardStats(BaseModel):
     broj_radnika: int
     hitni_kvarovi: int
     ukupni_zastoj_min: int
+    zastoj_ovaj_mjesec_min: int = 0
     rezervni_dijelovi_ovaj_mjesec: float
     sla_kasni: int
     sla_uskoro: int

@@ -12,7 +12,7 @@ AdixPaper is a working maintenance fault-tracking app (FastAPI + React) for the 
 
 Beyond deployment, the audit found data-integrity crashes (500s on ordinary actions), an Excel export that has never worked on PostgreSQL, an unusable machine form, an admin self-lockout, and a UI split across three visual styles with weak feedback, no worker visibility into their own faults, and a phone layout that clips the fault table.
 
-Deployment and backend issues are fixed and verified (production `/health` 200 over the public domain; 26 automated tests). Frontend issues are addressed by the redesign described in `PRODUCT.md` and `DESIGN.md`.
+Deployment and backend issues are fixed and verified (production `/health` 200 over the public domain; 27 backend tests). Frontend issues are fixed by the redesign described in `PRODUCT.md` and `DESIGN.md` and verified by 13 Playwright tests (including axe WCAG 2.2 AA scans) against the production Docker image.
 
 ## 2. Confirmed architecture
 
@@ -48,11 +48,11 @@ Deployment and backend issues are fixed and verified (production `/health` 200 o
 | H2 | High | Deleting a machine that has faults → 500 | **Confirmed** (`DELETE /api/oprema/1` → 500, FK/NOT NULL) | Error with no explanation | 409 with guidance to set status "Raspisano" | **Fixed** |
 | H3 | High | Admin can deactivate or demote own account | **Confirmed** (`PUT /api/korisnici/1 {"aktivan":false}` → 200, then 401) | Lockout; recovery only via env reset + redeploy | 400 for self-deactivation/demotion | **Fixed** |
 | H4 | High | Second user without email (or machine without serial) → 500 | **Confirmed** (second `POST /api/korisnici` with `email:""` → 500) | Forms default to `""`; UNIQUE columns collide | Blank optional text normalised to NULL server-side | **Fixed** |
-| H5 | High | Machine form loses focus after every keystroke | **Confirmed** in Chromium: typing "Stroj" leaves "S" | Creating/editing machines practically impossible | Form component moved out of render | Planned (frontend) |
-| H6 | High | Opening the app root logs the user out | **Hypothesis** (code: `/` → `/login`, whose mount effect calls `clearSession()`; manifest `start_url` is `/`) | Installed home-screen app signs workers out on every launch | `/` routes to the role's home when a session exists; login page no longer clears a valid session | Planned (frontend) |
+| H5 | High | Machine form loses focus after every keystroke | **Confirmed** in Chromium: typing "Stroj" leaves "S" | Creating/editing machines practically impossible | Form component moved out of render; ESLint `react/no-unstable-nested-components` guards it | **Fixed** (e2e: machine form keeps focus) |
+| H6 | High | Opening the app root logs the user out | **Hypothesis** (code: `/` → `/login`, whose mount effect calls `clearSession()`; manifest `start_url` is `/`) | Installed home-screen app signs workers out on every launch | `/` routes to the role's home when a session exists; login page no longer clears a valid session | **Fixed** (e2e: root keeps worker signed in) |
 | H7 | High | SSE stream holds a pooled DB connection per open admin tab and runs blocking queries in the event loop | **Hypothesis** (code; pool default 5+10) | ~15 concurrent admin tabs exhaust the pool and stall all requests; token in query string lands in access logs | Replaced by `GET /api/kvarovi/novi?since_id=` polling; SSE removed | **Fixed** |
-| H8 | High | Fault table clips Status column on phones; header actions crowd the title | **Confirmed** (screenshot at 390 px) | Leads cannot read status on the floor | Card list on small screens | Planned (frontend) |
-| H9 | High | Vulnerable dependencies | **Confirmed**: `pip-audit` 38 advisories (starlette, python-jose/ecdsa, python-multipart, python-dotenv); `npm audit --omit=dev` 6 (3 high: axios chain, form-data) | Known CVEs in request parsing/JWT | Upgraded FastAPI/Starlette/etc.; replaced unmaintained `python-jose` with `PyJWT`; psycopg 3 | Python **Fixed** (0 advisories); npm planned |
+| H8 | High | Fault table clips Status column on phones; header actions crowd the title | **Confirmed** (screenshot at 390 px) | Leads cannot read status on the floor | Label-card list below 768 px; table with fixed title column above | **Fixed** (e2e: no overflow at 360/768/1280) |
+| H9 | High | Vulnerable dependencies | **Confirmed**: `pip-audit` 38 advisories (starlette, python-jose/ecdsa, python-multipart, python-dotenv); `npm audit --omit=dev` 6 (3 high: axios chain, form-data) | Known CVEs in request parsing/JWT | Upgraded FastAPI/Starlette/etc.; replaced unmaintained `python-jose` with `PyJWT`; psycopg 3 | **Fixed**: pip-audit 0; `npm audit --omit=dev` 0 (React Router 7, axios update). One dev-only advisory remains in Tailwind 3's `postcss-selector-parser` (build-time, parses only our CSS; fix requires Tailwind 4) |
 
 ## 5. Medium and low-priority improvements
 
@@ -63,19 +63,20 @@ Deployment and backend issues are fixed and verified (production `/health` 200 o
 | M3 | Medium | Background push task used the request's closed DB session; errors swallowed | Confirmed (code; FastAPI closes `yield` deps before background tasks) | Own session + logged errors | **Fixed** |
 | M4 | Medium | Admin profile overwritten from env on every deploy | Confirmed (code) | Only on creation or explicit reset | **Fixed** |
 | M5 | Medium | No input limits (negative cost, 0 quantity, unbounded text) | Confirmed (code) | Pydantic constraints | **Fixed** |
-| M6 | Medium | Mutations without error handling (parts, suppliers, components, exports) → unhandled rejections, no feedback | Confirmed (code) | Shared error/toast handling | Planned (frontend) |
-| M7 | Medium | Fault detail shows API errors in success green | Confirmed (code: colour chosen by `msg.includes('Greška')`) | Typed status messages | Planned (frontend) |
-| M8 | Medium | Worker cannot open their fault, see who handles it or read comments, though the API supports it | Confirmed (UI) | Worker fault view with public timeline + comment | Planned (frontend) |
-| M9 | Medium | No UI to assign a fault; assignment events exist | Confirmed (UI vs API) | Assignee select for leads | Planned (frontend) |
-| M10 | Medium | Push: VAPID key only at build time; unsubscribe leaves server record | Confirmed (code) | Runtime key from API; DELETE on unsubscribe | Planned (frontend) |
+| M6 | Medium | Mutations without error handling (parts, suppliers, components, exports) → unhandled rejections, no feedback | Confirmed (code) | Toasts, inline field errors, error states with retry on every list | **Fixed** |
+| M7 | Medium | Fault detail shows API errors in success green | Confirmed (code: colour chosen by `msg.includes('Greška')`) | Toast tones (success/error) | **Fixed** |
+| M8 | Medium | Worker cannot open their fault, see who handles it or read comments, though the API supports it | Confirmed (UI) | Worker fault view with public timeline + comment | **Fixed** (e2e) |
+| M9 | Medium | No UI to assign a fault; assignment events exist | Confirmed (UI vs API) | Assignee select for leads | **Fixed** |
+| M10 | Medium | Push: VAPID key only at build time; unsubscribe leaves server record | Confirmed (code) | Runtime key from API (toggle hidden when unset); DELETE on unsubscribe | **Fixed** |
 | M11 | Medium | No security headers; unthrottled login | Confirmed (response headers) | CSP, nosniff, frame-deny, HSTS; 10 failures/15 min throttle | **Fixed** |
+| M12 | Medium | Every fault save logged "details updated" and rewrote/logged spare parts even when nothing changed | Confirmed (code: event logged when the key is present in the payload) | Log only real value changes; skip unchanged parts | **Fixed** (test `test_resaving_unchanged_details_does_not_spam_the_timeline`) |
 | L1 | Low | Dead `odrzavanje` router/page | Confirmed | Removed | **Fixed** |
 | L2 | Low | Two alert mechanisms (SSE + 15 s full-list polling) | Confirmed | One lightweight poll | **Fixed** |
 | L3 | Low | Python logs to stderr → Railway shows INFO as `error` | Confirmed (deploy logs) | `log_config.json` to stdout | **Fixed** |
-| L4 | Low | No tests or CI | Confirmed | `backend/tests` (26), Playwright e2e, GitHub Actions | Backend **Fixed**; e2e/CI planned |
+| L4 | Low | No tests or CI | Confirmed | `backend/tests` (27), Playwright e2e (13), GitHub Actions | **Fixed** |
 | L5 | Low | Deprecated APIs (`utcnow`, Pydantic `class Config`, `declarative_base` import) | Confirmed | Updated | **Fixed** |
 | L6 | Low | JWT in `localStorage` | Hypothesis (risk only with an XSS; React escapes output, no `dangerouslySetInnerHTML`) | Strict CSP added; cookie session left as future work | Accepted risk |
-| L7 | Low | Three competing visual styles, English eyebrow in a Croatian UI, 11 equal stat tiles | Confirmed (screenshots) | Single design system (`DESIGN.md`) | Planned (frontend) |
+| L7 | Low | Three competing visual styles, English eyebrow in a Croatian UI, 11 equal stat tiles | Confirmed (screenshots) | Single design system (`DESIGN.md`); Impeccable detector 0 findings | **Fixed** |
 
 ## 6. UX evaluation (incumbent UI)
 
@@ -143,6 +144,6 @@ Method: heuristic evaluation and cognitive walkthrough of the two primary tasks 
 1. Deployment: Dockerfile, Postgres, variables, health check → online. *(done)*
 2. Security and data integrity: secret, register endpoint, 500s, lockout, validation, dependency upgrades. *(done)*
 3. Tests for the above. *(done)*
-4. Frontend correctness: focus bug, root logout, error handling, worker visibility, assignment.
-5. Design system and redesign of all screens; Croatian/English.
-6. E2E, responsive and accessibility checks; documentation; production verification.
+4. Frontend correctness: focus bug, root logout, error handling, worker visibility, assignment. *(done)*
+5. Design system and redesign of all screens; Croatian/English. *(done)*
+6. E2E, responsive and accessibility checks; documentation; production verification. *(done)*

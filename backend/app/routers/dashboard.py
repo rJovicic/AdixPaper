@@ -71,6 +71,10 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
     ).scalar() or 0
 
     zastoj_min = db.query(func.coalesce(func.sum(Kvar.trajanje_min), 0)).scalar() or 0
+    zastoj_mjesec = db.query(func.coalesce(func.sum(Kvar.trajanje_min), 0)).filter(
+        Kvar.status == StatusKvaraEnum.rijeseno,
+        Kvar.datum_rjesavanja >= month_start,
+    ).scalar() or 0
     dijelovi_mjesec = db.query(
         func.coalesce(func.sum(KvarRezervniDio.kolicina * func.coalesce(RezervniDio.cijena, 0)), 0)
     ).join(Kvar, KvarRezervniDio.kvar_id == Kvar.id).join(
@@ -113,6 +117,7 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
         broj_radnika=broj_radnika,
         hitni_kvarovi=hitni,
         ukupni_zastoj_min=int(zastoj_min or 0),
+        zastoj_ovaj_mjesec_min=int(zastoj_mjesec or 0),
         rezervni_dijelovi_ovaj_mjesec=float(dijelovi_mjesec or 0),
         sla_kasni=sla_kasni,
         sla_uskoro=sla_uskoro,

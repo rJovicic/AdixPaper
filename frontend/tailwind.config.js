@@ -1,19 +1,50 @@
 /** @type {import('tailwindcss').Config} */
+const token = (name) => `rgb(var(--${name}) / <alpha-value>)`
+
 export default {
-  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
-        }
-      }
+        ground: token('ground'),
+        stock: token('stock'),
+        ink: { DEFAULT: token('ink'), 2: token('ink-2'), 3: token('ink-3') },
+        rule: { DEFAULT: token('rule'), strong: token('rule-strong') },
+        brand: {
+          DEFAULT: token('brand'),
+          hover: token('brand-hover'),
+          deep: token('brand-deep'),
+          wash: token('brand-wash'),
+          'on-deep': token('brand-on-deep'),
+        },
+        urgent: { DEFAULT: token('urgent'), wash: token('urgent-wash') },
+        warn: { DEFAULT: token('warn'), mark: token('warn-mark'), wash: token('warn-wash') },
+        ok: { DEFAULT: token('ok'), wash: token('ok-wash') },
+      },
+      fontFamily: {
+        sans: ['"Archivo Variable"', 'Archivo', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+      },
+      fontSize: {
+        label: ['0.75rem', { lineHeight: '1rem', letterSpacing: '0.06em' }],
+        meta: ['0.8125rem', { lineHeight: '1.125rem' }],
+        figure: ['2.5rem', { lineHeight: '1', letterSpacing: '-0.01em' }],
+      },
+      borderRadius: {
+        sm: '3px',
+        DEFAULT: '5px',
+        lg: '8px',
+      },
+      boxShadow: {
+        label: '0 1px 2px rgb(20 23 28 / 0.06), 0 1px 1px rgb(20 23 28 / 0.04)',
+        lift: '0 6px 16px -6px rgb(20 23 28 / 0.18), 0 2px 4px rgb(20 23 28 / 0.06)',
+        dialog: '0 20px 48px -12px rgb(20 23 28 / 0.35), 0 4px 12px rgb(20 23 28 / 0.08)',
+      },
+      screens: {
+        xs: '420px',
+      },
+      transitionTimingFunction: {
+        out: 'cubic-bezier(0.16, 1, 0.3, 1)',
+      },
     },
   },
   plugins: [],

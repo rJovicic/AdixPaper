@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional
 from datetime import datetime
+from decimal import Decimal
 from io import BytesIO
 import json
 import logging
@@ -179,6 +180,23 @@ def _send_push_notifications(title: str, body: str, url: str = "/"):
         logger.exception("Sending push notifications failed")
     finally:
         db.close()
+
+
+def _normalized(value):
+    """Treat None/""/0 alike so a re-saved empty field is not logged as a change."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        return None if Decimal(str(value)) == 0 else Decimal(str(value)).normalize()
+    return value
+
+
+def _parts_signature(items) -> list:
+    rows = []
+    for item in items:
+        get = item.get if isinstance(item, dict) else lambda key, _i=item: getattr(_i, key)
+        rows.append((int(get("rezervni_dio_id")), Decimal(str(get("kolicina"))).normalize(), get("napomena") or None))
+    return sorted(rows, key=lambda row: (row[0], row[1], row[2] or ""))
 
 
 def _load_kvar(kvar_id: int, db: Session) -> Kvar:
@@ -540,6 +558,8 @@ def update_kvar(
     old_prioritet = _enum_value(kvar.prioritet)
     old_voditelj_id = kvar.voditelj_id
     old_komponenta_id = kvar.komponenta_id
+    detail_fields = ("sto_je_uradjeno", "materijal", "troskovi", "trajanje_min", "napomene_voditelja")
+    old_details = {field: getattr(kvar, field) for field in detail_fields}
 
     if "komponenta_id" in update_data and update_data["komponenta_id"]:
         component = db.query(KomponentaOpreme).filter(
@@ -605,8 +625,10 @@ def update_kvar(
             podaci={"old": old_komponenta_id, "new": kvar.komponenta_id},
         )
 
-    detail_fields = {"sto_je_uradjeno", "materijal", "troskovi", "trajanje_min", "napomene_voditelja"}
-    changed_details = sorted(detail_fields.intersection(update_data.keys()))
+    changed_details = sorted(
+        field for field in detail_fields
+        if field in update_data and _normalized(old_details[field]) != _normalized(getattr(kvar, field))
+    )
     if changed_details:
         _add_event(
             db,
@@ -617,6 +639,11 @@ def update_kvar(
             podaci={"fields": changed_details},
             interno=changed_details == ["napomene_voditelja"],
         )
+
+    if parts_payload is not None and _parts_signature(parts_payload) == _parts_signature(
+        [{"rezervni_dio_id": u.rezervni_dio_id, "kolicina": u.kolicina, "napomena": u.napomena} for u in kvar.utroseni_dijelovi]
+    ):
+        parts_payload = None  # unchanged: keep rows and avoid a spurious timeline entry
 
     if parts_payload is not None:
         db.query(KvarRezervniDio).filter(KvarRezervniDio.kvar_id == kvar.id).delete()

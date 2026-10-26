@@ -1,42 +1,171 @@
+@import '@fontsource-variable/archivo/wdth.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Reel-label palette. Values are RGB channels so Tailwind can apply alpha.
+ * Contrast (WCAG): every text pair >= 4.5:1, control borders >= 3:1. See DESIGN.md.
+ */
+:root {
+  --ground: 237 239 242;      /* #EDEFF2 reel-core grey */
+  --stock: 255 255 255;       /* label stock */
+  --ink: 21 24 29;            /* #15181D */
+  --ink-2: 71 78 89;          /* #474E59 */
+  --ink-3: 99 107 119;        /* #636B77 */
+  --rule: 214 218 224;        /* #D6DAE0 hairlines */
+  --rule-strong: 133 140 151; /* #858C97 control borders, 3.4:1 */
+  --brand: 42 89 162;         /* #2A59A2 logo blue */
+  --brand-hover: 34 75 138;   /* #224B8A */
+  --brand-deep: 21 44 82;     /* #152C52 shell rail */
+  --brand-wash: 231 237 247;  /* #E7EDF7 selection */
+  --brand-on-deep: 184 198 222; /* #B8C6DE quiet text on rail */
+  --urgent: 180 35 24;        /* #B42318 */
+  --urgent-wash: 252 235 233;
+  --warn: 154 74 7;           /* #9A4A07 text */
+  --warn-mark: 224 138 11;    /* #E08A0B marker only */
+  --warn-wash: 253 241 222;
+  --ok: 28 107 63;            /* #1C6B3F */
+  --ok-wash: 228 242 233;
+
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+}
+
 @layer base {
+  html {
+    font-family: theme('fontFamily.sans');
+    font-variation-settings: 'wdth' 100;
+  }
   body {
-    @apply bg-zinc-100 text-gray-900 font-sans antialiased;
+    @apply bg-ground text-ink antialiased;
+    font-size: 1rem;
+    line-height: 1.5;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ::selection {
+    background: rgb(var(--brand) / 0.18);
+    color: rgb(var(--ink));
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--brand));
+    outline-offset: 2px;
+  }
+  input, select, textarea {
+    caret-color: rgb(var(--brand));
+  }
+  a {
+    text-underline-offset: 0.2em;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--rule-strong) / 0.6) transparent;
+  }
+  [hidden] {
+    display: none !important;
   }
 }
 
 @layer components {
-  .card {
-    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-5;
+  /* Numerals set like the printed number on a reel label. */
+  .numeral {
+    font-variation-settings: 'wdth' 72;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.01em;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .field-label {
+    @apply text-label font-semibold uppercase text-ink-2;
+  }
+
+  .surface {
+    @apply rounded-lg border border-rule bg-stock shadow-label;
+  }
+
+  .btn {
+    @apply inline-flex min-h-[2.5rem] items-center justify-center gap-2 whitespace-nowrap rounded px-4 text-[0.9375rem] font-semibold
+      transition-[background-color,border-color,color,box-shadow] duration-150
+      disabled:cursor-not-allowed disabled:opacity-55;
+  }
+  .btn-lg {
+    @apply min-h-[3.25rem] px-5 text-base;
+  }
+  .btn-sm {
+    @apply min-h-[2.25rem] px-3 text-sm;
   }
   .btn-primary {
-    @apply bg-zinc-900 hover:bg-zinc-800 text-white font-medium px-4 py-2 rounded-lg transition-colors;
+    @apply btn bg-brand text-stock hover:bg-brand-hover active:bg-brand-deep;
   }
   .btn-secondary {
-    @apply bg-white hover:bg-gray-50 text-gray-700 font-medium px-4 py-2 rounded-lg border border-gray-200 transition-colors;
+    @apply btn border border-rule-strong bg-stock text-ink hover:border-ink-3 hover:bg-ground/60 active:bg-ground;
+  }
+  .btn-quiet {
+    @apply btn text-ink-2 hover:bg-ink/5 hover:text-ink active:bg-ink/10;
   }
   .btn-danger {
-    @apply bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors;
+    @apply btn bg-urgent text-stock hover:bg-urgent/90 active:bg-urgent/80;
   }
-  .input {
-    @apply w-full border border-gray-300 bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-800 focus:border-transparent;
+  .btn-icon {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded text-ink-2 transition-colors
+      hover:bg-ink/5 hover:text-ink active:bg-ink/10 disabled:opacity-40;
   }
-  .label {
-    @apply block text-sm font-medium text-gray-700 mb-1;
+
+  .control {
+    @apply block w-full rounded border border-rule-strong bg-stock px-3 py-2 text-base text-ink
+      placeholder:text-ink-3 transition-[border-color,box-shadow] duration-150
+      hover:border-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25
+      disabled:cursor-not-allowed disabled:bg-ground disabled:text-ink-3
+      aria-[invalid=true]:border-urgent aria-[invalid=true]:ring-urgent/20;
+    min-height: 2.75rem;
   }
-  .badge-green {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800;
+  select.control {
+    @apply appearance-none bg-no-repeat pr-9;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23474E59' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-position: right 0.65rem center;
   }
-  .badge-red {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800;
+  textarea.control {
+    @apply min-h-[6rem] resize-y leading-relaxed;
   }
-  .badge-yellow {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800;
+
+  .link {
+    @apply font-semibold text-brand underline-offset-4 hover:underline;
   }
-  .badge-blue {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800;
+
+  .table-head {
+    @apply border-b border-rule bg-ground/50 text-left text-label font-semibold uppercase text-ink-2;
   }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .enter-rise {
+    animation: enter-rise 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .enter-fade {
+    animation: enter-fade 200ms ease-out both;
+  }
+}
+
+@keyframes enter-rise {
+  from { transform: translateY(12px); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes enter-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

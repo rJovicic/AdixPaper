@@ -1,11 +1,13 @@
 {
-  "name": "Adix Paper - Evidencija Održavanja",
+  "name": "Adix Paper — evidencija kvarova",
   "short_name": "Adix Paper",
-  "description": "Sustav za evidenciju održavanja strojeva",
+  "description": "Prijava i praćenje kvarova strojeva",
+  "lang": "hr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#1e3a8a",
-  "theme_color": "#1e3a8a",
+  "background_color": "#EDEFF2",
+  "theme_color": "#152C52",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
