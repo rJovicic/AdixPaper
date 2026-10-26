@@ -1,0 +1,5 @@
+line-length = 120
+[lint]
+select = ["E", "F", "W", "B"]
+# FastAPI's Depends() defaults (B008) and SQLAlchemy's `== True` filters (E712) are idiomatic here.
+ignore = ["E501", "B008", "E712"]

@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import desc, func
+from sqlalchemy import desc
 from typing import List, Optional
 from datetime import datetime
 from io import BytesIO
-import asyncio
 import json
+import logging
 
-from ..database import get_db
+from ..database import get_db, SessionLocal
 from ..models import (
     Kvar,
     Oprema,
@@ -23,10 +23,12 @@ from ..models import (
     StatusKvaraEnum,
     SLA_SATI,
 )
-from ..schemas import KvarCreate, KvarVoditeljUpdate, KvarOut, KvarKomentarCreate, KvarDogadjajOut
-from ..auth import get_current_user, get_user_from_token, require_voditelj_or_admin, role_value
+from ..schemas import KvarCreate, KvarVoditeljUpdate, KvarOut, KvarKomentarCreate, KvarDogadjajOut, KvarNovoOut
+from ..auth import get_current_user, require_voditelj_or_admin, role_value
+from ..timeutil import utcnow, as_utc, local_naive
 
 router = APIRouter(prefix="/api/kvarovi", tags=["kvarovi"])
+logger = logging.getLogger("adixpaper")
 
 OPEN_STATUSES = {StatusKvaraEnum.novo, StatusKvaraEnum.u_rjesavanju, StatusKvaraEnum.na_cekanju}
 
@@ -67,8 +69,8 @@ def _sla_ratio(kvar: Kvar, now: Optional[datetime] = None) -> Optional[float]:
     limit = SLA_SATI.get(_enum_value(kvar.prioritet))
     if not limit or not kvar.datum_prijave:
         return None
-    now = now or datetime.utcnow()
-    elapsed = (now - kvar.datum_prijave.replace(tzinfo=None)).total_seconds() / 3600
+    now = now or utcnow()
+    elapsed = (now - as_utc(kvar.datum_prijave)).total_seconds() / 3600
     return elapsed / limit
 
 
@@ -137,29 +139,16 @@ def _query_kvarovi(
     return records
 
 
-def _stream_payload(kvar: Kvar) -> dict:
-    return {
-        "type": "new_kvar",
-        "id": kvar.id,
-        "naslov": kvar.naslov,
-        "status": _enum_value(kvar.status),
-        "prioritet": _enum_value(kvar.prioritet),
-        "datum_prijave": kvar.datum_prijave.isoformat() if kvar.datum_prijave else None,
-        "oprema": {
-            "id": kvar.oprema.id,
-            "naziv": kvar.oprema.naziv,
-            "lokacija": kvar.oprema.lokacija,
-        } if kvar.oprema else None,
-    }
+def _send_push_notifications(title: str, body: str, url: str = "/"):
+    """Runs as a background task, after the request's session is closed, so it opens its own."""
+    from ..config import settings
 
+    if not settings.VAPID_PRIVATE_KEY:
+        return
 
-def _send_push_notifications(db: Session, title: str, body: str, url: str = "/"):
+    db = SessionLocal()
     try:
         from pywebpush import webpush, WebPushException
-        from ..config import settings
-
-        if not settings.VAPID_PRIVATE_KEY:
-            return
 
         pretplate = (
             db.query(PushPretplata)
@@ -187,7 +176,9 @@ def _send_push_notifications(db: Session, title: str, body: str, url: str = "/")
         if mrtve:
             db.commit()
     except Exception:
-        pass
+        logger.exception("Sending push notifications failed")
+    finally:
+        db.close()
 
 
 def _load_kvar(kvar_id: int, db: Session) -> Kvar:
@@ -215,29 +206,21 @@ def list_kvarovi(
     return _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla)
 
 
-@router.get("/stream")
-def stream_kvarovi(
-    token: str = Query(...),
+@router.get("/novi", response_model=List[KvarNovoOut])
+def list_new_kvarovi(
+    since_id: int = Query(0, ge=0),
     db: Session = Depends(get_db),
+    _: Korisnik = Depends(require_voditelj_or_admin),
 ):
-    current_user = get_user_from_token(token, db)
-    if not _can_manage(current_user):
-        raise HTTPException(status_code=403, detail="Pristup zabranjen")
-
-    async def event_generator():
-        last_id = db.query(func.coalesce(func.max(Kvar.id), 0)).scalar() or 0
-        yield f"data: {json.dumps({'type': 'ready'}, ensure_ascii=False)}\n\n"
-
-        while True:
-            await asyncio.sleep(5)
-            records = db.query(Kvar).options(joinedload(Kvar.oprema)).filter(Kvar.id > last_id).order_by(Kvar.id.asc()).all()
-            for kvar in records:
-                last_id = max(last_id, kvar.id)
-                yield f"data: {json.dumps(_stream_payload(kvar), ensure_ascii=False)}\n\n"
-            if not records:
-                yield f"data: {json.dumps({'type': 'ping'}, ensure_ascii=False)}\n\n"
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    """Lightweight feed polled by the admin shell to announce newly reported faults."""
+    return (
+        db.query(Kvar)
+        .options(joinedload(Kvar.oprema))
+        .filter(Kvar.id > since_id)
+        .order_by(Kvar.id.desc())
+        .limit(20)
+        .all()
+    )
 
 
 @router.get("/export.xlsx")
@@ -282,9 +265,9 @@ def export_kvarovi_xlsx(
             _sla_state(k),
             _user_label(k.prijavio),
             _user_label(k.voditelj),
-            k.datum_prijave,
-            k.datum_pocetka,
-            k.datum_rjesavanja,
+            local_naive(k.datum_prijave),
+            local_naive(k.datum_pocetka),
+            local_naive(k.datum_rjesavanja),
             k.trajanje_min or 0,
             float(k.troskovi or 0),
             dijelovi or k.materijal or "",
@@ -356,7 +339,7 @@ def export_utroseni_dijelovi_xlsx(
             ws.append([
                 supplier,
                 kvar.id if kvar else "",
-                kvar.datum_prijave if kvar else "",
+                local_naive(kvar.datum_prijave) if kvar else "",
                 kvar.oprema.naziv if kvar and kvar.oprema else "",
                 kvar.komponenta.naziv if kvar and kvar.komponenta else "",
                 dio.naziv if dio else "",
@@ -400,7 +383,7 @@ def export_kvarovi_pdf(
     styles = getSampleStyleSheet()
     story = [
         Paragraph("Adix Paper - izvjestaj kvarova", styles["Title"]),
-        Paragraph(datetime.utcnow().strftime("Generirano: %d.%m.%Y. %H:%M"), styles["Normal"]),
+        Paragraph(local_naive(utcnow()).strftime("Generirano: %d.%m.%Y. %H:%M"), styles["Normal"]),
         Spacer(1, 12),
     ]
 
@@ -413,7 +396,7 @@ def export_kvarovi_pdf(
             _enum_value(k.prioritet),
             _enum_value(k.status),
             _sla_state(k),
-            k.datum_prijave.strftime("%d.%m.%Y") if k.datum_prijave else "",
+            local_naive(k.datum_prijave).strftime("%d.%m.%Y") if k.datum_prijave else "",
             f"{float(k.troskovi or 0):.2f}",
         ])
 
@@ -486,7 +469,6 @@ def create_kvar(
 
     background_tasks.add_task(
         _send_push_notifications,
-        db,
         f"Novi kvar [{data.prioritet.value}]",
         f"{oprema.naziv}: {data.naslov}",
         f"/admin/kvarovi/{kvar.id}"
@@ -550,6 +532,9 @@ def update_kvar(
         raise HTTPException(status_code=404, detail="Kvar nije pronađen")
 
     update_data = data.model_dump(exclude_unset=True)
+    for required in ("status", "prioritet"):
+        if update_data.get(required, "") is None:
+            update_data.pop(required)
     parts_payload = update_data.pop("utroseni_dijelovi", None)
     old_status = _enum_value(kvar.status)
     old_prioritet = _enum_value(kvar.prioritet)
@@ -567,11 +552,13 @@ def update_kvar(
     if "status" in update_data:
         new_status = update_data["status"]
         if new_status == StatusKvaraEnum.u_rjesavanju and not kvar.datum_pocetka:
-            kvar.datum_pocetka = datetime.utcnow()
+            kvar.datum_pocetka = utcnow()
             if not kvar.voditelj_id:
                 kvar.voditelj_id = current_user.id
         if new_status == StatusKvaraEnum.rijeseno and not kvar.datum_rjesavanja:
-            kvar.datum_rjesavanja = datetime.utcnow()
+            kvar.datum_rjesavanja = utcnow()
+        if new_status != StatusKvaraEnum.rijeseno:
+            kvar.datum_rjesavanja = None
 
     for field, value in update_data.items():
         setattr(kvar, field, value)

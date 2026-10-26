@@ -1,6 +1,7 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
 
 from ..database import get_db
 from ..models import PushPretplata, Korisnik
@@ -52,7 +53,7 @@ def unsubscribe(
 
 @router.get("/vapid-public-key")
 def get_vapid_public_key():
-    return {"public_key": settings.VAPID_PUBLIC_KEY}
+    return {"public_key": settings.VAPID_PUBLIC_KEY.strip()}
 
 
 @router.post("/posalji")
@@ -65,6 +66,8 @@ def send_notification(
         import json
         from pywebpush import webpush, WebPushException
 
+        if not settings.VAPID_PRIVATE_KEY:
+            raise HTTPException(status_code=400, detail="Push notifikacije nisu konfigurirane")
         pretplate = db.query(PushPretplata).all()
         sent = 0
         mrtve = []
@@ -88,5 +91,8 @@ def send_notification(
         if mrtve:
             db.commit()
         return {"sent": sent, "expired_removed": len(mrtve)}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        logging.getLogger("adixpaper").exception("Manual push send failed")
+        raise HTTPException(status_code=502, detail="Slanje notifikacija nije uspjelo") from None

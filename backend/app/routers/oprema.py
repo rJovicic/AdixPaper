@@ -83,7 +83,11 @@ def update_oprema(oprema_id: int, data: OpremaUpdate, db: Session = Depends(get_
     if not oprema:
         raise HTTPException(status_code=404, detail="Oprema nije pronađena")
 
-    for field, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    serijski = update_data.get("serijski_broj")
+    if serijski and db.query(Oprema.id).filter(Oprema.serijski_broj == serijski, Oprema.id != oprema_id).first():
+        raise HTTPException(status_code=400, detail="Serijski broj već postoji")
+    for field, value in update_data.items():
         setattr(oprema, field, value)
 
     db.commit()
@@ -165,6 +169,11 @@ def delete_oprema(oprema_id: int, db: Session = Depends(get_db), _: Korisnik = D
     oprema = db.query(Oprema).filter(Oprema.id == oprema_id).first()
     if not oprema:
         raise HTTPException(status_code=404, detail="Oprema nije pronađena")
+    if db.query(Kvar.id).filter(Kvar.oprema_id == oprema_id).first():
+        raise HTTPException(
+            status_code=409,
+            detail="Mašina ima evidentirane kvarove i ne može se obrisati. Postavite status na Raspisano.",
+        )
     db.delete(oprema)
     db.commit()
     return {"detail": "Oprema obrisana"}

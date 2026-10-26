@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List
 from ..database import get_db
 from ..models import Korisnik
 from ..schemas import KorisnikCreate, KorisnikOut, KorisnikUpdate
-from ..auth import get_password_hash, require_admin, require_voditelj_or_admin
+from ..auth import get_password_hash, require_admin, require_voditelj_or_admin, role_value
 
 router = APIRouter(prefix="/api/korisnici", tags=["korisnici"])
 
@@ -14,7 +15,7 @@ def get_korisnici(db: Session = Depends(get_db), _: Korisnik = Depends(require_a
 
 @router.post("", response_model=KorisnikOut)
 def create_korisnik(data: KorisnikCreate, db: Session = Depends(get_db), _: Korisnik = Depends(require_admin)):
-    if db.query(Korisnik).filter(Korisnik.username == data.username).first():
+    if db.query(Korisnik).filter(func.lower(Korisnik.username) == data.username.lower()).first():
         raise HTTPException(status_code=400, detail="Username već postoji")
     if data.email and db.query(Korisnik).filter(Korisnik.email == data.email).first():
         raise HTTPException(status_code=400, detail="Email već postoji")
@@ -35,12 +36,21 @@ def create_korisnik(data: KorisnikCreate, db: Session = Depends(get_db), _: Kori
     return user
 
 @router.put("/{user_id}", response_model=KorisnikOut)
-def update_korisnik(user_id: int, data: KorisnikUpdate, db: Session = Depends(get_db), _: Korisnik = Depends(require_admin)):
+def update_korisnik(user_id: int, data: KorisnikUpdate, db: Session = Depends(get_db), current_user: Korisnik = Depends(require_admin)):
     user = db.query(Korisnik).filter(Korisnik.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Korisnik nije pronađen")
 
-    for field, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    if user.id == current_user.id:
+        if update_data.get("aktivan") is False:
+            raise HTTPException(status_code=400, detail="Ne možete deaktivirati vlastiti račun")
+        if "rola" in update_data and role_value(update_data["rola"]) != "admin":
+            raise HTTPException(status_code=400, detail="Ne možete ukloniti admin ovlasti vlastitom računu")
+    if update_data.get("email") and db.query(Korisnik.id).filter(Korisnik.email == update_data["email"], Korisnik.id != user_id).first():
+        raise HTTPException(status_code=400, detail="Email već postoji")
+
+    for field, value in update_data.items():
         if field == "password" and value:
             user.hashed_password = get_password_hash(value)
         elif field != "password":

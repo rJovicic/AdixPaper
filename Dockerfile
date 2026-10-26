@@ -21,6 +21,7 @@ COPY backend/requirements.txt ./
 RUN pip install -r requirements.txt
 
 COPY backend/app ./app
+COPY backend/log_config.json ./
 COPY --from=frontend /frontend/dist ./static
 
 RUN useradd --create-home --uid 1000 adix && chown -R adix /app
@@ -28,4 +29,4 @@ USER adix
 
 EXPOSE 8000
 # Railway injects PORT; 8000 is only the local default.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*' --log-config log_config.json"]

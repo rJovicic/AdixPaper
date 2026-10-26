@@ -1,13 +1,15 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Optional
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from .database import get_db
 from .models import Korisnik
 from .config import settings
+from .timeutil import utcnow
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 MAX_BCRYPT_PASSWORD_BYTES = 72
@@ -28,7 +30,7 @@ def get_password_hash(password: str) -> str:
     try:
         return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from None
 
 def _password_bytes(password: str) -> bytes:
     value = (password or "").encode("utf-8")
@@ -38,7 +40,7 @@ def _password_bytes(password: str) -> bytes:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -53,12 +55,12 @@ def get_user_from_token(token: str, db: Session) -> Korisnik:
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+    except InvalidTokenError:
+        raise credentials_exception from None
 
     user = db.query(Korisnik).filter(Korisnik.username == username, Korisnik.aktivan == True).first()
     if user is None:
-        raise credentials_exception
+        raise credentials_exception from None
     return user
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Korisnik:

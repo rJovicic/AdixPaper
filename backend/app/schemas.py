@@ -1,8 +1,32 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from typing import Annotated, Optional, List
 from datetime import date, datetime
 from decimal import Decimal
 from .models import RolaEnum, StatusOpremaEnum, TvrtkaEnum, PrioritetEnum, StatusKvaraEnum
+
+
+class CleanModel(BaseModel):
+    """Trims strings and turns blank optional text into None.
+
+    Forms send "" for untouched optional fields; storing "" in UNIQUE columns
+    (email, serial number) made the second such record fail.
+    """
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _clean_text(cls, value, info: ValidationInfo):
+        if isinstance(value, str) and info.field_name != "password":
+            value = value.strip()
+            return value or None
+        return value
+
+
+Name = Annotated[str, Field(min_length=1, max_length=100)]
+ShortText = Annotated[str, Field(max_length=200)]
+LongText = Annotated[str, Field(max_length=5000)]
+Password = Annotated[str, Field(min_length=8, max_length=72)]
+Username = Annotated[str, Field(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9._-]+$")]
+Money = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
 
 
 # --- AUTH ---
@@ -20,7 +44,7 @@ class TokenData(BaseModel):
 
 
 # --- KORISNIK ---
-class KorisnikBase(BaseModel):
+class KorisnikBase(CleanModel):
     username: str
     ime: str
     prezime: str
@@ -30,17 +54,23 @@ class KorisnikBase(BaseModel):
     rola: RolaEnum = RolaEnum.radnik
 
 class KorisnikCreate(KorisnikBase):
-    password: str
+    username: Username
+    ime: Name
+    prezime: Name
+    email: Optional[Annotated[str, Field(max_length=150, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]] = None
+    telefon: Optional[Annotated[str, Field(max_length=20)]] = None
+    odjel: Optional[Name] = None
+    password: Password
 
-class KorisnikUpdate(BaseModel):
-    ime: Optional[str] = None
-    prezime: Optional[str] = None
-    email: Optional[str] = None
-    telefon: Optional[str] = None
-    odjel: Optional[str] = None
+class KorisnikUpdate(CleanModel):
+    ime: Optional[Name] = None
+    prezime: Optional[Name] = None
+    email: Optional[Annotated[str, Field(max_length=150, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]] = None
+    telefon: Optional[Annotated[str, Field(max_length=20)]] = None
+    odjel: Optional[Name] = None
     rola: Optional[RolaEnum] = None
     aktivan: Optional[bool] = None
-    password: Optional[str] = None
+    password: Optional[Password] = None
 
 class KorisnikOut(KorisnikBase):
     id: int
@@ -48,8 +78,7 @@ class KorisnikOut(KorisnikBase):
     kreiran: datetime
     zadnja_prijava: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class KorisnikMini(BaseModel):
     id: int
@@ -57,12 +86,11 @@ class KorisnikMini(BaseModel):
     prezime: str
     username: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --- OPREMA ---
-class OpremaBase(BaseModel):
+class OpremaBase(CleanModel):
     naziv: str
     tip: str
     tvrtka: Optional[TvrtkaEnum] = None
@@ -75,11 +103,15 @@ class OpremaBase(BaseModel):
     napomene: Optional[str] = None
 
 class OpremaCreate(OpremaBase):
-    pass
+    naziv: Annotated[str, Field(min_length=1, max_length=200)]
+    tip: Name
+    serijski_broj: Optional[Name] = None
+    lokacija: Optional[Annotated[str, Field(max_length=150)]] = None
+    napomene: Optional[LongText] = None
 
-class OpremaUpdate(BaseModel):
-    naziv: Optional[str] = None
-    tip: Optional[str] = None
+class OpremaUpdate(CleanModel):
+    naziv: Optional[Annotated[str, Field(min_length=1, max_length=200)]] = None
+    tip: Optional[Name] = None
     tvrtka: Optional[TvrtkaEnum] = None
     proizvodac: Optional[str] = None
     model: Optional[str] = None
@@ -94,21 +126,19 @@ class OpremaOut(OpremaBase):
     qr_kod: Optional[str] = None
     kreiran: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class OpremaMini(BaseModel):
     id: int
     naziv: str
     lokacija: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
-class KomponentaBase(BaseModel):
-    naziv: str
-    opis: Optional[str] = None
+class KomponentaBase(CleanModel):
+    naziv: Annotated[str, Field(min_length=1, max_length=150)]
+    opis: Optional[LongText] = None
     aktivna: bool = True
 
 
@@ -116,8 +146,8 @@ class KomponentaCreate(KomponentaBase):
     oprema_id: Optional[int] = None
 
 
-class KomponentaUpdate(BaseModel):
-    naziv: Optional[str] = None
+class KomponentaUpdate(CleanModel):
+    naziv: Optional[Annotated[str, Field(min_length=1, max_length=150)]] = None
     opis: Optional[str] = None
     aktivna: Optional[bool] = None
 
@@ -127,16 +157,14 @@ class KomponentaOut(KomponentaBase):
     oprema_id: int
     kreiran: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class KomponentaMini(BaseModel):
     id: int
     naziv: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class OpremaWithStats(OpremaOut):
     broj_kvarova: int = 0
@@ -145,37 +173,37 @@ class OpremaWithStats(OpremaOut):
 
 
 # --- KVAR ---
-class KvarCreate(BaseModel):
+class KvarCreate(CleanModel):
     oprema_id: int
     komponenta_id: Optional[int] = None
-    naslov: str
-    opis: Optional[str] = None
+    naslov: ShortText = Field(min_length=1)
+    opis: Optional[LongText] = None
     prioritet: PrioritetEnum = PrioritetEnum.normalno
     foto_url: Optional[str] = None
 
 
-class KvarRezervniDioInput(BaseModel):
+class KvarRezervniDioInput(CleanModel):
     rezervni_dio_id: int
-    kolicina: Decimal = Decimal("1")
-    napomena: Optional[str] = None
+    kolicina: Decimal = Field(default=Decimal("1"), gt=0, max_digits=10, decimal_places=2)
+    napomena: Optional[ShortText] = None
 
-class KvarVoditeljUpdate(BaseModel):
+class KvarVoditeljUpdate(CleanModel):
     status: Optional[StatusKvaraEnum] = None
     voditelj_id: Optional[int] = None
     komponenta_id: Optional[int] = None
-    sto_je_uradjeno: Optional[str] = None
-    materijal: Optional[str] = None
-    troskovi: Optional[Decimal] = None
-    trajanje_min: Optional[int] = None
-    napomene_voditelja: Optional[str] = None
+    sto_je_uradjeno: Optional[LongText] = None
+    materijal: Optional[LongText] = None
+    troskovi: Optional[Money] = None
+    trajanje_min: Optional[Annotated[int, Field(ge=0, le=525600)]] = None
+    napomene_voditelja: Optional[LongText] = None
     datum_pocetka: Optional[datetime] = None
     datum_rjesavanja: Optional[datetime] = None
     prioritet: Optional[PrioritetEnum] = None
     utroseni_dijelovi: Optional[List[KvarRezervniDioInput]] = None
 
 
-class KvarKomentarCreate(BaseModel):
-    tekst: str
+class KvarKomentarCreate(CleanModel):
+    tekst: LongText = Field(min_length=1)
     interno: bool = False
 
 
@@ -191,13 +219,12 @@ class KvarDogadjajOut(BaseModel):
     kreiran: datetime
     korisnik: Optional[KorisnikMini] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
-class DobavljacBase(BaseModel):
-    naziv: str
-    oznaka: Optional[str] = None
+class DobavljacBase(CleanModel):
+    naziv: Annotated[str, Field(min_length=1, max_length=180)]
+    oznaka: Optional[Annotated[str, Field(max_length=40)]] = None
     aktivan: bool = True
 
 
@@ -205,8 +232,8 @@ class DobavljacCreate(DobavljacBase):
     pass
 
 
-class DobavljacUpdate(BaseModel):
-    naziv: Optional[str] = None
+class DobavljacUpdate(CleanModel):
+    naziv: Optional[Annotated[str, Field(min_length=1, max_length=180)]] = None
     oznaka: Optional[str] = None
     aktivan: Optional[bool] = None
 
@@ -215,17 +242,16 @@ class DobavljacOut(DobavljacBase):
     id: int
     kreiran: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
-class RezervniDioBase(BaseModel):
-    naziv: str
-    sifra: Optional[str] = None
+class RezervniDioBase(CleanModel):
+    naziv: Annotated[str, Field(min_length=1, max_length=220)]
+    sifra: Optional[Annotated[str, Field(max_length=100)]] = None
     dobavljac_id: int
-    jedinica: str = "kom"
-    zaliha: Optional[Decimal] = None
-    cijena: Optional[Decimal] = None
+    jedinica: Annotated[str, Field(max_length=30)] = "kom"
+    zaliha: Optional[Annotated[Decimal, Field(max_digits=10, decimal_places=2)]] = None
+    cijena: Optional[Money] = None
     aktivan: bool = True
 
 
@@ -233,13 +259,13 @@ class RezervniDioCreate(RezervniDioBase):
     pass
 
 
-class RezervniDioUpdate(BaseModel):
-    naziv: Optional[str] = None
-    sifra: Optional[str] = None
+class RezervniDioUpdate(CleanModel):
+    naziv: Optional[Annotated[str, Field(min_length=1, max_length=220)]] = None
+    sifra: Optional[Annotated[str, Field(max_length=100)]] = None
     dobavljac_id: Optional[int] = None
-    jedinica: Optional[str] = None
-    zaliha: Optional[Decimal] = None
-    cijena: Optional[Decimal] = None
+    jedinica: Optional[Annotated[str, Field(max_length=30)]] = None
+    zaliha: Optional[Annotated[Decimal, Field(max_digits=10, decimal_places=2)]] = None
+    cijena: Optional[Money] = None
     aktivan: Optional[bool] = None
 
 
@@ -248,8 +274,7 @@ class RezervniDioOut(RezervniDioBase):
     kreiran: datetime
     dobavljac: Optional[DobavljacOut] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class KvarRezervniDioOut(BaseModel):
@@ -260,8 +285,7 @@ class KvarRezervniDioOut(BaseModel):
     napomena: Optional[str] = None
     rezervni_dio: Optional[RezervniDioOut] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class KvarOut(BaseModel):
@@ -289,19 +313,29 @@ class KvarOut(BaseModel):
     voditelj: Optional[KorisnikMini] = None
     utroseni_dijelovi: List[KvarRezervniDioOut] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+
+class KvarNovoOut(BaseModel):
+    id: int
+    naslov: str
+    prioritet: PrioritetEnum
+    status: StatusKvaraEnum
+    datum_prijave: datetime
+    oprema: Optional[OpremaMini] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # --- PUSH NOTIFIKACIJE ---
 class PushSubscribeData(BaseModel):
-    endpoint: str
-    p256dh: str
-    auth: str
+    endpoint: Annotated[str, Field(min_length=1, max_length=2000)]
+    p256dh: Annotated[str, Field(min_length=1, max_length=500)]
+    auth: Annotated[str, Field(min_length=1, max_length=500)]
 
 class PushSend(BaseModel):
-    title: str
-    body: str
+    title: ShortText
+    body: Annotated[str, Field(max_length=1000)]
     url: Optional[str] = None
 
 

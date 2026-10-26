@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
+from sqlalchemy import func
 from datetime import datetime
 from typing import List, Optional
 
@@ -8,6 +8,7 @@ from ..database import get_db
 from ..models import Oprema, Kvar, Korisnik, StatusKvaraEnum, PrioritetEnum, SLA_SATI, KomponentaOpreme, KvarRezervniDio, RezervniDio, Dobavljac
 from ..schemas import DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
 from ..auth import require_voditelj_or_admin
+from ..timeutil import utcnow, as_utc, local_day_start, local_month_start, local_year_start, local_month_number
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -26,13 +27,16 @@ def _sla_ratio(kvar: Kvar, now: datetime) -> Optional[float]:
     limit = SLA_SATI.get(_enum_value(kvar.prioritet))
     if not limit:
         return None
-    elapsed = (now - kvar.datum_prijave.replace(tzinfo=None)).total_seconds() / 3600
+    elapsed = (now - as_utc(kvar.datum_prijave)).total_seconds() / 3600
     return elapsed / limit
 
 
 @router.get("/stats", response_model=DashboardStats)
 def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):
-    now = datetime.utcnow()
+    now = utcnow()
+    day_start = local_day_start(now)
+    month_start = local_month_start(now)
+    year_start = local_year_start(now)
 
     ukupno_kvarova = db.query(func.count(Kvar.id)).scalar() or 0
     ukupno_opreme = db.query(func.count(Oprema.id)).scalar() or 0
@@ -49,27 +53,21 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
         Kvar.status.in_(OPEN_STATUSES)
     ).scalar() or 0
 
-    kvarovi_danas = db.query(func.count(Kvar.id)).filter(
-        extract('day', Kvar.datum_prijave) == now.day,
-        extract('month', Kvar.datum_prijave) == now.month,
-        extract('year', Kvar.datum_prijave) == now.year
-    ).scalar() or 0
+    kvarovi_danas = db.query(func.count(Kvar.id)).filter(Kvar.datum_prijave >= day_start).scalar() or 0
 
     rijeseni_mjesec = db.query(func.count(Kvar.id)).filter(
         Kvar.status == StatusKvaraEnum.rijeseno,
-        extract('month', Kvar.datum_rjesavanja) == now.month,
-        extract('year', Kvar.datum_rjesavanja) == now.year
+        Kvar.datum_rjesavanja >= month_start
     ).scalar() or 0
 
     troskovi_mjesec = db.query(func.coalesce(func.sum(Kvar.troskovi), 0)).filter(
         Kvar.status == StatusKvaraEnum.rijeseno,
-        extract('month', Kvar.datum_rjesavanja) == now.month,
-        extract('year', Kvar.datum_rjesavanja) == now.year
+        Kvar.datum_rjesavanja >= month_start
     ).scalar() or 0
 
     troskovi_godina = db.query(func.coalesce(func.sum(Kvar.troskovi), 0)).filter(
         Kvar.status == StatusKvaraEnum.rijeseno,
-        extract('year', Kvar.datum_rjesavanja) == now.year
+        Kvar.datum_rjesavanja >= year_start
     ).scalar() or 0
 
     zastoj_min = db.query(func.coalesce(func.sum(Kvar.trajanje_min), 0)).scalar() or 0
@@ -78,8 +76,7 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
     ).join(Kvar, KvarRezervniDio.kvar_id == Kvar.id).join(
         RezervniDio, KvarRezervniDio.rezervni_dio_id == RezervniDio.id
     ).filter(
-        extract('month', Kvar.datum_prijave) == now.month,
-        extract('year', Kvar.datum_prijave) == now.year
+        Kvar.datum_prijave >= month_start
     ).scalar() or 0
 
     broj_radnika = db.query(func.count(Korisnik.id)).filter(Korisnik.aktivan == True).scalar() or 0
@@ -92,8 +89,7 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
         Kvar.status == StatusKvaraEnum.rijeseno,
         Kvar.datum_prijave.isnot(None),
         Kvar.datum_rjesavanja.isnot(None),
-        extract('month', Kvar.datum_rjesavanja) == now.month,
-        extract('year', Kvar.datum_rjesavanja) == now.year
+        Kvar.datum_rjesavanja >= month_start
     ).all()
     trajanja = [
         (k.datum_rjesavanja.replace(tzinfo=None) - k.datum_prijave.replace(tzinfo=None)).total_seconds() / 60
@@ -126,35 +122,25 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
 
 @router.get("/kvarovi-po-mjesecu", response_model=List[KvaroviPoMjesecu])
 def get_kvarovi_po_mjesecu(db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):
-    now = datetime.utcnow()
-
-    ukupno_result = db.query(
-        extract('month', Kvar.datum_prijave).label('mj'),
-        func.count(Kvar.id).label('ukupno')
-    ).filter(
-        extract('year', Kvar.datum_prijave) == now.year
-    ).group_by('mj').all()
-
-    rijeseno_result = db.query(
-        extract('month', Kvar.datum_rjesavanja).label('mj'),
-        func.count(Kvar.id).label('rijeseno'),
-        func.coalesce(func.sum(Kvar.troskovi), 0).label('troskovi')
-    ).filter(
+    year_start = local_year_start()
+    prijave = db.query(Kvar.datum_prijave).filter(Kvar.datum_prijave >= year_start).all()
+    rijeseni = db.query(Kvar.datum_rjesavanja, Kvar.troskovi).filter(
         Kvar.status == StatusKvaraEnum.rijeseno,
-        extract('year', Kvar.datum_rjesavanja) == now.year
-    ).group_by('mj').all()
+        Kvar.datum_rjesavanja >= year_start,
+    ).all()
 
-    rijeseno_map = {int(r.mj): (r.rijeseno, float(r.troskovi)) for r in rijeseno_result}
-    ukupno_map = {int(r.mj): r.ukupno for r in ukupno_result}
-    all_months = sorted(set(list(ukupno_map.keys()) + list(rijeseno_map.keys())))
+    months = {}
+    for (datum,) in prijave:
+        row = months.setdefault(local_month_number(datum), {"ukupno": 0, "rijeseno": 0, "troskovi": 0.0})
+        row["ukupno"] += 1
+    for datum, troskovi in rijeseni:
+        row = months.setdefault(local_month_number(datum), {"ukupno": 0, "rijeseno": 0, "troskovi": 0.0})
+        row["rijeseno"] += 1
+        row["troskovi"] += float(troskovi or 0)
 
     return [
-        KvaroviPoMjesecu(
-            mjesec=MJESECI[m],
-            ukupno=ukupno_map.get(m, 0),
-            rijeseno=rijeseno_map.get(m, (0, 0))[0],
-            troskovi=rijeseno_map.get(m, (0, 0))[1]
-        ) for m in all_months
+        KvaroviPoMjesecu(mjesec=MJESECI[m], ukupno=v["ukupno"], rijeseno=v["rijeseno"], troskovi=v["troskovi"])
+        for m, v in sorted(months.items())
     ]
 
 

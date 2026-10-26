@@ -10,9 +10,8 @@ from sqlalchemy import text
 from . import bootstrap
 from .config import settings
 from .database import engine
+from .security import SecurityHeadersMiddleware
 from .routers import auth, korisnici, oprema, dashboard, kvarovi, notifikacije, rezervni_dijelovi
-
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 
 @asynccontextmanager
@@ -27,6 +26,8 @@ app = FastAPI(
     description="API za ticket/task sustav održavanja strojeva",
     lifespan=lifespan,
 )
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 cors_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()]
 if cors_origins:
