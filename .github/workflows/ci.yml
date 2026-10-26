@@ -11,6 +11,7 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:16
@@ -19,7 +20,7 @@ jobs:
           POSTGRES_DB: adix_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     defaults:
       run:
         working-directory: backend
@@ -38,6 +39,7 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: frontend
@@ -57,6 +59,7 @@ jobs:
   e2e:
     needs: [backend, frontend]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -65,7 +68,7 @@ jobs:
           POSTGRES_DB: adixpaper
         ports: ['5432:5432']
         options: >-
-          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - name: Build the production image
@@ -81,11 +84,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
       - name: Run end-to-end tests
         working-directory: e2e
+        # The runner image already ships Chromium's system libraries; installing them
+        # with --with-deps pulls ~26 MB from Ubuntu mirrors and once took 9 minutes.
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
           npx playwright test
         env:
           E2E_BASE_URL: http://localhost:8000
