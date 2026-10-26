@@ -94,6 +94,7 @@ export default {
     faults: 'Kvarovi',
     machines: 'Mašine',
     parts: 'Rezervni dijelovi',
+    analytics: 'Analize',
     users: 'Korisnici',
     skip: 'Preskoči na sadržaj',
   },
@@ -244,6 +245,10 @@ export default {
     noData: 'Još nema podataka.',
     machinesLine: 'Mašina: {n} · neispravnih: {broken}',
   },
+  analytics: {
+    title: 'Analize',
+    meta: 'Ovaj mjesec i trendovi ove godine',
+  },
   faults: {
     title: 'Kvarovi',
     export: 'Izvoz',
@@ -361,6 +366,10 @@ export default {
     saved: 'Korisnik je spremljen.',
     selfLocked: 'Vlastiti račun ne možete deaktivirati niti mu promijeniti ulogu.',
     emptyTitle: 'Nema korisnika',
+  },
+  update: {
+    available: 'Dostupna je nova verzija aplikacije.',
+    reload: 'Osvježi',
   },
   notFound: {
     title: 'Stranica ne postoji',

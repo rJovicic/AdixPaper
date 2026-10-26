@@ -189,7 +189,8 @@ Headings use `text-wrap: balance`, paragraphs `pretty`. Prose is capped at ~75 c
 - **Spacing:** Tailwind's 4 px scale; groups tight (8–12 px), sections generous (24–32 px). More space above a heading than below.
 - **Shell:** desktop (≥ 1024 px) — fixed 256 px deep-blue rail with nav, language, notifications, account. Below 1024 px — sticky top bar + drawer (native `<dialog>`). Content max width 72 rem (lead) / 42 rem (worker).
 - **Breakpoints:** `xs 420`, `sm 640`, `md 768`, `lg 1024`, `xl 1280`. Tables appear at `md`; below it, lists render as label cards.
-- **Dashboard order:** three figures (Open · Urgent · Overdue, each a link into the filtered list) → "Needs attention" (open faults by time left, overdue first; separate status and owner columns) → one ruled "This month" summary row → analytics. Action first, analysis after. Durations under 10 h show hours and minutes; longer ones show whole hours.
+- **Overview (Pregled):** three figures (Open · Urgent · Overdue, each a link into the filtered list) and "Needs attention" (up to 10 open faults by time left, overdue first; separate status and owner columns). Nothing else: the overview is for acting today.
+- **Analytics (Analize):** one ruled "This month" summary row, faults by month, machines / machine parts with most faults, most used spare parts. Charts load only here. Durations under 10 h show hours and minutes; longer ones show whole hours.
 - **Fault detail:** main column + 18.5 rem status panel (sticky on desktop, first on phones).
 
 ## Elevation & Depth

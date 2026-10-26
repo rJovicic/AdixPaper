@@ -30,7 +30,7 @@ backend/app/
   models.py schemas.py auth.py security.py timeutil.py
 frontend/src/
   pages/worker/    MyFaults, ReportFault, WorkerFault
-  pages/admin/     Dashboard, Faults, FaultDetail, Machines, SpareParts, Users
+  pages/admin/     Dashboard (overview), Analytics, Faults, FaultDetail, Machines, SpareParts, Users
   components/      shells, Timeline, FaultCard, ui/ (Dialog, Field, Toast, Marks, PartPicker…)
   i18n/            hr.js, en.js, provider and formatters
 e2e/               Playwright end-to-end + accessibility tests
@@ -65,7 +65,7 @@ cd backend && ruff check app tests && python -m pytest -q
 # Frontend
 cd frontend && npm run lint && npm run check:i18n && npm run build
 
-# End-to-end + accessibility (needs the app running and seed-demo data)
+# End-to-end + accessibility (15 tests; the new-version banner test runs only against a production build) (needs the app running and seed-demo data)
 cd e2e && npm ci && npx playwright test                      # against Vite on :3000
 E2E_BASE_URL=http://localhost:8000 npx playwright test       # against the Docker image
 ```

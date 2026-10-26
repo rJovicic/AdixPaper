@@ -94,6 +94,7 @@ export default {
     faults: 'Faults',
     machines: 'Machines',
     parts: 'Spare parts',
+    analytics: 'Analytics',
     users: 'Users',
     skip: 'Skip to content',
   },
@@ -244,6 +245,10 @@ export default {
     noData: 'No data yet.',
     machinesLine: 'Machines: {n} · faulty: {broken}',
   },
+  analytics: {
+    title: 'Analytics',
+    meta: 'This month and trends for the year',
+  },
   faults: {
     title: 'Faults',
     export: 'Export',
@@ -361,6 +366,10 @@ export default {
     saved: 'User saved.',
     selfLocked: 'You cannot deactivate your own account or change its role.',
     emptyTitle: 'No users',
+  },
+  update: {
+    available: 'A new version of the app is available.',
+    reload: 'Reload',
   },
   notFound: {
     title: 'Page not found',

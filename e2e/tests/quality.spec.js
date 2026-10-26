@@ -47,7 +47,7 @@ test('no serious accessibility violations on worker screens', async ({ page, req
 
 test('no serious accessibility violations on lead screens', async ({ page }) => {
   await signIn(page, ADMIN)
-  for (const path of ['/admin', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici']) {
+  for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici']) {
     await page.goto(path)
     await page.waitForLoadState('networkidle')
     expect(await axe(page), path).toEqual([])
@@ -62,11 +62,33 @@ test('no horizontal scrolling at phone, tablet and desktop widths', async ({ pag
   await signIn(page, ADMIN)
   for (const width of [360, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 })
-    for (const path of ['/admin', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici']) {
+    for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici']) {
       await page.goto(path)
       await page.waitForLoadState('networkidle')
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
       expect(overflow, `${path} at ${width}px`).toBeLessThanOrEqual(0)
     }
   }
+})
+
+test('an open tab offers a reload after a new version is deployed', async ({ page }) => {
+  test.skip(!process.env.E2E_BASE_URL, 'The version check only runs in production builds')
+  await signIn(page, ADMIN)
+  await page.route('**/', async (route) => {
+    const response = await route.fetch()
+    const body = (await response.text()).replace(/\/assets\/index-[\w-]+\.js/, '/assets/index-NEWVERSION.js')
+    await route.fulfill({ response, body })
+  })
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+  await expect(page.getByText('Dostupna je nova verzija aplikacije.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Osvježi' })).toBeVisible()
+})
+
+test('overview stays focused; analytics live on their own page', async ({ page }) => {
+  await signIn(page, ADMIN)
+  await expect(page.getByRole('heading', { name: 'Zahtijeva pažnju' })).toBeVisible()
+  await expect(page.getByText('Kvarovi po mjesecima')).toHaveCount(0)
+  await page.getByRole('link', { name: 'Analize' }).click()
+  await expect(page.getByRole('heading', { name: 'Analize' })).toBeVisible()
+  await expect(page.getByText(/Kvarovi po mjesecima/)).toBeVisible()
 })

@@ -6,6 +6,7 @@ import { homeForRole } from './auth/session'
 import { ToastProvider } from './components/ui/Toast'
 import RequireRole from './components/RequireRole'
 import WorkerShell from './components/WorkerShell'
+import UpdateBanner from './components/UpdateBanner'
 import { LoadingRows } from './components/ui/States'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
@@ -14,13 +15,27 @@ import ReportFault from './pages/worker/ReportFault'
 import WorkerFault from './pages/worker/WorkerFault'
 
 // Lead/admin screens (and the chart library) load only for leads, keeping the worker's phone bundle small.
-const AdminShell = lazy(() => import('./components/AdminShell'))
-const Dashboard = lazy(() => import('./pages/admin/Dashboard'))
-const Faults = lazy(() => import('./pages/admin/Faults'))
-const FaultDetail = lazy(() => import('./pages/admin/FaultDetail'))
-const Machines = lazy(() => import('./pages/admin/Machines'))
-const SpareParts = lazy(() => import('./pages/admin/SpareParts'))
-const Users = lazy(() => import('./pages/admin/Users'))
+// After a deploy an old tab may request page files that no longer exist; reload once to get the new version.
+const lazyPage = (load) => lazy(() => load().then(
+  (module) => {
+    sessionStorage.removeItem('adix.reloaded')
+    return module
+  },
+  (error) => {
+    if (sessionStorage.getItem('adix.reloaded')) throw error
+    sessionStorage.setItem('adix.reloaded', '1')
+    window.location.reload()
+    return new Promise(() => {})
+  },
+))
+const AdminShell = lazyPage(() => import('./components/AdminShell'))
+const Dashboard = lazyPage(() => import('./pages/admin/Dashboard'))
+const Faults = lazyPage(() => import('./pages/admin/Faults'))
+const Analytics = lazyPage(() => import('./pages/admin/Analytics'))
+const FaultDetail = lazyPage(() => import('./pages/admin/FaultDetail'))
+const Machines = lazyPage(() => import('./pages/admin/Machines'))
+const SpareParts = lazyPage(() => import('./pages/admin/SpareParts'))
+const Users = lazyPage(() => import('./pages/admin/Users'))
 
 const pageFallback = <div className="surface mx-auto mt-8 max-w-3xl"><LoadingRows rows={4} /></div>
 
@@ -50,6 +65,7 @@ export default function App() {
                 <Route path="kvarovi/:id" element={<FaultDetail />} />
                 <Route path="oprema" element={<Machines />} />
                 <Route path="rezervni-dijelovi" element={<SpareParts />} />
+                <Route path="analize" element={<Analytics />} />
                 <Route path="korisnici" element={<RequireRole roles={['admin']}><Users /></RequireRole>} />
                 <Route path="radnici" element={<Navigate to="/admin/korisnici" replace />} />
                 <Route path="*" element={<NotFound />} />
@@ -57,6 +73,7 @@ export default function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>
+            <UpdateBanner />
           </AuthProvider>
         </ToastProvider>
       </BrowserRouter>

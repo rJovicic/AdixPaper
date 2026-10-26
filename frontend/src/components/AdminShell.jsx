@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
-import { AlertTriangle, Bell, BellOff, Factory, LayoutGrid, LogOut, Menu as MenuIcon, PackageSearch, Users, X } from 'lucide-react'
+import { AlertTriangle, BarChart3, Bell, BellOff, Factory, LayoutGrid, LogOut, Menu as MenuIcon, PackageSearch, Users, X } from 'lucide-react'
 import BrandLogo from './BrandLogo'
 import LanguageSwitch from './ui/LanguageSwitch'
 import { useAuth } from '../auth/AuthProvider'
@@ -15,6 +15,7 @@ const NAV = [
   { to: '/admin/kvarovi', key: 'nav.faults', icon: AlertTriangle },
   { to: '/admin/oprema', key: 'nav.machines', icon: Factory },
   { to: '/admin/rezervni-dijelovi', key: 'nav.parts', icon: PackageSearch },
+  { to: '/admin/analize', key: 'nav.analytics', icon: BarChart3 },
   { to: '/admin/korisnici', key: 'nav.users', icon: Users, adminOnly: true },
 ]
 

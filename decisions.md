@@ -53,3 +53,15 @@
 - Why: sorting by the share of the response window used made the displayed times look unordered to a reader.
 - Rejected: sorting by ratio with relabelled copy.
 - Rests on: `frontend/src/lib/sla.js`.
+
+## 2026-10-26 · Overview shows only what needs action; analytics get their own page
+- Decided by: the owner
+- Why: the overview felt overloaded; daily work needs open, urgent and overdue faults first.
+- Rejected: keeping analytics below the action list.
+- Rests on: owner's feedback after launch.
+
+## 2026-10-26 · Open tabs detect new deploys
+- Decided by: Claude (default)
+- Why: a tab left open across a deploy kept running the previous version (the machine-form focus bug the owner saw came from such a tab; production logs show its calls to endpoints only the old version used).
+- Rejected: forcing an automatic reload (could discard unsaved form input).
+- Rests on: Railway deploy logs 2026-10-26 14:44–14:46.
