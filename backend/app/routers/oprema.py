@@ -86,7 +86,8 @@ def _draw_label(canvas, x: float, y: float, width: float, height: float, machine
     canvas.setDash()
 
     qr_size = height - 2 * pad
-    widget = QrCodeWidget(url, barLevel="M")
+    # Q recovers ~25 % of damaged modules: labels on machines get oil, dust and scratches.
+    widget = QrCodeWidget(url, barLevel="Q")
     x0, y0, x1, y1 = widget.getBounds()
     drawing = Drawing(qr_size, qr_size, transform=[qr_size / (x1 - x0), 0, 0, qr_size / (y1 - y0), 0, 0])
     drawing.add(widget)
