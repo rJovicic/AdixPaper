@@ -190,7 +190,7 @@ export default function Users() {
 
   const statusCell = (user) => (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm">
-      <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-[2px] ${user.aktivan ? 'bg-ok' : 'border-[1.5px] border-ink-3'}`} />
+      <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-[2px] ${user.aktivan ? 'bg-brand' : 'border-[1.5px] border-ink-3'}`} />
       {user.aktivan ? t('common.active') : t('common.inactive')}
     </span>
   )

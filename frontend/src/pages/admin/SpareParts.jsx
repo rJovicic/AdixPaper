@@ -150,9 +150,9 @@ export default function SpareParts() {
             <table className="w-full text-[0.9375rem]">
               <thead className="table-head">
                 <tr>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('parts.name')}</th>
-                  <th scope="col" className="hidden px-4 py-2.5 font-semibold sm:table-cell">{t('parts.unit')}</th>
-                  <th scope="col" className="hidden px-4 py-2.5 text-right font-semibold sm:table-cell">{t('parts.price')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('parts.name')}</th>
+                  <th scope="col" className="hidden px-4 py-2.5 font-medium sm:table-cell">{t('parts.unit')}</th>
+                  <th scope="col" className="hidden px-4 py-2.5 text-right font-medium sm:table-cell">{t('parts.price')}</th>
                   <th scope="col" className="w-24 px-4 py-2.5"><span className="sr-only">{t('common.edit')}</span></th>
                 </tr>
               </thead>

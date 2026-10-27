@@ -4,9 +4,9 @@ import { slaInfo } from '../../lib/sla'
 
 const STATUS_MARK = {
   Novo: 'bg-brand',
-  'U rješavanju': 'bg-warn-mark',
+  'U rješavanju': 'mark-half',
   'Na čekanju': 'border-[1.5px] border-ink-3 bg-transparent',
-  'Riješeno': 'bg-ok',
+  'Riješeno': 'bg-grey',
 }
 
 const PRIORITY_MARK = {
@@ -76,5 +76,28 @@ export function LabelFields({ items, columns = 'sm:grid-cols-2 lg:grid-cols-4' }
         </div>
       ))}
     </dl>
+  )
+}
+
+/** How much of the response window is used: a hairline under the time. Decorative; the time text carries it. */
+export function DueBar({ fault, className = '' }) {
+  const info = slaInfo(fault)
+  if (info.state === 'none') return null
+  const used = Math.min(100, Math.max(3, Math.round(info.ratio * 100)))
+  return (
+    <span aria-hidden="true" data-late={info.state === 'late' ? '' : undefined} className={`due-bar ${className}`}>
+      <i style={{ width: `${used}%` }} />
+    </span>
+  )
+}
+
+/** Time left over its hairline, for overview rows and panels. */
+export function Due({ fault, className = '' }) {
+  if (slaInfo(fault).state === 'none') return null
+  return (
+    <span className={`grid gap-1.5 ${className}`}>
+      <DueTag fault={fault} />
+      <DueBar fault={fault} />
+    </span>
   )
 }

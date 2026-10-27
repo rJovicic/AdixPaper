@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
-import { ADMIN, setupFixture, signIn } from './helpers'
+import { ADMIN, openAccountMenu, setupFixture, signIn } from './helpers'
 
 async function axe(page) {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze()
@@ -43,6 +43,7 @@ test('no serious accessibility violations on worker screens', async ({ page, req
   await page.goto('/radnik/prijava')
   await page.getByLabel('Mašina', { exact: true }).waitFor()
   expect(await axe(page), 'report form').toEqual([])
+  await openAccountMenu(page)
   await page.getByRole('button', { name: 'Promijeni lozinku' }).click()
   await page.getByRole('dialog', { name: 'Promijeni lozinku' }).getByLabel('Trenutna lozinka').waitFor()
   expect(await axe(page), 'change password dialog').toEqual([])
@@ -102,4 +103,17 @@ test('overview stays focused; analytics live on their own page', async ({ page }
   await page.getByRole('link', { name: 'Analize' }).click()
   await expect(page.getByRole('heading', { name: 'Analize' })).toBeVisible()
   await expect(page.getByText(/Kvarovi po mjesecima/)).toBeVisible()
+})
+
+test('no serious accessibility violations with search and the account menu open', async ({ page }) => {
+  await signIn(page, ADMIN)
+  await page.getByRole('button', { name: /Traži/ }).waitFor() // the lead shell is lazy-loaded
+  await page.keyboard.press('Control+k')
+  await page.getByRole('combobox', { name: 'Pretraživanje' }).fill('a')
+  await page.getByRole('option').first().waitFor()
+  expect(await axe(page), 'search palette').toEqual([])
+  await page.keyboard.press('Escape')
+  await openAccountMenu(page)
+  await page.getByRole('button', { name: 'Odjava' }).waitFor()
+  expect(await axe(page), 'account menu').toEqual([])
 })

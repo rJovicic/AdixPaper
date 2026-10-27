@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ADMIN, apiToken, setupFixture, signIn } from './helpers'
+import { ADMIN, apiToken, faultNumber, setupFixture, signIn } from './helpers'
 
 test('lead takes, records parts for, and resolves a fault; the worker sees the result', async ({ page, request, browser }) => {
   const { machine, component, worker } = await setupFixture(request)
@@ -11,7 +11,7 @@ test('lead takes, records parts for, and resolves a fault; the worker sees the r
 
   await signIn(page, ADMIN)
   await page.goto(`/admin/kvarovi?q=${fault.id}`)
-  await page.locator('tbody tr', { hasText: new RegExp(`#${fault.id}(?!\\d)`) }).getByRole('link', { name: 'Curi zrak na ventilu' }).click()
+  await page.locator('tbody tr', { hasText: faultNumber(fault.id) }).getByRole('link', { name: 'Curi zrak na ventilu' }).click()
   await expect(page.getByRole('heading', { name: 'Curi zrak na ventilu' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Preuzmi kvar' }).click()
@@ -41,7 +41,7 @@ test('lead takes, records parts for, and resolves a fault; the worker sees the r
   const workerPage = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage()
   await signIn(workerPage, worker)
   await workerPage.getByRole('tab', { name: /Riješeni/ }).click()
-  await workerPage.locator('a', { hasText: new RegExp(`#${fault.id}(?!\\d)`) }).click()
+  await workerPage.locator('a', { hasText: faultNumber(fault.id) }).click()
   await expect(workerPage.getByText('Zamijenjena brtva ventila.')).toBeVisible()
 })
 
@@ -56,8 +56,12 @@ test('machine form keeps focus while typing and saves', async ({ page }) => {
   await page.getByLabel('Tip').fill('Rezačica')
   await page.getByRole('button', { name: 'Spremi', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Mašina je spremljena.' })).toBeVisible()
-  // New machine stays open for adding parts.
+  // New machine stays open for adding parts and printing its QR label.
   await expect(page.getByRole('heading', { name: 'Dijelovi mašine' })).toBeVisible()
+  await expect(page.getByText('Mašina je dodana.')).toBeVisible()
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Ispiši QR oznaku' }).click()
+  expect((await download).suggestedFilename()).toBe('adix-paper-qr-oznake.pdf')
 })
 
 test('admin cannot deactivate their own account', async ({ page }) => {
@@ -98,4 +102,41 @@ test('lead opens a machine\'s faults from the machine list and filters by assign
 
   await page.getByRole('button', { name: 'Ukloni filtar mašine' }).click()
   await expect(page).not.toHaveURL(/oprema=/)
+})
+
+test('lead finds a fault by number and a machine by name with Ctrl K', async ({ page, request }) => {
+  const { machine, worker } = await setupFixture(request)
+  const workerHeaders = { Authorization: `Bearer ${await apiToken(request, worker)}` }
+  const fault = await (await request.post('/api/kvarovi', { headers: workerHeaders, data: { oprema_id: machine.id, naslov: 'Remen klizi E2E' } })).json()
+
+  await signIn(page, ADMIN)
+  await page.getByRole('button', { name: /Traži/ }).waitFor() // the lead shell is lazy-loaded
+  await page.keyboard.press('Control+k')
+  const search = page.getByRole('combobox', { name: 'Pretraživanje' })
+  await expect(search).toBeFocused()
+  await search.fill(String(fault.id))
+  await expect(page.getByRole('option').first()).toContainText('Remen klizi E2E')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(new RegExp(`/admin/kvarovi/${fault.id}$`))
+  await expect(page.getByRole('heading', { name: 'Remen klizi E2E' })).toBeVisible()
+
+  await page.getByRole('button', { name: /Traži/ }).click()
+  await search.fill(machine.naziv)
+  await page.getByRole('option', { name: new RegExp(machine.naziv) }).last().click()
+  await expect(page).toHaveURL(new RegExp(`oprema=${machine.id}`))
+})
+
+test('overview "Mine" tab lists only the lead\'s own faults', async ({ page, request }) => {
+  const { machine, worker } = await setupFixture(request)
+  const adminHeaders = { Authorization: `Bearer ${await apiToken(request, ADMIN)}` }
+  const workerHeaders = { Authorization: `Bearer ${await apiToken(request, worker)}` }
+  const title = `Preuzet E2E ${machine.id}`
+  const mine = await (await request.post('/api/kvarovi', { headers: workerHeaders, data: { oprema_id: machine.id, naslov: title, prioritet: 'Hitno' } })).json()
+  await request.put(`/api/kvarovi/${mine.id}`, { headers: adminHeaders, data: { status: 'U rješavanju' } })
+
+  await signIn(page, ADMIN)
+  await page.getByRole('button', { name: /^Moji/ }).click()
+  await expect(page.getByRole('button', { name: /^Moji/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('region', { name: 'Zahtijeva pažnju' }).getByText(title)).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Moji kvarovi' }).getByText(title)).toBeVisible()
 })

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ADMIN, PHONE, setupFixture, signIn } from './helpers'
+import { ADMIN, PHONE, openAccountMenu, setupFixture, signIn } from './helpers'
 
 test.use({ viewport: PHONE })
 
@@ -53,6 +53,7 @@ test('worker cannot open lead screens', async ({ page, request }) => {
 test('worker changes their own password; the old one stops working', async ({ page, request }) => {
   const { worker } = await setupFixture(request)
   await signIn(page, worker)
+  await openAccountMenu(page)
   await page.getByRole('button', { name: 'Promijeni lozinku' }).click()
   const dialog = page.getByRole('dialog', { name: 'Promijeni lozinku' })
   await dialog.getByLabel('Trenutna lozinka').fill(worker.password)
@@ -120,4 +121,12 @@ test('a lead scanning a machine QR label sees that machine\'s faults', async ({ 
   await page.goto(`/m/${machine.id}`)
   await expect(page).toHaveURL(new RegExp(`/admin/kvarovi\\?oprema=${machine.id}$`))
   await expect(page.getByText(`Mašina: ${machine.naziv}`)).toBeVisible()
+})
+
+test('worker signs out from the account menu', async ({ page, request }) => {
+  const { worker } = await setupFixture(request)
+  await signIn(page, worker)
+  await openAccountMenu(page)
+  await page.getByRole('button', { name: 'Odjava' }).click()
+  await expect(page).toHaveURL(/\/login\?reason=signedOut/)
 })

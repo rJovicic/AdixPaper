@@ -41,13 +41,9 @@
         "role": "state",
         "displayName": "Urgent"
       },
-      "waiting-mark": {
-        "role": "state",
-        "displayName": "In progress (marker only)"
-      },
-      "resolved": {
-        "role": "state",
-        "displayName": "Resolved"
+      "wordmark-grey": {
+        "role": "neutral",
+        "displayName": "Wordmark Grey (resolved, inactive)"
       }
     },
     "typographyMeta": {
@@ -168,7 +164,7 @@
     "rules": [
       {
         "name": "One Ink Rule",
-        "body": "Logo blue is the only decorative colour; red, amber and green only state something.",
+        "body": "Only the logo colours (blue, deep blue, wordmark grey) plus ink and white; red only for urgent, overdue and errors.",
         "section": "colors"
       },
       {

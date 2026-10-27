@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router'
-import { CheckCircle2, ClipboardList, Plus } from 'lucide-react'
+import { CheckCircle2, ClipboardList, Plus, QrCode } from 'lucide-react'
 import { api } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
@@ -36,6 +36,10 @@ export default function MyFaults() {
         <Plus size={22} strokeWidth={2.5} aria-hidden="true" />
         {t('worker.report')}
       </Link>
+      <p className="mt-2 flex items-center gap-1.5 text-meta text-ink-2">
+        <QrCode size={15} aria-hidden="true" className="shrink-0" />
+        {t('worker.qrHint')}
+      </p>
 
       <div role="tablist" aria-label={t('worker.title')} className="mt-6 flex border-b border-rule">
         {tabs.map((item) => (
@@ -52,7 +56,7 @@ export default function MyFaults() {
             }`}
           >
             {item.label}
-            <span className="numeral rounded-sm bg-ground px-1.5 text-sm text-ink-2">{faults.loading ? '·' : item.count}</span>
+            <span className="rounded-sm bg-[#E8EAED] px-1.5 py-0.5 text-xs font-semibold tabular text-ink-2">{faults.loading ? '·' : item.count}</span>
           </button>
         ))}
       </div>

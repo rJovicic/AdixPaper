@@ -16,11 +16,7 @@ colors:
   on-shell-quiet: "#B8C6DE"
   urgent: "#B42318"
   urgent-wash: "#FCEBE9"
-  waiting-text: "#9A4A07"
-  waiting-mark: "#E08A0B"
-  waiting-wash: "#FDF1DE"
-  resolved: "#1C6B3F"
-  resolved-wash: "#E4F2E9"
+  wordmark-grey: "#949597"
 typography:
   reel-number:
     fontFamily: "Archivo Variable, system-ui, sans-serif"
@@ -68,8 +64,8 @@ typography:
     letterSpacing: "0.06em"
 rounded:
   sm: "3px"
-  md: "5px"
-  lg: "8px"
+  md: "6px"
+  lg: "10px"
 spacing:
   xs: "4px"
   sm: "8px"
@@ -153,17 +149,23 @@ Light theme only: workers use phones on a brightly lit production floor and lead
 - **Ink `#15181D`** (17.8:1) for text and numerals; **Ink Secondary `#474E59`** (8.4:1) for supporting text; **Ink Tertiary `#636B77`** (5.4:1 on stock, 4.7:1 on ground) for metadata and placeholders.
 - **Rule `#D6DAE0`** for hairlines; **Rule Strong `#858C97`** (3.4:1) for control borders — meets the 3:1 non-text contrast rule.
 
-### State (only where they carry meaning)
-| State | Mark | Text | Wash |
-|---|---|---|---|
-| Urgent priority, overdue, errors, destructive | `#B42318` | `#B42318` (6.6:1) | `#FCEBE9` |
-| In progress / due soon | `#E08A0B` (mark only) | `#9A4A07` (6.3:1) | `#FDF1DE` |
-| Resolved, success | `#1C6B3F` | `#1C6B3F` (6.5:1) | `#E4F2E9` |
-| New | `logo-blue` | ink | — |
-| On hold, low priority, inactive | hollow 1.5 px `#636B77` square | ink-secondary | — |
+### State: the logo's two colours, as shapes
+The palette is only what the Adix Paper logo and website use: the logo blue, its deep shade, the wordmark grey `#949597`, white and ink. States are told apart by **shape** (owner's decision, 2026-10-27: no amber, green or other hues).
+
+| State | Mark | Text |
+|---|---|---|
+| New | filled logo-blue square | ink |
+| In progress | half-filled logo-blue square (`.mark-half`) | ink |
+| On hold, low priority, inactive | hollow 1.5 px `#636B77` square | ink-secondary |
+| Resolved | filled wordmark-grey square | ink |
+| Machine in service | half-filled logo-blue | ink |
+| Due soon, unsaved changes, success | — | deep blue `#152C52`, semibold |
+| **Urgent, overdue, errors, destructive** | `#B42318` | `#B42318` (6.6:1), wash `#FCEBE9` |
+
+Red is the one colour outside the logo, kept because "urgent" and "late" must stop the eye on a busy screen; it appears nowhere else.
 
 ### Named Rules
-- **One Ink Rule.** Logo blue is the only decorative colour. Red/amber/green appear only to state something.
+- **Logo Colours Only.** Logo blue, deep blue, wordmark grey, white and ink. Red only for urgent, overdue and errors. Never amber, green, cyan or other hues.
 - **Shape-and-word Rule.** Every status/priority shows a marker *and* its word, so it survives greyscale and colour blindness.
 
 ## Typography
@@ -189,7 +191,7 @@ Headings use `text-wrap: balance`, paragraphs `pretty`. Prose is capped at ~75 c
 - **Spacing:** Tailwind's 4 px scale; groups tight (8–12 px), sections generous (24–32 px). More space above a heading than below.
 - **Shell:** desktop (≥ 1024 px) — fixed 256 px deep-blue rail with nav, language, notifications, account. Below 1024 px — sticky top bar + drawer (native `<dialog>`). Content max width 72 rem (lead) / 42 rem (worker).
 - **Breakpoints:** `xs 420`, `sm 640`, `md 768`, `lg 1024`, `xl 1280`. Tables appear at `md`; below it, lists render as label cards.
-- **Overview (Pregled):** three figures (Open · Urgent · Overdue, each a link into the filtered list) and "Needs attention" (up to 10 open faults by time left, overdue first; separate status and owner columns). Nothing else: the overview is for acting today.
+- **Overview (Pregled):** three figures (Open · Urgent · Overdue, each a link into the filtered list); "Needs attention" (up to 10 open faults by time left) with All / Unassigned / Mine toggles; a "My faults" panel beside it from `xl`, below it before. Nothing else: the overview is for acting today.
 - **Analytics (Analize):** one ruled "This month" summary row, faults by month, machines / machine parts with most faults, most used spare parts. Charts load only here. Durations under 10 h show hours and minutes; longer ones show whole hours.
 - **Fault detail:** main column + 18.5 rem status panel (sticky on desktop, first on phones).
 
@@ -202,7 +204,7 @@ Flat by default; hairlines carry structure.
 
 ## Shapes
 
-Radii are small, like die-cut label corners: 3 px (markers, chips), 5 px (buttons, inputs), 8 px (surfaces, dialogs). Status markers are 10 px squares with a 2 px radius.
+Radii are small, like die-cut label corners: 3 px (markers, chips), 6 px (buttons, inputs), 10 px (surfaces, dialogs). Status markers are 10 px squares with a 2 px radius.
 
 ## Components
 
@@ -216,10 +218,19 @@ Primary (logo blue), secondary (white, rule-strong border), quiet (text), danger
 For choices that need a sentence (urgency on the report form, role on the user form): 52 px rows, radio + marker + label + hint; selected = blue border on blue wash.
 
 ### Cards / Containers
-`surface`: white stock, 1 px rule border, 8 px radius, `shadow-label`. Never nested.
+`surface`: white stock, 1 px rule border, 10 px radius, `shadow-label`. Never nested.
 
 ### Navigation
-Rail items 44 px tall; active = white chip with deep-blue text; `aria-current` from `NavLink`. Skip link to `#main` on every shell.
+Rail items 44 px tall; active = white chip with deep-blue text; `aria-current` from `NavLink`. The overdue count sits beside "Kvarovi" as a small red badge. Skip link to `#main` on every shell.
+
+### Search (Ctrl/⌘ K)
+The rail's search field (or Ctrl/⌘ K anywhere) opens a dialog: combobox + listbox, ↑ ↓ Enter Esc. Empty query lists open faults by risk; a number finds that fault; text matches title, machine and part, and machines.
+
+### Account menu
+A disclosure with name and role, HR/EN switch, push toggle (leads, when VAPID is set), change password and sign out. Rail row on desktop, initials button in the worker's top bar.
+
+### Time left
+`DueTag` (clock + time, red when overdue, deep blue when ≥ 75 % used) over a 3 px `DueBar` hairline showing the share of the response window used (logo blue, red when overdue). On overview rows and in "My faults".
 
 ### Signature: the label block
 `FaultNumber` (condensed numeral, grey `#`) + `LabelFields` (ruled 2- or 4-column `dl` with uppercase field labels). Used on fault detail headers and the worker fault view. Fault cards carry the number beside the title and a ruled STATUS | PRIORITY | DUE strip; an overdue card gets an urgent border and tinted strip. Tables and dashboard rows lead with the number.

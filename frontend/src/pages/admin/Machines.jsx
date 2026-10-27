@@ -14,7 +14,7 @@ import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../component
 
 const COMPANIES = ['Cupup d.o.o', 'Delt papir d.o.o']
 const STATUSES = ['Aktivno', 'Neispravno', 'Na servisu', 'Raspisano']
-const STATUS_MARK = { Aktivno: 'bg-ok', Neispravno: 'bg-urgent', 'Na servisu': 'bg-warn-mark', Raspisano: 'border-[1.5px] border-ink-3' }
+const STATUS_MARK = { Aktivno: 'bg-brand', Neispravno: 'bg-urgent', 'Na servisu': 'mark-half', Raspisano: 'border-[1.5px] border-ink-3' }
 const EMPTY = { naziv: '', tip: '', tvrtka: '', proizvodac: '', model: '', serijski_broj: '', lokacija: '', datum_kupnje: '', status: 'Aktivno', napomene: '' }
 
 function MachineStatus({ status }) {
@@ -115,7 +115,7 @@ function useQrLabels() {
   return { busy, download }
 }
 
-function MachineDialog({ machine, onClose, onSaved }) {
+function MachineDialog({ machine, justCreated = false, onClose, onSaved }) {
   const i18n = useI18n()
   const { t, machineStatus } = i18n
   const [form, setForm] = useState(() => (machine ? { ...EMPTY, ...Object.fromEntries(Object.keys(EMPTY).map((key) => [key, machine[key] ?? ''])) } : EMPTY))
@@ -179,6 +179,16 @@ function MachineDialog({ machine, onClose, onSaved }) {
         </>
       }
     >
+      {justCreated && (
+        <div role="status" className="mb-5 flex flex-col gap-3 rounded border border-brand/30 bg-brand-wash px-4 py-3.5 sm:flex-row sm:items-center">
+          <p className="flex-1 text-[0.9375rem] text-ink">
+            <span className="font-semibold">{t('machines.qrCreatedTitle')}</span> {t('machines.qrCreatedBody')}
+          </p>
+          <button type="button" className="btn-primary shrink-0" onClick={() => qr.download(machine.id)} disabled={qr.busy}>
+            <QrCode size={17} aria-hidden="true" /> {t('machines.qrPrint')}
+          </button>
+        </div>
+      )}
       <form id="machine-form" ref={formRef} onSubmit={submit} noValidate>
         {formError && <p role="alert" className="mb-4 rounded border border-urgent/30 bg-urgent-wash px-3 py-2.5 text-sm font-medium text-urgent">{formError}</p>}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -222,6 +232,7 @@ export default function Machines() {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState(null) // null | 'new' | machine
   const [deleting, setDeleting] = useState(null)
+  const [createdId, setCreatedId] = useState(null)
   const qr = useQrLabels()
   const machines = useAsync(() => api.get('/oprema').then((response) => asArray(response.data)), [])
   const canDelete = user?.rola === 'admin'
@@ -240,7 +251,8 @@ export default function Machines() {
   const onSaved = (saved, created) => {
     toast.success(t('machines.saved'))
     machines.reload()
-    // A new machine stays open so its parts can be added straight away.
+    // A new machine stays open so its parts can be added and its QR label printed straight away.
+    setCreatedId(created ? saved.id : null)
     setEditing(created ? saved : null)
   }
 
@@ -257,6 +269,9 @@ export default function Machines() {
 
   const actions = (machine) => (
     <div className="flex justify-end gap-1">
+      <button type="button" className="btn-icon" aria-label={t('machines.qrRow', { name: machine.naziv })} title={t('machines.qrOne')} onClick={() => qr.download(machine.id)} disabled={qr.busy}>
+        <QrCode size={18} aria-hidden="true" />
+      </button>
       <button type="button" className="btn-icon" aria-label={`${t('common.edit')}: ${machine.naziv}`} onClick={() => setEditing(machine)}>
         <Pencil size={18} aria-hidden="true" />
       </button>
@@ -331,7 +346,7 @@ export default function Machines() {
                   <th scope="col" className="px-4 py-2.5 font-semibold">{t('machines.status')}</th>
                   <th scope="col" className="px-4 py-2.5 text-right font-semibold">{t('machines.faults')}</th>
                   <th scope="col" className="hidden px-4 py-2.5 text-right font-semibold lg:table-cell">{t('machines.cost')}</th>
-                  <th scope="col" className="w-24 px-4 py-2.5"><span className="sr-only">{t('common.edit')}</span></th>
+                  <th scope="col" className="w-36 px-4 py-2.5"><span className="sr-only">{t('common.edit')}</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
@@ -361,7 +376,18 @@ export default function Machines() {
         </>
       )}
 
-      {editing && <MachineDialog key={editing === 'new' ? 'new' : editing.id} machine={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
+      {editing && (
+        <MachineDialog
+          key={editing === 'new' ? 'new' : editing.id}
+          machine={editing === 'new' ? null : editing}
+          justCreated={editing !== 'new' && editing.id === createdId}
+          onClose={() => {
+            setEditing(null)
+            setCreatedId(null)
+          }}
+          onSaved={onSaved}
+        />
+      )}
       {deleting && (
         <ConfirmDialog
           title={t('machines.deleteTitle')}

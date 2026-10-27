@@ -71,7 +71,7 @@ export default function WorkerFault() {
             <p className="mt-1 whitespace-pre-wrap break-words text-ink">{item.opis || <span className="text-ink-3">{t('fault.noDescription')}</span>}</p>
           </div>
           {resolved && item.sto_je_uradjeno && (
-            <div className="border-t border-rule bg-ok-wash/60 px-5 py-4">
+            <div className="border-t border-rule bg-brand-wash/60 px-5 py-4">
               <h2 className="field-label">{t('fault.workDone')}</h2>
               <p className="mt-1 whitespace-pre-wrap break-words text-ink">{item.sto_je_uradjeno}</p>
             </div>

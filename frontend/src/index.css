@@ -5,7 +5,9 @@
 @tailwind utilities;
 
 /*
- * Reel-label palette. Values are RGB channels so Tailwind can apply alpha.
+ * Reel-label palette, from the two colours of the Adix Paper logo: its blue and its
+ * wordmark grey. One red, only for urgent, overdue and errors. No other hues.
+ * Values are RGB channels so Tailwind can apply alpha.
  * Contrast (WCAG): every text pair >= 4.5:1, control borders >= 3:1. See DESIGN.md.
  */
 :root {
@@ -23,11 +25,13 @@
   --brand-on-deep: 184 198 222; /* #B8C6DE quiet text on rail */
   --urgent: 180 35 24;        /* #B42318 */
   --urgent-wash: 252 235 233;
-  --warn: 154 74 7;           /* #9A4A07 text */
-  --warn-mark: 224 138 11;    /* #E08A0B marker only */
-  --warn-wash: 253 241 222;
-  --ok: 28 107 63;            /* #1C6B3F */
-  --ok-wash: 228 242 233;
+  --grey: 148 149 151;        /* #949597 logo wordmark grey: resolved, inactive */
+  /* "Due soon", "unsaved" and success use the logo blues, not amber or green. */
+  --warn: 21 44 82;           /* #152C52 */
+  --warn-mark: 42 89 162;     /* #2A59A2 */
+  --warn-wash: 231 237 247;
+  --ok: 42 89 162;            /* #2A59A2 */
+  --ok-wash: 231 237 247;
 
   color-scheme: light;
   -webkit-tap-highlight-color: transparent;
@@ -92,6 +96,23 @@
     @apply rounded-lg border border-rule bg-stock shadow-label;
   }
 
+  /* In progress: a half-filled logo-blue square (filled = new, hollow = on hold, grey = resolved). */
+  .mark-half {
+    border: 1.5px solid rgb(var(--brand));
+    background: linear-gradient(90deg, rgb(var(--brand)) 50%, transparent 50%);
+  }
+
+  /* Time used of the response window: a hairline, logo blue, red once overdue. */
+  .due-bar {
+    @apply block h-[3px] overflow-hidden rounded-full bg-rule;
+  }
+  .due-bar > i {
+    @apply block h-full rounded-full bg-brand;
+  }
+  .due-bar[data-late] > i {
+    @apply bg-urgent;
+  }
+
   .btn {
     @apply inline-flex min-h-[2.5rem] items-center justify-center gap-2 whitespace-nowrap rounded px-4 text-[0.9375rem] font-semibold
       transition-[background-color,border-color,color,box-shadow] duration-150
@@ -121,7 +142,7 @@
   }
 
   .control {
-    @apply block w-full rounded border border-rule-strong bg-stock px-3 py-2 text-base text-ink
+    @apply block w-full rounded border border-rule-strong bg-stock px-3 py-2 text-base text-ink sm:text-[0.9375rem]
       placeholder:text-ink-3 transition-[border-color,box-shadow] duration-150
       hover:border-ink-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25
       disabled:cursor-not-allowed disabled:bg-ground disabled:text-ink-3

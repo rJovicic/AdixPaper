@@ -20,6 +20,7 @@ export default {
         urgent: { DEFAULT: token('urgent'), wash: token('urgent-wash') },
         warn: { DEFAULT: token('warn'), mark: token('warn-mark'), wash: token('warn-wash') },
         ok: { DEFAULT: token('ok'), wash: token('ok-wash') },
+        grey: token('grey'),
       },
       fontFamily: {
         sans: ['"Archivo Variable"', 'Archivo', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
@@ -31,11 +32,11 @@ export default {
       },
       borderRadius: {
         sm: '3px',
-        DEFAULT: '5px',
-        lg: '8px',
+        DEFAULT: '6px',
+        lg: '10px',
       },
       boxShadow: {
-        label: '0 1px 2px rgb(20 23 28 / 0.06), 0 1px 1px rgb(20 23 28 / 0.04)',
+        label: '0 1px 2px rgb(20 23 28 / 0.05), 0 6px 16px -12px rgb(20 23 28 / 0.18)',
         lift: '0 6px 16px -6px rgb(20 23 28 / 0.18), 0 2px 4px rgb(20 23 28 / 0.06)',
         dialog: '0 20px 48px -12px rgb(20 23 28 / 0.35), 0 4px 12px rgb(20 23 28 / 0.08)',
       },

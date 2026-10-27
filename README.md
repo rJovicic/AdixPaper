@@ -68,7 +68,7 @@ cd backend && ruff check app tests && python -m pytest -q
 # Frontend
 cd frontend && npm run lint && npm run check:i18n && npm run build
 
-# End-to-end + accessibility (21 tests; the new-version banner test runs only against a production build) (needs the app running and seed-demo data)
+# End-to-end + accessibility (25 tests; the new-version banner test runs only against a production build) (needs the app running and seed-demo data)
 cd e2e && npm ci && npx playwright test                      # against Vite on :3000
 E2E_BASE_URL=http://localhost:8000 npx playwright test       # against the Docker image
 ```
