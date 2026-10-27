@@ -5,12 +5,12 @@ import { useI18n } from '../../i18n'
 const MAX_OPTIONS = 40
 
 function partText(part) {
-  return `${part.naziv} ${part.sifra || ''} ${part.dobavljac?.naziv || ''}`.toLowerCase()
+  return `${part.naziv} ${part.sifra || ''}`.toLowerCase()
 }
 
 /** Searchable combobox over the spare-parts catalogue (WAI-ARIA combobox pattern). */
 export default function PartPicker({ parts, value, onChange, invalid, describedBy, label }) {
-  const { t, format } = useI18n()
+  const { t } = useI18n()
   const listId = useId()
   const inputRef = useRef(null)
   const selected = useMemo(() => parts.find((part) => Number(part.id) === Number(value)), [parts, value])
@@ -82,12 +82,7 @@ export default function PartPicker({ parts, value, onChange, invalid, describedB
         }}
         onKeyDown={onKeyDown}
       />
-      {selected && !open && (
-        <p className="mt-1 truncate text-meta text-ink-3">
-          {selected.sifra || t('fault.noCode')} · {selected.dobavljac?.naziv}
-          {selected.zaliha !== null && selected.zaliha !== undefined ? ` · ${t('fault.stock', { n: format.number(selected.zaliha) })}` : ''}
-        </p>
-      )}
+      {selected && !open && <p className="mt-1 truncate text-meta text-ink-3 tabular">{selected.sifra || t('fault.noCode')}</p>}
       {open && (
         <ul id={listId} role="listbox" className="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-lg border border-rule bg-stock py-1 shadow-lift">
           {options.length === 0 ? (
@@ -104,9 +99,7 @@ export default function PartPicker({ parts, value, onChange, invalid, describedB
               className={`cursor-pointer px-3 py-2 ${index === active ? 'bg-brand-wash' : ''}`}
             >
               <span className="block truncate font-medium text-ink">{part.naziv}</span>
-              <span className="block truncate text-meta text-ink-2">
-                {part.sifra || t('fault.noCode')} · {part.dobavljac?.naziv}
-              </span>
+              <span className="block truncate text-meta text-ink-2 tabular">{part.sifra || t('fault.noCode')}</span>
             </li>
           ))}
         </ul>

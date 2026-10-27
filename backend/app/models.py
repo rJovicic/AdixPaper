@@ -119,7 +119,7 @@ class RezervniDio(Base):
     id = Column(Integer, primary_key=True, index=True)
     naziv = Column(String(220), nullable=False, index=True)
     sifra = Column(String(100), nullable=True, index=True)
-    dobavljac_id = Column(Integer, ForeignKey("dobavljaci.id"), nullable=False, index=True)
+    dobavljac_id = Column(Integer, ForeignKey("dobavljaci.id"), nullable=True, index=True)
     jedinica = Column(String(30), default="kom", nullable=False)
     zaliha = Column(Numeric(10, 2), nullable=True)
     cijena = Column(Numeric(10, 2), nullable=True)

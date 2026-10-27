@@ -98,7 +98,7 @@ def create_rezervni_dio(
     db: Session = Depends(get_db),
     _: Korisnik = Depends(require_voditelj_or_admin),
 ):
-    if not db.query(Dobavljac.id).filter(Dobavljac.id == data.dobavljac_id).first():
+    if data.dobavljac_id and not db.query(Dobavljac.id).filter(Dobavljac.id == data.dobavljac_id).first():
         raise HTTPException(status_code=404, detail="Dobavljač nije pronađen")
     dio = RezervniDio(
         naziv=_clean_required(data.naziv, "Naziv dijela"),

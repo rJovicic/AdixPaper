@@ -65,3 +65,9 @@
 - Why: a tab left open across a deploy kept running the previous version (the machine-form focus bug the owner saw came from such a tab; production logs show its calls to endpoints only the old version used).
 - Rejected: forcing an automatic reload (could discard unsaved form input).
 - Rests on: Railway deploy logs 2026-10-26 14:44–14:46.
+
+## 2026-10-27 · Spare parts no longer show supplier or stock
+- Decided by: the owner
+- Why: the plant does not track parts by supplier or stock level in this app; the fields added noise to the catalogue and the repair form.
+- Rejected: deleting the data. The columns stay in the database (supplier became optional, via a non-destructive `DROP NOT NULL`); existing values are kept and edits leave them untouched. The "parts used by supplier" Excel export still works and groups parts without a supplier as "Bez dobavljača".
+- Rests on: owner's request after launch.

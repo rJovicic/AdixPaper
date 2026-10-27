@@ -216,7 +216,7 @@ def get_utrosak_dijelova(db: Session = Depends(get_db), _: Korisnik = Depends(re
         Dobavljac.naziv.label("dobavljac"),
         func.coalesce(RezervniDio.cijena, 0).label("cijena"),
         func.sum(KvarRezervniDio.kolicina).label("kolicina"),
-    ).join(KvarRezervniDio, RezervniDio.id == KvarRezervniDio.rezervni_dio_id).join(
+    ).join(KvarRezervniDio, RezervniDio.id == KvarRezervniDio.rezervni_dio_id).outerjoin(
         Dobavljac, RezervniDio.dobavljac_id == Dobavljac.id
     ).group_by(
         RezervniDio.id, RezervniDio.naziv, RezervniDio.sifra, RezervniDio.cijena, Dobavljac.naziv

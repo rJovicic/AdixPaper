@@ -21,12 +21,18 @@ def ensure_additive_schema():
     inspector = inspect(engine)
     table_names = set(inspector.get_table_names())
     kvarovi_columns = {c["name"] for c in inspector.get_columns("kvarovi")} if "kvarovi" in table_names else set()
-    dijelovi_columns = {c["name"] for c in inspector.get_columns("rezervni_dijelovi")} if "rezervni_dijelovi" in table_names else set()
+    dijelovi_info = {c["name"]: c for c in inspector.get_columns("rezervni_dijelovi")} if "rezervni_dijelovi" in table_names else {}
+    dijelovi_columns = set(dijelovi_info)
     with engine.begin() as connection:
         if kvarovi_columns and "komponenta_id" not in kvarovi_columns:
             connection.execute(text("ALTER TABLE kvarovi ADD COLUMN komponenta_id INTEGER"))
         if dijelovi_columns and "zaliha" not in dijelovi_columns:
             connection.execute(text("ALTER TABLE rezervni_dijelovi ADD COLUMN zaliha NUMERIC(10, 2)"))
+        # Supplier became optional on spare parts (2026-10-27). SQLite cannot alter
+        # columns; databases created by create_all already have it nullable.
+        supplier = dijelovi_info.get("dobavljac_id")
+        if supplier and not supplier["nullable"] and engine.dialect.name == "postgresql":
+            connection.execute(text("ALTER TABLE rezervni_dijelovi ALTER COLUMN dobavljac_id DROP NOT NULL"))
 
 
 def seed_initial_suppliers():

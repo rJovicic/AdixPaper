@@ -59,7 +59,7 @@ Sign in at <http://localhost:3000> with `ADMIN_USERNAME` / `ADMIN_PASSWORD`. To 
 ## Tests and checks
 
 ```bash
-# Backend: 27 tests (set TEST_DATABASE_URL to use PostgreSQL; SQLite otherwise)
+# Backend: 28 tests (set TEST_DATABASE_URL to use PostgreSQL; SQLite otherwise)
 cd backend && ruff check app tests && python -m pytest -q
 
 # Frontend

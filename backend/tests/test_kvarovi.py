@@ -134,3 +134,19 @@ def test_resaving_unchanged_details_does_not_spam_the_timeline(client, admin, ma
     second = client.get(f"/api/kvarovi/{kvar['id']}/dogadjaji", headers=admin).json()
     assert [e["tip"] for e in second[len(first):]] == ["status", "assignment"]
     assert len(client.get(f"/api/kvarovi/{kvar['id']}", headers=admin).json()["utroseni_dijelovi"]) == 1
+
+
+def test_spare_part_without_supplier(client, admin, make_user, machine):
+    created = client.post("/api/rezervni-dijelovi", json={"naziv": "Remen B-42", "sifra": "RB42"}, headers=admin)
+    assert created.status_code == 201, created.text
+    part = created.json()
+    assert part["dobavljac_id"] is None
+
+    _, worker = make_user()
+    kvar = report(client, worker, machine)
+    response = client.put(f"/api/kvarovi/{kvar['id']}", json={"utroseni_dijelovi": [{"rezervni_dio_id": part["id"], "kolicina": "3"}]}, headers=admin)
+    assert response.status_code == 200, response.text
+
+    usage = client.get("/api/dashboard/utrosak-dijelova", headers=admin).json()
+    assert any(row["sifra"] == "RB42" and row["dobavljac"] is None for row in usage)
+    assert client.get("/api/kvarovi/export-dijelovi.xlsx", headers=admin).status_code == 200

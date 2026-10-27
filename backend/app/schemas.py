@@ -248,7 +248,7 @@ class DobavljacOut(DobavljacBase):
 class RezervniDioBase(CleanModel):
     naziv: Annotated[str, Field(min_length=1, max_length=220)]
     sifra: Optional[Annotated[str, Field(max_length=100)]] = None
-    dobavljac_id: int
+    dobavljac_id: Optional[int] = None
     jedinica: Annotated[str, Field(max_length=30)] = "kom"
     zaliha: Optional[Annotated[Decimal, Field(max_digits=10, decimal_places=2)]] = None
     cijena: Optional[Money] = None
@@ -393,6 +393,6 @@ class TopKomponentaKvarovi(BaseModel):
 class SparePartUsageSummary(BaseModel):
     naziv: str
     sifra: Optional[str] = None
-    dobavljac: str
+    dobavljac: Optional[str] = None
     kolicina: float
     trosak: float

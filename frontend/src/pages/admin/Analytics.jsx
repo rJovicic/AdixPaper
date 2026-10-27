@@ -140,7 +140,7 @@ export default function Analytics() {
             {parts.error ? <ErrorState error={parts.error} onRetry={parts.reload} /> : (
               <RankList
                 empty={t('dashboard.noData')}
-                rows={(parts.data || []).slice(0, 6).map((row) => ({ title: row.naziv, meta: [row.sifra, row.dobavljac].filter(Boolean).join(' · '), value: format.number(row.kolicina) }))}
+                rows={(parts.data || []).slice(0, 6).map((row) => ({ title: row.naziv, meta: row.sifra, value: format.number(row.kolicina) }))}
               />
             )}
           </Panel>
