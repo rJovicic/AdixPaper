@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Response
+from fastapi import APIRouter, Depends, File, HTTPException, BackgroundTasks, Query, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, or_
@@ -16,6 +16,7 @@ from ..models import (
     Korisnik,
     PushPretplata,
     KvarDogadjaj,
+    KvarPrilog,
     KvarRezervniDio,
     KomponentaOpreme,
     RezervniDio,
@@ -32,12 +33,14 @@ from ..schemas import (
     KvarKomentarCreate,
     KvarListOut,
     KvarNaMasiniOut,
+    KvarPrilogOut,
     KvarNovoOut,
     KvarOut,
     KvarVoditeljUpdate,
 )
 from ..auth import get_current_user, require_admin, require_voditelj_or_admin, role_value
 from ..timeutil import utcnow, as_utc, local_naive
+from ..images import reencode_photo
 
 router = APIRouter(prefix="/api/kvarovi", tags=["kvarovi"])
 logger = logging.getLogger("adixpaper")
@@ -51,6 +54,7 @@ def _enum_value(value) -> str:
 
 
 OPEN_FILTER = "otvoreni"
+MAX_PRILOGA = 6
 CONFLICT_DETAIL = "Kvar je u međuvremenu izmijenjen. Učitajte najnovije stanje pa ponovite promjenu."
 
 
@@ -876,3 +880,73 @@ def delete_kvar(
     db.delete(kvar)
     db.commit()
     logger.warning("Fault %s deleted by %s", kvar_id, current_user.username)
+
+
+@router.get("/{kvar_id}/prilozi", response_model=List[KvarPrilogOut])
+def list_prilozi(kvar_id: int, db: Session = Depends(get_db), current_user: Korisnik = Depends(get_current_user)):
+    kvar = _load_kvar(kvar_id, db)
+    _ensure_kvar_access(kvar, current_user)
+    return db.query(KvarPrilog).options(joinedload(KvarPrilog.korisnik)).filter(KvarPrilog.kvar_id == kvar_id).order_by(KvarPrilog.id).all()
+
+
+@router.post("/{kvar_id}/prilozi", response_model=KvarPrilogOut, status_code=201)
+def add_prilog(
+    kvar_id: int,
+    datoteka: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Korisnik = Depends(get_current_user),
+):
+    """Attach a photo. The reporter (worker) and leads/admins may add up to MAX_PRILOGA per fault."""
+    kvar = _load_kvar(kvar_id, db)
+    _ensure_kvar_access(kvar, current_user)
+    if db.query(func.count(KvarPrilog.id)).filter(KvarPrilog.kvar_id == kvar_id).scalar() >= MAX_PRILOGA:
+        raise HTTPException(status_code=400, detail=f"Kvar može imati najviše {MAX_PRILOGA} fotografija")
+    raw = datoteka.file.read(12 * 1024 * 1024 + 1)
+    jpeg, width, height = reencode_photo(raw)
+    name = (datoteka.filename or "fotografija").rsplit("/", 1)[-1].rsplit("\\", 1)[-1][:150] or "fotografija"
+    prilog = KvarPrilog(
+        kvar_id=kvar_id,
+        korisnik_id=current_user.id,
+        naziv=name,
+        mime="image/jpeg",
+        velicina=len(jpeg),
+        sirina=width,
+        visina=height,
+        sadrzaj=jpeg,
+    )
+    db.add(prilog)
+    db.flush()
+    _add_event(db, kvar, current_user, "prilog", "Dodana fotografija", podaci={"prilog_id": prilog.id})
+    kvar.azurirano = utcnow()
+    db.commit()
+    db.refresh(prilog)
+    return prilog
+
+
+@router.get("/{kvar_id}/prilozi/{prilog_id}")
+def get_prilog(kvar_id: int, prilog_id: int, db: Session = Depends(get_db), current_user: Korisnik = Depends(get_current_user)):
+    kvar = _load_kvar(kvar_id, db)
+    _ensure_kvar_access(kvar, current_user)
+    prilog = db.query(KvarPrilog).filter(KvarPrilog.id == prilog_id, KvarPrilog.kvar_id == kvar_id).first()
+    if not prilog:
+        raise HTTPException(status_code=404, detail="Fotografija nije pronađena")
+    return Response(
+        content=prilog.sadrzaj,
+        media_type=prilog.mime,
+        headers={"Cache-Control": "private, max-age=86400", "Content-Disposition": "inline"},
+    )
+
+
+@router.delete("/{kvar_id}/prilozi/{prilog_id}", status_code=204)
+def delete_prilog(kvar_id: int, prilog_id: int, db: Session = Depends(get_db), current_user: Korisnik = Depends(get_current_user)):
+    """Leads/admins may remove any photo; a worker only their own, while the fault is open."""
+    kvar = _load_kvar(kvar_id, db)
+    _ensure_kvar_access(kvar, current_user)
+    prilog = db.query(KvarPrilog).filter(KvarPrilog.id == prilog_id, KvarPrilog.kvar_id == kvar_id).first()
+    if not prilog:
+        raise HTTPException(status_code=404, detail="Fotografija nije pronađena")
+    if not _can_manage(current_user) and (prilog.korisnik_id != current_user.id or not kvar.otvoren):
+        raise HTTPException(status_code=403, detail="Nemate ovlasti za ovu radnju")
+    db.delete(prilog)
+    _add_event(db, kvar, current_user, "prilog", "Uklonjena fotografija", podaci={"prilog_id": prilog_id})
+    db.commit()
