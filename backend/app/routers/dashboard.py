@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from ..database import get_db
-from ..models import Oprema, Kvar, Korisnik, StatusKvaraEnum, PrioritetEnum, SLA_SATI, KomponentaOpreme, KvarRezervniDio, RezervniDio, Dobavljac
-from ..schemas import DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
+from ..models import Oprema, Kvar, Korisnik, KvarDogadjaj, RolaEnum, StatusKvaraEnum, PrioritetEnum, SLA_SATI, KomponentaOpreme, KvarRezervniDio, RezervniDio, Dobavljac
+from ..schemas import Pregled, PregledAktivnost, PregledKpi, PregledOpterecenje, KorisnikMini, DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
 from ..auth import require_voditelj_or_admin
 from ..timeutil import utcnow, as_utc, local_day_start, local_month_start, local_year_start, local_month_number
 
@@ -29,6 +29,100 @@ def _sla_ratio(kvar: Kvar, now: datetime) -> Optional[float]:
         return None
     elapsed = (now - as_utc(kvar.datum_prijave)).total_seconds() / 3600
     return elapsed / limit
+
+
+PERIODS = ("danas", "7d", "30d", "mjesec")
+
+
+def period_start(period: str, now: datetime) -> datetime:
+    """Start of a reporting period in the plant's calendar ("7d" = the last 7 days, today included)."""
+    if period == "danas":
+        return local_day_start(now)
+    if period == "mjesec":
+        return local_month_start(now)
+    if period in ("7d", "30d"):
+        return local_day_start(now) - timedelta(days=int(period[:-1]) - 1)
+    raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
+
+
+ACTIVITY_ROWS = 12
+
+
+@router.get("/pregled", response_model=Pregled)
+def get_pregled(
+    period: str = "7d",
+    db: Session = Depends(get_db),
+    _: Korisnik = Depends(require_voditelj_or_admin),
+):
+    """The overview: open work by state, workload per lead, recent activity.
+
+    Open counts are "now" and ignore the period; the period applies only to "reported" and
+    "resolved". Every count matches the fault list it links to.
+    """
+    now = utcnow()
+    od = period_start(period, now)
+
+    open_faults = db.query(Kvar).options(joinedload(Kvar.voditelj)).filter(Kvar.status.in_(OPEN_STATUSES)).all()
+    reasons = {k.id: k.razlozi_paznje_u(now) for k in open_faults}
+    kpi = PregledKpi(
+        otvoreni=len(open_faults),
+        hitni=sum(1 for k in open_faults if k.prioritet == PrioritetEnum.hitno),
+        kasni=sum(1 for k in open_faults if "kasni" in reasons[k.id]),
+        nedodijeljeni=sum(1 for k in open_faults if not k.voditelj_id),
+        novi=sum(1 for k in open_faults if k.status == StatusKvaraEnum.novo),
+        u_rjesavanju=sum(1 for k in open_faults if k.status == StatusKvaraEnum.u_rjesavanju),
+        na_cekanju=sum(1 for k in open_faults if k.status == StatusKvaraEnum.na_cekanju),
+        ceka_dijelove=sum(1 for k in open_faults if k.status == StatusKvaraEnum.na_cekanju and k.razlog_cekanja == "dijelovi"),
+        prijavljeni_u_periodu=db.query(func.count(Kvar.id)).filter(Kvar.datum_prijave >= od).scalar() or 0,
+        rijeseni_u_periodu=db.query(func.count(Kvar.id)).filter(
+            Kvar.status == StatusKvaraEnum.rijeseno, Kvar.datum_rjesavanja >= od
+        ).scalar() or 0,
+    )
+
+    # Every active lead and admin, including those with nothing assigned: who is free matters too.
+    people = db.query(Korisnik).filter(
+        Korisnik.aktivan == True, Korisnik.rola.in_([RolaEnum.voditelj, RolaEnum.admin])  # noqa: E712
+    ).order_by(Korisnik.ime, Korisnik.prezime).all()
+    load = {p.id: {"otvoreni": 0, "u_rjesavanju": 0, "na_cekanju": 0, "kasni": 0} for p in people}
+    for k in open_faults:
+        row = load.get(k.voditelj_id)
+        if row is None:
+            continue
+        row["otvoreni"] += 1
+        if k.status == StatusKvaraEnum.u_rjesavanju:
+            row["u_rjesavanju"] += 1
+        if k.status == StatusKvaraEnum.na_cekanju:
+            row["na_cekanju"] += 1
+        if "kasni" in reasons[k.id]:
+            row["kasni"] += 1
+    opterecenje = sorted(
+        (PregledOpterecenje(korisnik=KorisnikMini.model_validate(p), **load[p.id]) for p in people),
+        key=lambda row: (-row.otvoreni, row.korisnik.ime),
+    )
+
+    events = (
+        db.query(KvarDogadjaj)
+        .options(joinedload(KvarDogadjaj.korisnik), joinedload(KvarDogadjaj.kvar))
+        .order_by(KvarDogadjaj.kreiran.desc(), KvarDogadjaj.id.desc())
+        .limit(ACTIVITY_ROWS)
+        .all()
+    )
+    aktivnosti = [
+        PregledAktivnost(
+            id=e.id,
+            kvar_id=e.kvar_id,
+            kvar_naslov=e.kvar.naslov if e.kvar else "",
+            tip=e.tip,
+            naslov=e.naslov,
+            opis=(e.opis[:160] + "…") if e.opis and len(e.opis) > 160 else e.opis,
+            podaci=e.podaci,
+            interno=e.interno,
+            kreiran=e.kreiran,
+            korisnik=KorisnikMini.model_validate(e.korisnik) if e.korisnik else None,
+        )
+        for e in events
+    ]
+    return Pregled(od=od, do=now, kpi=kpi, opterecenje=opterecenje, aktivnosti=aktivnosti)
 
 
 @router.get("/stats", response_model=DashboardStats)

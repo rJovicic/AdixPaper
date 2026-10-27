@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import desc
+from sqlalchemy import desc, func, or_
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from io import BytesIO
 import json
@@ -23,6 +23,7 @@ from ..models import (
     PrioritetEnum,
     StatusKvaraEnum,
     SLA_SATI,
+    RAZLOZI_CEKANJA,
 )
 from ..schemas import (
     KVAR_INTERNAL_FIELDS,
@@ -30,6 +31,7 @@ from ..schemas import (
     KvarDogadjajOut,
     KvarKomentarCreate,
     KvarListOut,
+    KvarNaMasiniOut,
     KvarNovoOut,
     KvarOut,
     KvarVoditeljUpdate,
@@ -49,6 +51,7 @@ def _enum_value(value) -> str:
 
 
 OPEN_FILTER = "otvoreni"
+CONFLICT_DETAIL = "Kvar je u međuvremenu izmijenjen. Učitajte najnovije stanje pa ponovite promjenu."
 
 
 def _enum_param(enum_cls, value: Optional[str]):
@@ -144,31 +147,83 @@ def _query_kvarovi(
     oprema_id: Optional[int] = None,
     sla: Optional[str] = None,
     with_parts: bool = True,
-) -> List[Kvar]:
-    q = db.query(Kvar).options(
+    cekanje: Optional[str] = None,
+    preuzeo: Optional[str] = None,
+    q: Optional[str] = None,
+    sort: Optional[str] = None,
+    limit: Optional[int] = None,
+    offset: int = 0,
+):
+    """Faults matching the filters, as (page, total). Without `limit`, the page is every match."""
+    query = db.query(Kvar).options(
         joinedload(Kvar.oprema),
         joinedload(Kvar.komponenta),
         joinedload(Kvar.prijavio),
         joinedload(Kvar.voditelj),
     )
     if with_parts:
-        q = q.options(joinedload(Kvar.utroseni_dijelovi).joinedload(KvarRezervniDio.rezervni_dio).joinedload(RezervniDio.dobavljac))
+        query = query.options(joinedload(Kvar.utroseni_dijelovi).joinedload(KvarRezervniDio.rezervni_dio).joinedload(RezervniDio.dobavljac))
     if role_value(current_user.rola) == "radnik":
-        q = q.filter(Kvar.prijavio_id == current_user.id)
+        query = query.filter(Kvar.prijavio_id == current_user.id)
     if status and status.strip().lower() == OPEN_FILTER:
-        q = q.filter(Kvar.status.in_(list(OPEN_STATUSES)))
+        query = query.filter(Kvar.status.in_(list(OPEN_STATUSES)))
     elif status:
-        q = q.filter(Kvar.status == _enum_param(StatusKvaraEnum, status))
+        query = query.filter(Kvar.status == _enum_param(StatusKvaraEnum, status))
     if prioritet:
-        q = q.filter(Kvar.prioritet == _enum_param(PrioritetEnum, prioritet))
+        query = query.filter(Kvar.prioritet == _enum_param(PrioritetEnum, prioritet))
     if oprema_id:
-        q = q.filter(Kvar.oprema_id == oprema_id)
+        query = query.filter(Kvar.oprema_id == oprema_id)
+    if cekanje:
+        if cekanje not in RAZLOZI_CEKANJA:
+            raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
+        query = query.filter(Kvar.status == StatusKvaraEnum.na_cekanju, Kvar.razlog_cekanja == cekanje)
+    if preuzeo:
+        if preuzeo == "ja":
+            query = query.filter(Kvar.voditelj_id == current_user.id)
+        elif preuzeo == "nitko":
+            query = query.filter(Kvar.voditelj_id.is_(None))
+        elif preuzeo.isdigit():
+            query = query.filter(Kvar.voditelj_id == int(preuzeo))
+        else:
+            raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
+    text_query = (q or "").strip().lstrip("#")
+    if text_query:
+        if text_query.isdigit():
+            query = query.filter(Kvar.id == int(text_query))
+        else:
+            pattern = f"%{text_query.lower()}%"
+            query = query.outerjoin(Oprema, Kvar.oprema_id == Oprema.id).outerjoin(
+                KomponentaOpreme, Kvar.komponenta_id == KomponentaOpreme.id
+            ).filter(or_(
+                func.lower(Kvar.naslov).like(pattern),
+                func.lower(Oprema.naziv).like(pattern),
+                func.lower(KomponentaOpreme.naziv).like(pattern),
+            ))
+    if sort not in (None, "", "novo", "staro", "rizik"):
+        raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
+    if sort == "staro":
+        query = query.order_by(Kvar.datum_prijave.asc(), Kvar.id.asc())
+    else:
+        query = query.order_by(desc(Kvar.datum_prijave), desc(Kvar.id))
 
-    records = q.order_by(desc(Kvar.datum_prijave)).all()
-    if sla:
-        wanted = sla.strip().lower()
-        records = [k for k in records if _sla_state(k) == wanted]
-    return records
+    wanted_sla = (sla or "").strip().lower()
+    if wanted_sla and wanted_sla not in SLA_LABELS:
+        raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
+    if wanted_sla or sort == "rizik":
+        # Time-left filters and ordering depend on "now": computed here, then paged.
+        records = query.all()
+        if wanted_sla:
+            records = [k for k in records if _sla_state(k) == wanted_sla]
+        if sort == "rizik":
+            far = datetime.max.replace(tzinfo=timezone.utc)
+            records.sort(key=lambda k: (k.rok if k.otvoren and k.rok else far))
+        total = len(records)
+        return (records[offset:offset + limit] if limit else records), total
+    if limit:
+        total = query.order_by(None).with_entities(func.count(func.distinct(Kvar.id))).scalar() or 0
+        return query.offset(offset).limit(limit).all(), total
+    records = query.all()
+    return records, len(records)
 
 
 def _send_push_notifications(title: str, body: str, url: str = "/"):
@@ -245,14 +300,27 @@ def _load_kvar(kvar_id: int, db: Session) -> Kvar:
 
 @router.get("", response_model=List[KvarListOut])
 def list_kvarovi(
+    response: Response,
     status: Optional[str] = None,
     prioritet: Optional[str] = None,
     oprema_id: Optional[int] = None,
     sla: Optional[str] = None,
+    cekanje: Optional[str] = None,
+    preuzeo: Optional[str] = Query(None, max_length=20),
+    q: Optional[str] = Query(None, max_length=200),
+    sort: Optional[str] = None,
+    limit: Optional[int] = Query(None, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(get_current_user)
 ):
-    return _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, with_parts=False)
+    """Faults the user may see. With `limit`, one page; the total is in the X-Total-Count header."""
+    records, total = _query_kvarovi(
+        db, current_user, status, prioritet, oprema_id, sla, with_parts=False,
+        cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, limit=limit, offset=offset,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    return records
 
 
 @router.get("/novi", response_model=List[KvarNovoOut])
@@ -272,19 +340,44 @@ def list_new_kvarovi(
     )
 
 
+@router.get("/na-masini/{oprema_id}", response_model=List[KvarNaMasiniOut])
+def list_open_on_machine(
+    oprema_id: int,
+    db: Session = Depends(get_db),
+    _: Korisnik = Depends(get_current_user),
+):
+    """Open faults on a machine, so someone reporting can see it may already be known.
+
+    Everyone may call it, workers included: it returns only number, title, status, component
+    and time, never who reported or handles it, costs or notes.
+    """
+    return (
+        db.query(Kvar)
+        .options(joinedload(Kvar.komponenta))
+        .filter(Kvar.oprema_id == oprema_id, Kvar.status.in_(list(OPEN_STATUSES)))
+        .order_by(desc(Kvar.datum_prijave))
+        .limit(10)
+        .all()
+    )
+
+
 @router.get("/export.xlsx")
 def export_kvarovi_xlsx(
     status: Optional[str] = None,
     prioritet: Optional[str] = None,
     oprema_id: Optional[int] = None,
     sla: Optional[str] = None,
+    cekanje: Optional[str] = None,
+    preuzeo: Optional[str] = Query(None, max_length=20),
+    q: Optional[str] = Query(None, max_length=200),
+    sort: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(require_voditelj_or_admin),
 ):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
 
-    records = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla)
+    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort)
     wb = Workbook()
     ws = wb.active
     ws.title = "Kvarovi"
@@ -340,13 +433,17 @@ def export_utroseni_dijelovi_xlsx(
     prioritet: Optional[str] = None,
     oprema_id: Optional[int] = None,
     sla: Optional[str] = None,
+    cekanje: Optional[str] = None,
+    preuzeo: Optional[str] = Query(None, max_length=20),
+    q: Optional[str] = Query(None, max_length=200),
+    sort: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(require_voditelj_or_admin),
 ):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
 
-    records = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla)
+    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort)
     kvar_ids = [k.id for k in records]
     utrosci = []
     if kvar_ids:
@@ -418,6 +515,10 @@ def export_kvarovi_pdf(
     prioritet: Optional[str] = None,
     oprema_id: Optional[int] = None,
     sla: Optional[str] = None,
+    cekanje: Optional[str] = None,
+    preuzeo: Optional[str] = Query(None, max_length=20),
+    q: Optional[str] = Query(None, max_length=200),
+    sort: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(require_voditelj_or_admin),
 ):
@@ -427,7 +528,7 @@ def export_kvarovi_pdf(
 
     from ..pdf import BRAND_BLUE, register_fonts, stylesheet
 
-    records = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla)
+    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort)
     output = BytesIO()
     doc = SimpleDocTemplate(output, pagesize=landscape(A4), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
     regular, bold = register_fonts()
@@ -566,6 +667,8 @@ def add_kvar_komentar(
         tekst,
         interno=interno,
     )
+    if not interno:
+        kvar.azurirano = utcnow()
     db.commit()
     db.refresh(event)
     return event
@@ -578,15 +681,23 @@ def update_kvar(
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(require_voditelj_or_admin)
 ):
-    kvar = db.query(Kvar).filter(Kvar.id == kvar_id).first()
+    # Row lock (PostgreSQL): two saves of the same fault are serialised, so the version check
+    # below cannot pass for both of them.
+    kvar = db.query(Kvar).filter(Kvar.id == kvar_id).with_for_update().first()
     if not kvar:
         raise HTTPException(status_code=404, detail="Kvar nije pronađen")
 
     update_data = data.model_dump(exclude_unset=True)
+    expected_version = update_data.pop("verzija", None)
+    if expected_version is not None and expected_version != kvar.verzija:
+        raise HTTPException(status_code=409, detail=CONFLICT_DETAIL)
     for required in ("status", "prioritet"):
         if update_data.get(required, "") is None:
             update_data.pop(required)
     parts_payload = update_data.pop("utroseni_dijelovi", None)
+    waiting_reason = update_data.pop("razlog_cekanja", None)
+    old_waiting_reason = kvar.razlog_cekanja
+    old_waiting_since = kvar.cekanje_od
     old_status = _enum_value(kvar.status)
     old_prioritet = _enum_value(kvar.prioritet)
     old_voditelj_id = kvar.voditelj_id
@@ -628,19 +739,48 @@ def update_kvar(
         else:
             kvar.datum_rjesavanja = None
 
+    # On hold always carries a reason and a start time; leaving it clears both.
+    if kvar.status == StatusKvaraEnum.na_cekanju:
+        if old_status != StatusKvaraEnum.na_cekanju.value:
+            if not waiting_reason:
+                raise HTTPException(status_code=400, detail="Odaberite razlog čekanja")
+            kvar.razlog_cekanja = waiting_reason
+            kvar.cekanje_od = utcnow()
+        elif waiting_reason and waiting_reason != kvar.razlog_cekanja:
+            kvar.razlog_cekanja = waiting_reason
+    else:
+        kvar.razlog_cekanja = None
+        kvar.cekanje_od = None
+
     db.flush()
 
     new_status = _enum_value(kvar.status)
     new_prioritet = _enum_value(kvar.prioritet)
 
     if old_status != new_status:
+        podaci = {"old": old_status, "new": new_status}
+        if kvar.razlog_cekanja:
+            podaci["razlog"] = kvar.razlog_cekanja
+        if old_waiting_since is not None and kvar.cekanje_od is None:
+            # How long it was on hold, and why: the source for "waiting time by reason" in Analytics.
+            podaci["cekanje_razlog"] = old_waiting_reason
+            podaci["cekanje_min"] = round((utcnow() - as_utc(old_waiting_since)).total_seconds() / 60)
         _add_event(
             db,
             kvar,
             current_user,
             "status",
             f"Status promijenjen: {old_status} -> {new_status}",
-            podaci={"old": old_status, "new": new_status},
+            podaci=podaci,
+        )
+    elif old_waiting_reason and kvar.razlog_cekanja and old_waiting_reason != kvar.razlog_cekanja:
+        _add_event(
+            db,
+            kvar,
+            current_user,
+            "waiting",
+            "Promijenjen razlog čekanja",
+            podaci={"old": old_waiting_reason, "new": kvar.razlog_cekanja},
         )
     if old_prioritet != new_prioritet:
         _add_event(
@@ -716,6 +856,9 @@ def update_kvar(
             podaci={"count": len(parts_payload)},
         )
 
+    kvar.verzija = (kvar.verzija or 1) + 1
+    if old_status != new_status or old_voditelj_id != kvar.voditelj_id or kvar.razlog_cekanja != old_waiting_reason:
+        kvar.azurirano = utcnow()
     db.commit()
     return _load_kvar(kvar_id, db)
 

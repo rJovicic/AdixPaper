@@ -1,8 +1,10 @@
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Numeric, ForeignKey, Boolean, Enum, JSON
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Numeric, ForeignKey, Boolean, Enum, JSON, LargeBinary
+from sqlalchemy.orm import deferred, relationship
 from sqlalchemy.sql import func
+from datetime import timedelta
 import enum
 from .database import Base
+from .timeutil import utcnow, as_utc
 
 
 class RolaEnum(str, enum.Enum):
@@ -42,6 +44,15 @@ SLA_SATI = {
     "Normalno": 8,
     "Nisko": 48,
 }
+
+# Why a fault is on hold. Stored as these codes; translated for display only.
+RAZLOZI_CEKANJA = ("dijelovi", "vanjski_servis", "odobrenje", "proizvodnja", "ostalo")
+
+# A fault on hold for longer than this needs someone to chase it.
+CEKANJE_DUGO_SATI = 24
+
+# Reasons a fault needs attention, most pressing first. See Kvar.razlozi_paznje.
+RAZLOZI_PAZNJE = ("kasni", "uskoro", "hitno", "nedodijeljen", "ceka_dugo")
 
 
 class Korisnik(Base):
@@ -145,7 +156,7 @@ class Kvar(Base):
     opis = Column(Text, nullable=True)
     foto_url = Column(String(500), nullable=True)
     prioritet = Column(Enum(PrioritetEnum), default=PrioritetEnum.normalno, nullable=False)
-    status = Column(Enum(StatusKvaraEnum), default=StatusKvaraEnum.novo, nullable=False)
+    status = Column(Enum(StatusKvaraEnum), default=StatusKvaraEnum.novo, nullable=False, index=True)
 
     sto_je_uradjeno = Column(Text, nullable=True)
     materijal = Column(Text, nullable=True)
@@ -153,9 +164,17 @@ class Kvar(Base):
     trajanje_min = Column(Integer, default=0)
     napomene_voditelja = Column(Text, nullable=True)
 
-    datum_prijave = Column(DateTime(timezone=True), server_default=func.now())
+    datum_prijave = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     datum_pocetka = Column(DateTime(timezone=True), nullable=True)
     datum_rjesavanja = Column(DateTime(timezone=True), nullable=True)
+
+    # On hold: why (one of RAZLOZI_CEKANJA) and since when. Cleared when the fault leaves "Na čekanju".
+    razlog_cekanja = Column(String(30), nullable=True)
+    cekanje_od = Column(DateTime(timezone=True), nullable=True)
+    # Incremented on every lead/admin save; a save based on an older version is rejected (409).
+    verzija = Column(Integer, default=1, server_default="1", nullable=False)
+    # Last change a worker can see (status, assignee, public comment): drives their "updated" badge.
+    azurirano = Column(DateTime(timezone=True), nullable=True)
 
     oprema = relationship("Oprema", back_populates="kvarovi")
     komponenta = relationship("KomponentaOpreme", back_populates="kvarovi")
@@ -163,6 +182,52 @@ class Kvar(Base):
     voditelj = relationship("Korisnik", foreign_keys=[voditelj_id], back_populates="rijesavani_kvarovi")
     dogadjaji = relationship("KvarDogadjaj", back_populates="kvar", cascade="all, delete-orphan", order_by="KvarDogadjaj.kreiran")
     utroseni_dijelovi = relationship("KvarRezervniDio", back_populates="kvar", cascade="all, delete-orphan")
+    prilozi = relationship("KvarPrilog", back_populates="kvar", cascade="all, delete-orphan", order_by="KvarPrilog.id")
+
+    @property
+    def broj_priloga(self) -> int:
+        return len(self.prilozi)
+
+    @property
+    def otvoren(self) -> bool:
+        return self.status != StatusKvaraEnum.rijeseno
+
+    @property
+    def rok(self):
+        """When the response window ends: reported + the priority's SLA hours."""
+        hours = SLA_SATI.get(getattr(self.prioritet, "value", self.prioritet))
+        if not hours or not self.datum_prijave:
+            return None
+        return as_utc(self.datum_prijave) + timedelta(hours=hours)
+
+    def razlozi_paznje_u(self, now) -> list:
+        if not self.otvoren:
+            return []
+        reasons = []
+        rok = self.rok
+        if rok is not None:
+            hours = SLA_SATI[getattr(self.prioritet, "value", self.prioritet)]
+            left = (rok - now).total_seconds() / 3600
+            if left <= 0:
+                reasons.append("kasni")
+            elif left <= hours * 0.25:
+                reasons.append("uskoro")
+        if self.prioritet == PrioritetEnum.hitno:
+            reasons.append("hitno")
+        if not self.voditelj_id:
+            reasons.append("nedodijeljen")
+        if (
+            self.status == StatusKvaraEnum.na_cekanju
+            and self.cekanje_od is not None
+            and (now - as_utc(self.cekanje_od)).total_seconds() >= CEKANJE_DUGO_SATI * 3600
+        ):
+            reasons.append("ceka_dugo")
+        return reasons
+
+    @property
+    def razlozi_paznje(self) -> list:
+        """Why this fault needs attention now, most pressing first (codes from RAZLOZI_PAZNJE)."""
+        return self.razlozi_paznje_u(utcnow())
 
 
 class KvarRezervniDio(Base):
@@ -190,10 +255,30 @@ class KvarDogadjaj(Base):
     opis = Column(Text, nullable=True)
     podaci = Column(JSON, nullable=True)
     interno = Column(Boolean, default=False, nullable=False)
-    kreiran = Column(DateTime(timezone=True), server_default=func.now())
+    kreiran = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     kvar = relationship("Kvar", back_populates="dogadjaji")
     korisnik = relationship("Korisnik", back_populates="kvar_dogadjaji")
+
+
+class KvarPrilog(Base):
+    """A photo attached to a fault. Stored in the database (re-encoded JPEG, a few hundred kB) so
+    backups cover it and no separate file storage is needed on Railway."""
+    __tablename__ = "kvar_prilozi"
+
+    id = Column(Integer, primary_key=True, index=True)
+    kvar_id = Column(Integer, ForeignKey("kvarovi.id"), nullable=False, index=True)
+    korisnik_id = Column(Integer, ForeignKey("korisnici.id"), nullable=True)
+    naziv = Column(String(200), nullable=False)
+    mime = Column(String(50), nullable=False)
+    velicina = Column(Integer, nullable=False)
+    sirina = Column(Integer, nullable=True)
+    visina = Column(Integer, nullable=True)
+    sadrzaj = deferred(Column(LargeBinary, nullable=False))
+    kreiran = Column(DateTime(timezone=True), server_default=func.now())
+
+    kvar = relationship("Kvar", back_populates="prilozi")
+    korisnik = relationship("Korisnik")
 
 
 class PushPretplata(Base):

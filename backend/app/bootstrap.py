@@ -24,12 +24,21 @@ def ensure_additive_schema():
     dijelovi_info = {c["name"]: c for c in inspector.get_columns("rezervni_dijelovi")} if "rezervni_dijelovi" in table_names else {}
     dijelovi_columns = set(dijelovi_info)
     korisnici_columns = {c["name"] for c in inspector.get_columns("korisnici")} if "korisnici" in table_names else set()
+    timestamp = "TIMESTAMP WITH TIME ZONE" if engine.dialect.name == "postgresql" else "DATETIME"
     with engine.begin() as connection:
         if kvarovi_columns and "komponenta_id" not in kvarovi_columns:
             connection.execute(text("ALTER TABLE kvarovi ADD COLUMN komponenta_id INTEGER"))
+        # 2026-10-27: waiting reason, optimistic-concurrency version, last visible change.
+        if kvarovi_columns and "razlog_cekanja" not in kvarovi_columns:
+            connection.execute(text("ALTER TABLE kvarovi ADD COLUMN razlog_cekanja VARCHAR(30)"))
+        if kvarovi_columns and "cekanje_od" not in kvarovi_columns:
+            connection.execute(text(f"ALTER TABLE kvarovi ADD COLUMN cekanje_od {timestamp}"))
+        if kvarovi_columns and "verzija" not in kvarovi_columns:
+            connection.execute(text("ALTER TABLE kvarovi ADD COLUMN verzija INTEGER NOT NULL DEFAULT 1"))
+        if kvarovi_columns and "azurirano" not in kvarovi_columns:
+            connection.execute(text(f"ALTER TABLE kvarovi ADD COLUMN azurirano {timestamp}"))
         if korisnici_columns and "sesije_od" not in korisnici_columns:
-            column_type = "TIMESTAMP WITH TIME ZONE" if engine.dialect.name == "postgresql" else "DATETIME"
-            connection.execute(text(f"ALTER TABLE korisnici ADD COLUMN sesije_od {column_type}"))
+            connection.execute(text(f"ALTER TABLE korisnici ADD COLUMN sesije_od {timestamp}"))
         if dijelovi_columns and "zaliha" not in dijelovi_columns:
             connection.execute(text("ALTER TABLE rezervni_dijelovi ADD COLUMN zaliha NUMERIC(10, 2)"))
         # Supplier became optional on spare parts (2026-10-27). SQLite cannot alter
@@ -37,6 +46,12 @@ def ensure_additive_schema():
         supplier = dijelovi_info.get("dobavljac_id")
         if supplier and not supplier["nullable"] and engine.dialect.name == "postgresql":
             connection.execute(text("ALTER TABLE rezervni_dijelovi ALTER COLUMN dobavljac_id DROP NOT NULL"))
+        # Indexes for the overview, the paged fault list and the activity feed (names match create_all).
+        if kvarovi_columns:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_kvarovi_status ON kvarovi (status)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_kvarovi_datum_prijave ON kvarovi (datum_prijave)"))
+        if "kvar_dogadjaji" in table_names:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_kvar_dogadjaji_kreiran ON kvar_dogadjaji (kreiran)"))
 
 
 def seed_initial_suppliers():
