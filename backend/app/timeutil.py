@@ -59,5 +59,8 @@ def period_start(period: str, now: datetime | None = None) -> datetime | None:
     if period == "godina":
         return local_year_start(now)
     if period in ("7d", "30d", "90d"):
-        return local_day_start(now) - timedelta(days=int(period[:-1]) - 1)
+        # Calendar days in plant time, so a DST change inside the window does not shift it by an hour.
+        today = now.astimezone(PLANT_TZ).date()
+        first = today - timedelta(days=int(period[:-1]) - 1)
+        return datetime(first.year, first.month, first.day, tzinfo=PLANT_TZ).astimezone(timezone.utc)
     return None

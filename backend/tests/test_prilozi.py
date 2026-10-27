@@ -108,3 +108,11 @@ def test_deleting_a_fault_removes_its_photos(client, admin, make_user, machine):
     meta = upload(client, worker, kvar["id"], photo(size=(200, 150))).json()
     assert client.delete(f"/api/kvarovi/{kvar['id']}", headers=admin).status_code == 204
     assert client.get(f"/api/kvarovi/{kvar['id']}/prilozi/{meta['id']}", headers=admin).status_code == 404
+
+
+def test_oversized_bodies_are_refused_before_they_are_read(client, make_user, machine):
+    _, worker = make_user()
+    kvar = report(client, worker, machine)
+    headers = {**worker, "Content-Type": "multipart/form-data; boundary=x", "Content-Length": str(20 * 1024 * 1024)}
+    response = client.post(f"/api/kvarovi/{kvar['id']}/prilozi", content=b"--x--", headers=headers)
+    assert response.status_code == 413

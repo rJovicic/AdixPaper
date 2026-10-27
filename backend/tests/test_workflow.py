@@ -218,3 +218,15 @@ def test_reporter_is_notified_of_changes_they_can_see(client, admin, make_user, 
     # The worker's own comment does not notify the worker.
     client.post(f"/api/kvarovi/{kvar['id']}/komentari", json={"tekst": "Hvala"}, headers=worker)
     assert len(sent) == 2
+
+
+def test_periods_start_at_plant_midnight_across_a_dst_change():
+    from datetime import datetime, timezone
+
+    from app.timeutil import period_start
+
+    # 2026-10-25 03:00 CEST → 02:00 CET. Seven days ending 2026-10-27 start at local midnight on 21 October (CEST, UTC+2).
+    now = datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc)
+    assert period_start("7d", now) == datetime(2026, 10, 20, 22, 0, tzinfo=timezone.utc)
+    assert period_start("danas", now) == datetime(2026, 10, 26, 23, 0, tzinfo=timezone.utc)
+    assert period_start("x", now) is None
