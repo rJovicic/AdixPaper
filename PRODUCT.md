@@ -42,8 +42,11 @@ Built around this plant's own machines, components and spare-parts catalogue (66
 - Stack: React 18 + Vite + Tailwind (frontend), FastAPI + SQLAlchemy (backend), PostgreSQL. Deployed as one Railway service plus Railway Postgres.
 - Interface languages: Croatian (default) and English, switchable by each user; the choice is remembered on the device. Data entered by users (machine names, fault text) is not translated.
 - Domain enum values are stored in Croatian (`Hitno`, `U rješavanju`, …) and translated for display only.
-- Accounts are created by an admin; there is no self-registration and no email-based password reset.
-- No photo upload (a `foto_url` column exists but is unused).
+- Accounts are created by an admin; there is no self-registration and no email-based password reset. Every user can change their own password, which signs out their other devices.
+- No photo upload (a `foto_url` column exists but is unused; the API ignores client values).
+- A fault can be resolved only once "work done" is filled in.
+- Workers see status, assignee, work done and public comments of their own faults; never costs, material, parts or internal notes.
+- Each machine can have a printed QR label linking to `/m/<id>`.
 - Single plant timezone; single currency (EUR).
 
 ## Brand Commitments
@@ -67,10 +70,10 @@ Built around this plant's own machines, components and spare-parts catalogue (66
 ## Primary Journey
 
 1. Worker signs in once on their phone (session lasts 8 h) and lands on **My faults**.
-2. Taps **Report fault** → picks machine → picks component (when the machine has components) → writes a short title and optional detail → picks urgency → sends.
+2. Taps **Report fault** → picks machine → picks component (when the machine has components) → writes a short title and optional detail → picks urgency → sends. Or scans the QR label on the machine, which opens the form with the machine already chosen. A half-written report survives a reload or an expired session.
 3. Sees confirmation and the new fault at the top of their list with status **Novo**.
-4. Lead is alerted (in-app notice within ~20 s; push if enabled), opens the fault, **takes it** (status → U rješavanju, lead becomes assignee, start time recorded).
-5. Lead records work done, downtime, cost and spare parts, marks it **Riješeno**.
+4. Lead is alerted (in-app notice within ~20 s; push if enabled), opens the fault, **takes it** (status → U rješavanju, lead becomes assignee unless someone already is, start time recorded). "Assigned to me" in the fault list is the lead's own queue.
+5. Lead records work done, downtime, cost and spare parts, marks it **Riješeno** (work done is required).
 6. Worker opens their fault and sees the status, who handled it, and the public timeline/comments.
 7. Admin reviews the dashboard and exports the month's faults and spare-part usage.
 
@@ -89,6 +92,9 @@ WCAG 2.2 AA: keyboard operable, visible focus, 4.5:1 text contrast, labelled for
 | Lead closes a fault with parts | Status, work done, minutes, cost and ≥ 1 spare part are saved in one save; the timeline records each change |
 | Failures are recoverable | Every list, form and export shows an error with a retry/next step when the API fails; no unhandled promise rejections |
 | No lockout | An admin cannot deactivate or demote their own account |
+| Take assigns | After "Take", the fault's assignee is the lead who took it (unless already assigned) |
+| Worker data isolation | A worker's API responses never contain internal notes, costs, material or parts |
+| Scan to report | Scanning a machine's QR label, signed out, leads through sign-in to the report form with that machine chosen |
 | Language | Every screen renders fully in Croatian and English; switching does not lose form input or session |
 | Responsive | No horizontal page scroll at 360, 768, 1280 px; tables become cards on phones |
 | App is online | `GET /health` returns 200 on the public Railway domain; deep links (e.g. `/admin/kvarovi/12`) load the app |
@@ -99,3 +105,5 @@ WCAG 2.2 AA: keyboard operable, visible focus, 4.5:1 text contrast, labelled for
 - Should workers be able to attach a photo of the fault?
 - Are the response windows (2 h / 8 h / 48 h) the agreed internal targets, or placeholders?
 - Should the dashboard separate the two companies (Cupup / Delt)?
+- Should workers see open faults already reported on a machine (duplicate warning), given that they otherwise see only their own reports?
+- Must production data stay in the EU (the service currently runs in Railway `us-west2`)?

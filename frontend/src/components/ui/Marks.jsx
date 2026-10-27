@@ -41,14 +41,14 @@ export function PriorityMark({ priority, className = '' }) {
 }
 
 /** Time left in the response window, or how late it is. Renders nothing for resolved faults. */
-export function DueTag({ fault, className = '' }) {
+export function DueTag({ fault, className = '', wrap = false }) {
   const { t, format } = useI18n()
   const info = slaInfo(fault)
   if (info.state === 'none') return null
   const tone = { late: 'font-semibold text-urgent', soon: 'font-semibold text-warn', ok: 'text-ink-2' }[info.state]
   const time = format.duration(Math.abs(info.minutesLeft))
   return (
-    <span className={`inline-flex items-center gap-1 whitespace-nowrap text-sm tabular ${tone} ${className}`}>
+    <span className={`inline-flex items-center gap-1 ${wrap ? '' : 'whitespace-nowrap'} text-sm tabular ${tone} ${className}`}>
       <Clock size={14} aria-hidden="true" className="shrink-0" />
       {info.state === 'late' ? t('sla.overdue', { time }) : t('sla.left', { time })}
     </span>

@@ -39,6 +39,7 @@ The Dockerfile has two stages: `node:22-alpine` runs `npm ci && npm run build` i
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | no | Session length, default `480`. |
 | `AUTO_SEED_SPARE_PARTS` | no | Default `true`: loads the 668-part catalogue into an **empty** parts table only. |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` | no | Enable Web Push. Without them the "notifications" toggle is hidden; in-app alerts still work. Generate with `npx web-push generate-vapid-keys`. |
+| `PUBLIC_URL` | before printing QR labels | Origin printed into machine QR codes, e.g. `https://adixpaper-production.up.railway.app` (or the final domain). Without it the origin of the request that generates the PDF is used. Labels printed for one origin must be reprinted if the domain changes. |
 | `CORS_ORIGINS` | no | Only if another origin must call the API. |
 
 `RAILWAY_ENVIRONMENT_NAME` is set by Railway and switches the app into production mode (secret required). `APP_ENV=production` does the same elsewhere.
@@ -47,8 +48,12 @@ The Dockerfile has two stages: `node:22-alpine` runs `npm ci && npm run build` i
 
 - Schema is created on startup (`Base.metadata.create_all`) plus idempotent additive column checks in `backend/app/bootstrap.py`. Startup never drops or rewrites data.
 - Seeding on every start is idempotent: the two companies as suppliers, the parts catalogue (only into an empty table), and the first admin (only if none exists).
-- There is no migration tool yet. Additive changes are safe; renames or type changes need Alembic first (see AUDIT.md §7).
-- Enable **Railway Postgres backups** (Postgres service → Backups) before relying on production data.
+- There is no migration tool yet. Additive changes are safe; renames or type changes need Alembic first (AUDIT.md backlog A2-28). Columns added so far on startup: `kvarovi.komponenta_id`, `rezervni_dijelovi.zaliha`, `korisnici.sesije_od` (2026-10-27; sessions issued before a user's last password change are rejected).
+- Enable **Railway Postgres backups** (Postgres service → Backups) and test one restore before relying on production data. As of 2026-10-27 this could not be verified through the read-only API.
+
+## Region and personal data
+
+App and Postgres run in **`us-west2`** (verified 2026-10-27). The database holds personal data of EU employees (names, contact details, sign-in times, who reported or handled each fault). That is a transfer to a third country under GDPR Chapter V: confirm that Railway's DPA/SCCs cover it, or move both services to Railway's EU region. Moving also cuts ~150 ms of latency per request from Croatia. A move means a new Postgres in the EU region, `pg_dump` → `pg_restore`, repointing `DATABASE_URL` and a short maintenance window; it is the owner's decision (AUDIT.md A2-24).
 
 ## Deploying
 
@@ -73,7 +78,8 @@ To deploy manually: Railway → AdixPaper → Deployments → Redeploy.
 | Health check returns 503 | Database unreachable | Check Postgres service is online and `DATABASE_URL` references it |
 | `502 connection dial timeout` at the edge | No process listening on `$PORT` | Ensure the builder is Dockerfile and root directory is empty (this was the original outage) |
 | Cannot sign in as admin | Admin existed before `ADMIN_*` changed | Set `ADMIN_RESET_PASSWORD=true`, redeploy, sign in, set it back to `false` |
-| Logs show `Too many failed sign-in attempts` (429) | Throttle: 10 failures per IP+username per 15 min | Wait, or restart the service to clear it |
+| Logs show `Too many failed sign-in attempts` (429) | Throttle: 10 failures per IP+username, or 20 per username from any IP, per 15 min | Wait, or restart the service to clear it |
+| A user is signed out on every device after a password change | Intended: changing a password ends all other sessions | Sign in again with the new password |
 
 ## Local production check
 

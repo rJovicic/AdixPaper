@@ -210,7 +210,7 @@ Radii are small, like die-cut label corners: 3 px (markers, chips), 5 px (button
 Primary (logo blue), secondary (white, rule-strong border), quiet (text), danger (urgent), icon (40 × 40, always with `aria-label`). Heights 40 px; `btn-lg` 52 px for the worker's main actions. Disabled at 55 % opacity with `not-allowed` cursor. Labels name the action ("Pošalji prijavu", "Označi riješenim"), never "OK".
 
 ### Inputs / Fields
-`Field` wires label, hint and error to the control (`aria-describedby`, `aria-invalid`). 44 px minimum height, 16 px text (no iOS zoom), rule-strong border, blue focus border + 2 px ring; invalid → urgent border. Errors appear under the field with a red square marker and focus moves to the first invalid field on submit. Optional fields are marked "(neobavezno)" rather than required ones starred.
+`Field` wires label, hint and error to the control (`aria-describedby`, `aria-invalid`). 44 px minimum height, 16 px text (no iOS zoom), rule-strong border, blue focus border + 2 px ring; invalid → urgent border. Errors appear under the field with a red square marker and focus moves to the first invalid field on submit (`lib/focus.js` `focusFirstInvalid`, which waits for the error markers to render). Optional fields are marked "(neobavezno)" rather than required ones starred.
 
 ### Radio cards
 For choices that need a sentence (urgency on the report form, role on the user form): 52 px rows, radio + marker + label + hint; selected = blue border on blue wash.
@@ -223,6 +223,8 @@ Rail items 44 px tall; active = white chip with deep-blue text; `aria-current` f
 
 ### Signature: the label block
 `FaultNumber` (condensed numeral, grey `#`) + `LabelFields` (ruled 2- or 4-column `dl` with uppercase field labels). Used on fault detail headers and the worker fault view. Fault cards carry the number beside the title and a ruled STATUS | PRIORITY | DUE strip; an overdue card gets an urgent border and tinted strip. Tables and dashboard rows lead with the number.
+
+The printed **machine QR label** (Machines → QR oznake) carries the same identity: logo-blue "ADIX PAPER" kicker, machine name in bold, type · location in ink-secondary, the call to action "Kvar? Skenirajte kod." in shell-deep, dashed cut lines. PDFs use Liberation Sans (metric twin of Helvetica) because reportlab cannot embed the WOFF2 Archivo.
 
 ### Feedback
 - Toasts (`aria-live`): success 5 s, info with link 12 s, errors 9 s with `role="alert"`.

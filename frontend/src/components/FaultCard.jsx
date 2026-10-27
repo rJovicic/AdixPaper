@@ -4,11 +4,11 @@ import { useI18n } from '../i18n'
 import { slaInfo } from '../lib/sla'
 import { DueTag, FaultNumber, PriorityMark, StatusMark } from './ui/Marks'
 
-function Cell({ label, children }) {
+function Cell({ label, children, wrap = false }) {
   return (
     <div className="min-w-0 border-r border-rule px-3 py-2 last:border-r-0">
       <p className="field-label">{label}</p>
-      <div className="mt-0.5 truncate">{children}</div>
+      <div className={`mt-0.5 ${wrap ? 'break-words' : 'truncate'}`}>{children}</div>
     </div>
   )
 }
@@ -40,7 +40,8 @@ export default function FaultCard({ fault, to, highlight = false }) {
         ) : (
           <>
             <Cell label={t('fault.priority')}><PriorityMark priority={fault.prioritet} /></Cell>
-            <Cell label={t('fault.due')}><DueTag fault={fault} /></Cell>
+            {/* "još 1 h 58 min" does not fit a third of a 390 px card; wrap instead of clipping. */}
+            <Cell label={t('fault.due')} wrap><DueTag fault={fault} wrap /></Cell>
           </>
         )}
       </div>

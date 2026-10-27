@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # build serves frontend and API from one origin, so this is normally empty.
     CORS_ORIGINS: str = ""
     FRONTEND_DIST: str = str(DEFAULT_FRONTEND_DIST)
+    # Public origin printed into machine QR codes, e.g. https://adixpaper-production.up.railway.app.
+    # Defaults to the origin the request came in on.
+    PUBLIC_URL: str = ""
     VAPID_PUBLIC_KEY: str = ""
     VAPID_PRIVATE_KEY: str = ""
     VAPID_EMAIL: str = "mailto:admin@adixpaper.com"

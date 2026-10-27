@@ -24,8 +24,17 @@ from ..models import (
     StatusKvaraEnum,
     SLA_SATI,
 )
-from ..schemas import KvarCreate, KvarVoditeljUpdate, KvarOut, KvarKomentarCreate, KvarDogadjajOut, KvarNovoOut
-from ..auth import get_current_user, require_voditelj_or_admin, role_value
+from ..schemas import (
+    KVAR_INTERNAL_FIELDS,
+    KvarCreate,
+    KvarDogadjajOut,
+    KvarKomentarCreate,
+    KvarListOut,
+    KvarNovoOut,
+    KvarOut,
+    KvarVoditeljUpdate,
+)
+from ..auth import get_current_user, require_admin, require_voditelj_or_admin, role_value
 from ..timeutil import utcnow, as_utc, local_naive
 
 router = APIRouter(prefix="/api/kvarovi", tags=["kvarovi"])
@@ -39,6 +48,9 @@ def _enum_value(value) -> str:
     return str(raw) if raw is not None else ""
 
 
+OPEN_FILTER = "otvoreni"
+
+
 def _enum_param(enum_cls, value: Optional[str]):
     if not value:
         return None
@@ -46,7 +58,7 @@ def _enum_param(enum_cls, value: Optional[str]):
     for item in enum_cls:
         if item.name.lower() == normalized or item.value.lower() == normalized:
             return item
-    return value
+    raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
 
 
 def _user_label(user: Optional[Korisnik]) -> str:
@@ -62,6 +74,14 @@ def _can_manage(user: Korisnik) -> bool:
 def _ensure_kvar_access(kvar: Kvar, user: Korisnik):
     if role_value(user.rola) == "radnik" and kvar.prijavio_id != user.id:
         raise HTTPException(status_code=404, detail="Kvar nije pronađen")
+
+
+def _kvar_for(kvar: Kvar, user: Korisnik) -> KvarOut:
+    """The fault as this user may see it: workers never get internal notes, costs or parts."""
+    out = KvarOut.model_validate(kvar)
+    if not _can_manage(user):
+        out = out.model_copy(update=KVAR_INTERNAL_FIELDS)
+    return out
 
 
 def _sla_ratio(kvar: Kvar, now: Optional[datetime] = None) -> Optional[float]:
@@ -84,6 +104,13 @@ def _sla_state(kvar: Kvar, now: Optional[datetime] = None) -> str:
     if ratio >= 0.75:
         return "uskoro"
     return "ok"
+
+
+SLA_LABELS = {"kasni": "Kasni", "uskoro": "Ističe uskoro", "ok": "U roku", "nema": "—"}
+
+
+def _sla_label(kvar: Kvar) -> str:
+    return SLA_LABELS[_sla_state(kvar)]
 
 
 def _add_event(
@@ -116,17 +143,21 @@ def _query_kvarovi(
     prioritet: Optional[str] = None,
     oprema_id: Optional[int] = None,
     sla: Optional[str] = None,
+    with_parts: bool = True,
 ) -> List[Kvar]:
     q = db.query(Kvar).options(
         joinedload(Kvar.oprema),
         joinedload(Kvar.komponenta),
         joinedload(Kvar.prijavio),
         joinedload(Kvar.voditelj),
-        joinedload(Kvar.utroseni_dijelovi).joinedload(KvarRezervniDio.rezervni_dio).joinedload(RezervniDio.dobavljac),
     )
+    if with_parts:
+        q = q.options(joinedload(Kvar.utroseni_dijelovi).joinedload(KvarRezervniDio.rezervni_dio).joinedload(RezervniDio.dobavljac))
     if role_value(current_user.rola) == "radnik":
         q = q.filter(Kvar.prijavio_id == current_user.id)
-    if status:
+    if status and status.strip().lower() == OPEN_FILTER:
+        q = q.filter(Kvar.status.in_(list(OPEN_STATUSES)))
+    elif status:
         q = q.filter(Kvar.status == _enum_param(StatusKvaraEnum, status))
     if prioritet:
         q = q.filter(Kvar.prioritet == _enum_param(PrioritetEnum, prioritet))
@@ -212,7 +243,7 @@ def _load_kvar(kvar_id: int, db: Session) -> Kvar:
     return kvar
 
 
-@router.get("", response_model=List[KvarOut])
+@router.get("", response_model=List[KvarListOut])
 def list_kvarovi(
     status: Optional[str] = None,
     prioritet: Optional[str] = None,
@@ -221,7 +252,7 @@ def list_kvarovi(
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(get_current_user)
 ):
-    return _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla)
+    return _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, with_parts=False)
 
 
 @router.get("/novi", response_model=List[KvarNovoOut])
@@ -258,7 +289,7 @@ def export_kvarovi_xlsx(
     ws = wb.active
     ws.title = "Kvarovi"
     headers = [
-        "ID", "Naslov", "Oprema", "Lokacija", "Prioritet", "Status", "SLA",
+        "ID", "Naslov", "Oprema", "Lokacija", "Prioritet", "Status", "Rok",
         "Prijavio", "Voditelj", "Datum prijave", "Datum pocetka", "Datum rjesavanja",
         "Trajanje min", "Troskovi EUR", "Materijal", "Sto je uradjeno"
     ]
@@ -280,7 +311,7 @@ def export_kvarovi_xlsx(
             k.oprema.lokacija if k.oprema else "",
             _enum_value(k.prioritet),
             _enum_value(k.status),
-            _sla_state(k),
+            _sla_label(k),
             _user_label(k.prijavio),
             _user_label(k.voditelj),
             local_naive(k.datum_prijave),
@@ -392,20 +423,22 @@ def export_kvarovi_pdf(
 ):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+
+    from ..pdf import BRAND_BLUE, register_fonts, stylesheet
 
     records = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla)
     output = BytesIO()
     doc = SimpleDocTemplate(output, pagesize=landscape(A4), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
-    styles = getSampleStyleSheet()
+    regular, bold = register_fonts()
+    styles = stylesheet()
     story = [
-        Paragraph("Adix Paper - izvjestaj kvarova", styles["Title"]),
+        Paragraph("Adix Paper – izvještaj kvarova", styles["Title"]),
         Paragraph(local_naive(utcnow()).strftime("Generirano: %d.%m.%Y. %H:%M"), styles["Normal"]),
         Spacer(1, 12),
     ]
 
-    rows = [["ID", "Naslov", "Oprema", "Prioritet", "Status", "SLA", "Prijava", "Trosak"]]
+    rows = [["ID", "Naslov", "Mašina", "Prioritet", "Status", "Rok", "Prijava", "Trošak €"]]
     for k in records:
         rows.append([
             str(k.id),
@@ -413,17 +446,18 @@ def export_kvarovi_pdf(
             Paragraph((k.oprema.naziv if k.oprema else "")[:36], styles["BodyText"]),
             _enum_value(k.prioritet),
             _enum_value(k.status),
-            _sla_state(k),
+            _sla_label(k),
             local_naive(k.datum_prijave).strftime("%d.%m.%Y") if k.datum_prijave else "",
             f"{float(k.troskovi or 0):.2f}",
         ])
 
     table = Table(rows, repeatRows=1, colWidths=[34, 180, 150, 72, 86, 58, 72, 58])
     table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E3A8A")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(BRAND_BLUE)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#CBD5E1")),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 0), (-1, -1), regular),
+        ("FONTNAME", (0, 0), (-1, 0), bold),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("FONTSIZE", (0, 0), (-1, -1), 8),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
@@ -439,7 +473,7 @@ def export_kvarovi_pdf(
 def get_kvar(kvar_id: int, db: Session = Depends(get_db), current_user: Korisnik = Depends(get_current_user)):
     kvar = _load_kvar(kvar_id, db)
     _ensure_kvar_access(kvar, current_user)
-    return kvar
+    return _kvar_for(kvar, current_user)
 
 
 @router.post("", response_model=KvarOut, status_code=201)
@@ -468,7 +502,6 @@ def create_kvar(
         naslov=data.naslov,
         opis=data.opis,
         prioritet=data.prioritet,
-        foto_url=data.foto_url,
         status=StatusKvaraEnum.novo
     )
     db.add(kvar)
@@ -492,7 +525,7 @@ def create_kvar(
         f"/admin/kvarovi/{kvar.id}"
     )
 
-    return _load_kvar(kvar.id, db)
+    return _kvar_for(_load_kvar(kvar.id, db), current_user)
 
 
 @router.get("/{kvar_id}/dogadjaji", response_model=List[KvarDogadjajOut])
@@ -569,19 +602,31 @@ def update_kvar(
         if not component:
             raise HTTPException(status_code=404, detail="Komponenta nije pronađena za odabranu opremu")
 
-    if "status" in update_data:
-        new_status = update_data["status"]
-        if new_status == StatusKvaraEnum.u_rjesavanju and not kvar.datum_pocetka:
-            kvar.datum_pocetka = utcnow()
-            if not kvar.voditelj_id:
-                kvar.voditelj_id = current_user.id
-        if new_status == StatusKvaraEnum.rijeseno and not kvar.datum_rjesavanja:
-            kvar.datum_rjesavanja = utcnow()
-        if new_status != StatusKvaraEnum.rijeseno:
-            kvar.datum_rjesavanja = None
+    new_assignee = update_data.get("voditelj_id")
+    if new_assignee is not None and new_assignee != kvar.voditelj_id:
+        assignee = db.query(Korisnik).filter(Korisnik.id == new_assignee).first()
+        if not assignee or not assignee.aktivan or role_value(assignee.rola) not in ("admin", "voditelj"):
+            raise HTTPException(status_code=400, detail="Kvar se može dodijeliti samo aktivnom voditelju ili administratoru")
 
     for field, value in update_data.items():
         setattr(kvar, field, value)
+
+    if "status" in update_data and _enum_value(update_data["status"]) != old_status:
+        new_status = update_data["status"]
+        if new_status == StatusKvaraEnum.u_rjesavanju:
+            if not kvar.datum_pocetka:
+                kvar.datum_pocetka = utcnow()
+            # Taking a fault makes you its owner unless someone else already is. Applied after
+            # the payload so a form that still says "unassigned" cannot undo it.
+            if not kvar.voditelj_id:
+                kvar.voditelj_id = current_user.id
+        if new_status == StatusKvaraEnum.rijeseno:
+            if not (kvar.sto_je_uradjeno or "").strip():
+                raise HTTPException(status_code=400, detail="Prije zatvaranja kvara upišite što je napravljeno")
+            if not kvar.datum_rjesavanja:
+                kvar.datum_rjesavanja = utcnow()
+        else:
+            kvar.datum_rjesavanja = None
 
     db.flush()
 
@@ -679,10 +724,12 @@ def update_kvar(
 def delete_kvar(
     kvar_id: int,
     db: Session = Depends(get_db),
-    _: Korisnik = Depends(require_voditelj_or_admin)
+    current_user: Korisnik = Depends(require_admin),
 ):
+    """Removes a fault and its history. Admin only (e.g. a test or duplicate entry); not offered in the UI."""
     kvar = db.query(Kvar).filter(Kvar.id == kvar_id).first()
     if not kvar:
         raise HTTPException(status_code=404, detail="Kvar nije pronađen")
     db.delete(kvar)
     db.commit()
+    logger.warning("Fault %s deleted by %s", kvar_id, current_user.username)

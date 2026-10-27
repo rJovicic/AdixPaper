@@ -5,6 +5,8 @@ Fault and maintenance log for the Cupup d.o.o and Delt papir d.o.o paper-convert
 - **Workers** report a machine fault from their phone in under a minute and follow it until it is fixed.
 - **Maintenance leads** see what is overdue first, take faults, record the repair (work done, downtime, cost, spare parts) and close them.
 - **Administrators** also manage users, machines and their parts, the spare-parts catalogue, and export Excel/PDF reports.
+- **Machine QR labels**: print one per machine; scanning it opens the report form with that machine chosen (leads see its faults).
+- Everyone can change their own password; doing so signs out their other devices.
 
 Interface in Croatian (default) and English. Production: <https://adixpaper-production.up.railway.app>
 
@@ -13,7 +15,7 @@ Interface in Croatian (default) and English. Production: <https://adixpaper-prod
 | [PRODUCT.md](PRODUCT.md) | Users, journeys, principles, acceptance criteria |
 | [DESIGN.md](DESIGN.md) | Design system: tokens, components, accessibility |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Railway setup, variables, verification, troubleshooting |
-| [AUDIT.md](AUDIT.md) | Audit findings and their status |
+| [AUDIT.md](AUDIT.md) | Audit findings, launch checklist, backlog and verdict |
 | [decisions.md](decisions.md) | Decisions someone might want to revisit |
 
 ## Stack
@@ -25,11 +27,12 @@ Interface in Croatian (default) and English. Production: <https://adixpaper-prod
 ```
 backend/app/
   main.py          app, health check, SPA serving
+  pdf.py, fonts/   shared PDF font (Liberation Sans, for č/ć/đ)
   bootstrap.py     startup: schema, seed data, first admin
   routers/         auth, korisnici (users), oprema (machines), kvarovi (faults), dashboard, rezervni_dijelovi, notifikacije
   models.py schemas.py auth.py security.py timeutil.py
 frontend/src/
-  pages/worker/    MyFaults, ReportFault, WorkerFault
+  pages/worker/    MyFaults, ReportFault, WorkerFault  (MachineLink: /m/:id from QR labels)
   pages/admin/     Dashboard (overview), Analytics, Faults, FaultDetail, Machines, SpareParts, Users
   components/      shells, Timeline, FaultCard, ui/ (Dialog, Field, Toast, Marks, PartPicker…)
   i18n/            hr.js, en.js, provider and formatters
@@ -59,13 +62,13 @@ Sign in at <http://localhost:3000> with `ADMIN_USERNAME` / `ADMIN_PASSWORD`. To 
 ## Tests and checks
 
 ```bash
-# Backend: 28 tests (set TEST_DATABASE_URL to use PostgreSQL; SQLite otherwise)
+# Backend: 57 tests (set TEST_DATABASE_URL to use PostgreSQL; SQLite otherwise)
 cd backend && ruff check app tests && python -m pytest -q
 
 # Frontend
 cd frontend && npm run lint && npm run check:i18n && npm run build
 
-# End-to-end + accessibility (15 tests; the new-version banner test runs only against a production build) (needs the app running and seed-demo data)
+# End-to-end + accessibility (21 tests; the new-version banner test runs only against a production build) (needs the app running and seed-demo data)
 cd e2e && npm ci && npx playwright test                      # against Vite on :3000
 E2E_BASE_URL=http://localhost:8000 npx playwright test       # against the Docker image
 ```

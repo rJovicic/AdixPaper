@@ -16,6 +16,13 @@ test('lead takes, records parts for, and resolves a fault; the worker sees the r
 
   await page.getByRole('button', { name: 'Preuzmi kvar' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Status: U rješavanju' })).toBeVisible()
+  // Taking a fault makes the lead its owner (the form used to send "unassigned" and undo it).
+  await expect(page.locator('dl').getByText('Admin Adix')).toBeVisible()
+
+  // Resolving needs a description of the work done.
+  await page.getByRole('button', { name: 'Označi riješenim' }).click()
+  await expect(page.getByText('Prije zatvaranja upišite što je napravljeno.')).toBeVisible()
+  await expect(page.getByLabel('Što je napravljeno')).toBeFocused()
 
   await page.getByLabel('Što je napravljeno').fill('Zamijenjena brtva ventila.')
   await page.getByLabel('Zastoj (min)').fill('40')
@@ -65,4 +72,30 @@ test('dashboard figures link to filtered fault lists', async ({ page }) => {
   await page.getByRole('link', { name: /Hitni/ }).click()
   await expect(page).toHaveURL(/status=otvoreni&prioritet=Hitno/)
   await expect(page.getByLabel('Prioritet')).toHaveValue('Hitno')
+})
+
+test('lead opens a machine\'s faults from the machine list and filters by assignee', async ({ page, request }) => {
+  const { machine, worker } = await setupFixture(request)
+  const adminHeaders = { Authorization: `Bearer ${await apiToken(request, ADMIN)}` }
+  const workerHeaders = { Authorization: `Bearer ${await apiToken(request, worker)}` }
+  const mine = await (await request.post('/api/kvarovi', { headers: workerHeaders, data: { oprema_id: machine.id, naslov: 'Moj kvar E2E' } })).json()
+  await request.post('/api/kvarovi', { headers: workerHeaders, data: { oprema_id: machine.id, naslov: 'Tuđi kvar E2E' } })
+  await request.put(`/api/kvarovi/${mine.id}`, { headers: adminHeaders, data: { status: 'U rješavanju' } })
+
+  await signIn(page, ADMIN)
+  await page.goto('/admin/oprema')
+  await page.getByRole('searchbox').fill(machine.naziv)
+  await page.getByRole('link', { name: `Kvarovi mašine ${machine.naziv}: 2` }).click()
+  await expect(page).toHaveURL(new RegExp(`oprema=${machine.id}`))
+  await expect(page.getByText(`Mašina: ${machine.naziv}`)).toBeVisible()
+  await expect(page.getByText('Rezultata: 2')).toBeVisible()
+
+  await page.getByLabel('Preuzeo').selectOption({ label: 'Moji kvarovi' })
+  await expect(page.getByText('Rezultata: 1')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Moj kvar E2E' })).toBeVisible()
+  await page.getByLabel('Preuzeo').selectOption({ label: 'Nepreuzeti' })
+  await expect(page.getByRole('link', { name: 'Tuđi kvar E2E' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Ukloni filtar mašine' }).click()
+  await expect(page).not.toHaveURL(/oprema=/)
 })

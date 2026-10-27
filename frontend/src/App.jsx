@@ -10,6 +10,7 @@ import UpdateBanner from './components/UpdateBanner'
 import { LoadingRows } from './components/ui/States'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
+import MachineLink from './pages/MachineLink'
 import MyFaults from './pages/worker/MyFaults'
 import ReportFault from './pages/worker/ReportFault'
 import WorkerFault from './pages/worker/WorkerFault'
@@ -54,6 +55,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/m/:id" element={<RequireRole><MachineLink /></RequireRole>} />
               <Route path="/radnik" element={<RequireRole roles={['radnik']}><WorkerShell /></RequireRole>}>
                 <Route index element={<MyFaults />} />
                 <Route path="prijava" element={<ReportFault />} />

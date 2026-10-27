@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, PackagePlus, Pause, Play, RotateCcw, Save, Sea
 import { api, errorKind, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
+import { focusFirstInvalid } from '../../lib/focus'
 import { useToast } from '../../components/ui/Toast'
 import Field from '../../components/ui/Field'
 import PartPicker from '../../components/ui/PartPicker'
@@ -33,8 +34,31 @@ function formFromFault(fault) {
   }
 }
 
-// eslint-disable-next-line no-unused-vars
-const comparable = (form) => JSON.stringify({ ...form, parts: form.parts.map(({ key, ...rest }) => rest) })
+const partsPayload = (parts) => parts.map((row) => ({ rezervni_dio_id: Number(row.rezervni_dio_id), kolicina: Number(row.kolicina), napomena: row.napomena }))
+
+function toPayload(form) {
+  return {
+    prioritet: form.prioritet,
+    voditelj_id: form.voditelj_id ? Number(form.voditelj_id) : null,
+    komponenta_id: form.komponenta_id ? Number(form.komponenta_id) : null,
+    sto_je_uradjeno: form.sto_je_uradjeno,
+    materijal: form.materijal,
+    napomene_voditelja: form.napomene_voditelja,
+    troskovi: form.troskovi === '' ? 0 : Number(form.troskovi),
+    trajanje_min: form.trajanje_min === '' ? 0 : Number(form.trajanje_min),
+    utroseni_dijelovi: partsPayload(form.parts),
+  }
+}
+
+/**
+ * Only the fields the lead actually changed. Sending the whole form let a stale tab
+ * overwrite another lead's assignment (and made "Take" send "unassigned").
+ */
+function changedFields(form, initialForm) {
+  const next = toPayload(form)
+  const before = toPayload(initialForm)
+  return Object.fromEntries(Object.entries(next).filter(([field, value]) => JSON.stringify(value) !== JSON.stringify(before[field])))
+}
 
 const ACTIONS = {
   Novo: [{ status: 'U rješavanju', key: 'fault.actionTake', icon: Play, primary: true }],
@@ -62,7 +86,7 @@ export default function FaultDetail() {
   const components = useAsync(() => (machineId ? get(`/oprema/${machineId}/komponente`).then(asArray) : []), [machineId])
 
   const [form, setForm] = useState(null)
-  const [initial, setInitial] = useState('')
+  const [initial, setInitial] = useState(null)
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState('')
   const formRef = useRef(null)
@@ -71,12 +95,12 @@ export default function FaultDetail() {
     if (!fault.data) return
     const next = formFromFault(fault.data)
     setForm(next)
-    setInitial(comparable(next))
+    setInitial(next)
     setErrors({})
     document.title = `${t('fault.number', { id: fault.data.id })} · ${t('app.name')}`
   }, [fault.data]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const dirty = form ? comparable(form) !== initial : false
+  const dirty = form && initial ? Object.keys(changedFields(form, initial)).length > 0 : false
 
   useEffect(() => {
     if (!dirty) return undefined
@@ -110,24 +134,14 @@ export default function FaultDetail() {
 
   const save = async (status) => {
     const next = validate()
+    if (status === 'Riješeno' && !form.sto_je_uradjeno.trim()) next.sto_je_uradjeno = t('fault.workDoneRequired')
     setErrors(next)
     if (Object.keys(next).length) {
-      formRef.current?.querySelector('[aria-invalid=true]')?.focus()
+      focusFirstInvalid(formRef)
       return
     }
     setSaving(status || 'form')
-    const payload = {
-      prioritet: form.prioritet,
-      voditelj_id: form.voditelj_id ? Number(form.voditelj_id) : null,
-      komponenta_id: form.komponenta_id ? Number(form.komponenta_id) : null,
-      sto_je_uradjeno: form.sto_je_uradjeno,
-      materijal: form.materijal,
-      napomene_voditelja: form.napomene_voditelja,
-      troskovi: form.troskovi === '' ? 0 : Number(form.troskovi),
-      trajanje_min: form.trajanje_min === '' ? 0 : Number(form.trajanje_min),
-      utroseni_dijelovi: form.parts.map((row) => ({ rezervni_dio_id: Number(row.rezervni_dio_id), kolicina: Number(row.kolicina), napomena: row.napomena })),
-      ...(status ? { status } : {}),
-    }
+    const payload = { ...changedFields(form, initial), ...(status ? { status } : {}) }
     try {
       const { data } = await api.put(`/kvarovi/${id}`, payload)
       fault.setData(data)

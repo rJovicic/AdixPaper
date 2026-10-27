@@ -1,13 +1,37 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { ArrowLeft, Send } from 'lucide-react'
 import { api, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
+import { useAuth } from '../../auth/AuthProvider'
 import { useToast } from '../../components/ui/Toast'
 import Field from '../../components/ui/Field'
 import RadioCards from '../../components/ui/RadioCards'
 import { ErrorState, LoadingRows } from '../../components/ui/States'
+
+const EMPTY = { oprema_id: '', komponenta_id: '', naslov: '', opis: '', prioritet: 'Normalno' }
+
+// A half-written report survives a reload or an expired session (sign in, come back, carry on).
+const draftKey = (userId) => `adix.reportDraft.${userId}`
+
+function readDraft(userId) {
+  try {
+    const draft = JSON.parse(sessionStorage.getItem(draftKey(userId)) || 'null')
+    return draft && typeof draft === 'object' ? { ...EMPTY, ...draft } : EMPTY
+  } catch {
+    return EMPTY
+  }
+}
+
+function writeDraft(userId, form) {
+  try {
+    if (form.naslov || form.opis || form.oprema_id) sessionStorage.setItem(draftKey(userId), JSON.stringify(form))
+    else sessionStorage.removeItem(draftKey(userId))
+  } catch {
+    // Storage unavailable: the form still works, it just is not kept.
+  }
+}
 
 const PRIORITY_MARKERS = {
   Hitno: 'bg-urgent',
@@ -20,7 +44,15 @@ export default function ReportFault() {
   const { t, priority } = i18n
   const navigate = useNavigate()
   const toast = useToast()
-  const [form, setForm] = useState({ oprema_id: '', komponenta_id: '', naslov: '', opis: '', prioritet: 'Normalno' })
+  const { user } = useAuth()
+  const [params] = useSearchParams()
+  // Set when the worker arrived by scanning a machine's QR label.
+  const scanned = /^\d+$/.test(params.get('oprema') || '') ? params.get('oprema') : ''
+  const [form, setForm] = useState(() => {
+    const draft = readDraft(user?.id)
+    if (!scanned || draft.oprema_id === scanned) return scanned ? { ...draft, oprema_id: scanned } : draft
+    return { ...draft, oprema_id: scanned, komponenta_id: '' }
+  })
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -38,6 +70,15 @@ export default function ReportFault() {
   }, [form.oprema_id])
 
   const componentList = useMemo(() => components.data || [], [components.data])
+
+  useEffect(() => writeDraft(user?.id, form), [user?.id, form])
+
+  // A scanned or remembered machine that is no longer offered (decommissioned, deleted) is dropped.
+  useEffect(() => {
+    if (machines.data && form.oprema_id && !machines.data.some((machine) => String(machine.id) === String(form.oprema_id))) {
+      setForm((current) => ({ ...current, oprema_id: '', komponenta_id: '' }))
+    }
+  }, [machines.data, form.oprema_id])
   const needsComponent = Boolean(form.oprema_id) && componentList.length > 0
 
   const update = (field, value) => {
@@ -72,6 +113,7 @@ export default function ReportFault() {
         opis: form.opis.trim() || null,
         prioritet: form.prioritet,
       })
+      writeDraft(user?.id, EMPTY)
       toast.success(t('report.success', { id: data.id }))
       navigate('/radnik', { state: { newId: data.id } })
     } catch (error) {
@@ -100,7 +142,12 @@ export default function ReportFault() {
         <form onSubmit={submit} noValidate className="surface mt-5 space-y-6 px-5 py-6">
           {formError && <p role="alert" className="rounded border border-urgent/30 bg-urgent-wash px-3 py-2.5 text-sm font-medium text-urgent">{formError}</p>}
 
-          <Field label={t('report.machine')} error={errors.oprema_id} required>
+          <Field
+            label={t('report.machine')}
+            error={errors.oprema_id}
+            hint={scanned && String(form.oprema_id) === scanned ? t('report.scanned') : undefined}
+            required
+          >
             {(props) => (
               <select {...props} ref={refs.oprema_id} className="control" value={form.oprema_id} onChange={(event) => update('oprema_id', event.target.value)}>
                 <option value="">{t('report.machinePlaceholder')}</option>

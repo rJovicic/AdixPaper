@@ -71,3 +71,35 @@ def test_repeated_failed_logins_are_throttled(client):
     assert "retry-after" in blocked.headers
     # Other accounts are unaffected.
     assert client.post("/api/auth/login", data={"username": "admin", "password": "admin-pass-123"}).status_code == 200
+
+
+def test_throttle_caps_guesses_per_username_even_when_the_ip_changes():
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+
+    from app.security import LoginThrottle
+
+    throttle = LoginThrottle(max_failures=10, max_failures_per_user=20)
+    # X-Forwarded-For is client-controlled, so every attempt can claim a new IP.
+    requests = [SimpleNamespace(client=SimpleNamespace(host=f"10.0.0.{n}")) for n in range(25)]
+    for request in requests[:20]:
+        throttle.check(request, "ivana")
+        throttle.record_failure(request, "ivana")
+    try:
+        throttle.check(requests[20], "ivana")
+    except HTTPException as exc:
+        assert exc.status_code == 429
+    else:
+        raise AssertionError("21st guess from a new IP was not throttled")
+    throttle.check(requests[20], "someone-else")
+
+
+def test_tokens_without_issue_time_are_rejected_after_a_password_change(client, admin, make_user):
+    from app.config import settings
+
+    user, _ = make_user()
+    legacy = jwt.encode({"sub": user["username"], "exp": datetime.now(timezone.utc) + timedelta(hours=1)}, settings.SECRET_KEY, algorithm="HS256")
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {legacy}"}).status_code == 200
+    client.put(f"/api/korisnici/{user['id']}", json={"password": "another-pass-9"}, headers=admin)
+    assert client.get("/api/auth/me", headers={"Authorization": f"Bearer {legacy}"}).status_code == 401

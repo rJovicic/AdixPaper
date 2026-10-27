@@ -3,6 +3,7 @@ import { Pencil, Plus, UserCheck, UserX, Users as UsersIcon } from 'lucide-react
 import { api, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
+import { focusFirstInvalid } from '../../lib/focus'
 import { useAuth } from '../../auth/AuthProvider'
 import { useToast } from '../../components/ui/Toast'
 import Dialog from '../../components/ui/Dialog'
@@ -42,7 +43,7 @@ function UserDialog({ user, isSelf, onClose, onSaved }) {
     setErrors(next)
     setFormError('')
     if (Object.keys(next).length) {
-      formRef.current?.querySelector('[aria-invalid=true]')?.focus()
+      focusFirstInvalid(formRef)
       return
     }
     setSaving(true)

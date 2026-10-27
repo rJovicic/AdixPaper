@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { PHONE, setupFixture, signIn } from './helpers'
+import { ADMIN, PHONE, setupFixture, signIn } from './helpers'
 
 test.use({ viewport: PHONE })
 
@@ -48,4 +48,76 @@ test('worker cannot open lead screens', async ({ page, request }) => {
   await signIn(page, worker)
   await page.goto('/admin/kvarovi')
   await expect(page).toHaveURL(/\/radnik$/)
+})
+
+test('worker changes their own password; the old one stops working', async ({ page, request }) => {
+  const { worker } = await setupFixture(request)
+  await signIn(page, worker)
+  await page.getByRole('button', { name: 'Promijeni lozinku' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Promijeni lozinku' })
+  await dialog.getByLabel('Trenutna lozinka').fill(worker.password)
+  await dialog.getByLabel('Nova lozinka', { exact: true }).fill('nova-lozinka-42')
+  await dialog.getByLabel('Ponovite novu lozinku').fill('nova-lozinka-43')
+  await dialog.getByRole('button', { name: 'Promijeni lozinku' }).click()
+  await expect(dialog.getByText('Lozinke se ne podudaraju.')).toBeVisible()
+  await dialog.getByLabel('Ponovite novu lozinku').fill('nova-lozinka-42')
+  await dialog.getByRole('button', { name: 'Promijeni lozinku' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Lozinka je promijenjena.' })).toBeVisible()
+
+  // This device stays signed in with the new token.
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Moji kvarovi' })).toBeVisible()
+  expect((await request.post('/api/auth/login', { form: worker })).status()).toBe(401)
+  expect((await request.post('/api/auth/login', { form: { ...worker, password: 'nova-lozinka-42' } })).ok()).toBeTruthy()
+})
+
+test('after an expired session, signing in returns to the same screen', async ({ page, request }) => {
+  const { worker } = await setupFixture(request)
+  await signIn(page, worker)
+  await page.evaluate(() => {
+    const session = JSON.parse(localStorage.getItem('adix.session'))
+    localStorage.setItem('adix.session', JSON.stringify({ ...session, token: 'expired-token' }))
+  })
+  await page.goto('/radnik/prijava')
+  await expect(page).toHaveURL(/\/login\?reason=expired/)
+  await expect(page.getByText('Sesija je istekla. Prijavite se ponovno.')).toBeVisible()
+  await page.getByLabel(/Korisničko ime|Username/).fill(worker.username)
+  await page.getByLabel(/^(Lozinka|Password)$/).fill(worker.password)
+  await page.getByRole('button', { name: /Prijavi se|Sign in/ }).click()
+  await expect(page).toHaveURL(/\/radnik\/prijava$/)
+})
+
+test('scanning a machine QR label opens the report with that machine chosen, even when signed out', async ({ page, request }) => {
+  const { machine, worker } = await setupFixture(request)
+  await page.goto(`/m/${machine.id}`)
+  await expect(page).toHaveURL(/\/login$/)
+  await page.getByLabel(/Korisničko ime|Username/).fill(worker.username)
+  await page.getByLabel(/^(Lozinka|Password)$/).fill(worker.password)
+  await page.getByRole('button', { name: /Prijavi se|Sign in/ }).click()
+
+  await expect(page).toHaveURL(new RegExp(`/radnik/prijava\\?oprema=${machine.id}$`))
+  await expect(page.getByLabel('Mašina', { exact: true })).toHaveValue(String(machine.id))
+  await expect(page.getByText('Odabrano skeniranjem QR oznake na mašini.')).toBeVisible()
+
+  // A half-written report survives a reload.
+  await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await page.getByLabel('Što se događa?').fill('Remen proklizava')
+  await page.reload()
+  await expect(page.getByLabel('Što se događa?')).toHaveValue('Remen proklizava')
+  await expect(page.getByLabel('Dio mašine')).toHaveValue(/\d+/)
+
+  await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
+  await expect(page).toHaveURL(/\/radnik$/)
+  await expect(page.getByRole('link', { name: /Remen proklizava/ })).toContainText(machine.naziv)
+  // The draft is gone after sending.
+  await page.goto('/radnik/prijava')
+  await expect(page.getByLabel('Što se događa?')).toHaveValue('')
+})
+
+test('a lead scanning a machine QR label sees that machine\'s faults', async ({ page, request }) => {
+  const { machine } = await setupFixture(request)
+  await signIn(page, ADMIN)
+  await page.goto(`/m/${machine.id}`)
+  await expect(page).toHaveURL(new RegExp(`/admin/kvarovi\\?oprema=${machine.id}$`))
+  await expect(page.getByText(`Mašina: ${machine.naziv}`)).toBeVisible()
 })

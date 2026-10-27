@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
-import { AlertTriangle, BarChart3, Bell, BellOff, Factory, LayoutGrid, LogOut, Menu as MenuIcon, PackageSearch, Users, X } from 'lucide-react'
+import { AlertTriangle, BarChart3, Bell, BellOff, Factory, KeyRound, LayoutGrid, LogOut, Menu as MenuIcon, PackageSearch, Users, X } from 'lucide-react'
 import BrandLogo from './BrandLogo'
+import ChangePasswordDialog from './ChangePasswordDialog'
 import LanguageSwitch from './ui/LanguageSwitch'
 import { useAuth } from '../auth/AuthProvider'
 import { displayName } from '../auth/session'
@@ -100,6 +101,7 @@ function ShellNav({ isAdmin, onNavigate }) {
 function ShellFooter() {
   const { t, role } = useI18n()
   const { user, signOut } = useAuth()
+  const [changingPassword, setChangingPassword] = useState(false)
   return (
     <div className="space-y-3 border-t border-white/15 px-3 pb-4 pt-3">
       <PushToggle />
@@ -113,12 +115,21 @@ function ShellFooter() {
       </div>
       <button
         type="button"
+        onClick={() => setChangingPassword(true)}
+        className="flex min-h-[2.75rem] w-full items-center gap-3 rounded px-3 text-sm font-medium text-brand-on-deep transition-colors hover:bg-white/10 hover:text-stock"
+      >
+        <KeyRound size={18} aria-hidden="true" />
+        {t('account.changePassword')}
+      </button>
+      <button
+        type="button"
         onClick={() => signOut('signedOut')}
         className="flex min-h-[2.75rem] w-full items-center gap-3 rounded px-3 text-sm font-medium text-brand-on-deep transition-colors hover:bg-white/10 hover:text-stock"
       >
         <LogOut size={18} aria-hidden="true" />
         {t('common.signOut')}
       </button>
+      {changingPassword && <ChangePasswordDialog onClose={() => setChangingPassword(false)} />}
     </div>
   )
 }

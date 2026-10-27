@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Factory, Pencil, Plus, Search, SearchX, Trash2 } from 'lucide-react'
-import { api, errorMessage, fieldErrors } from '../../api/client'
+import { Link } from 'react-router'
+import { Factory, Pencil, Plus, QrCode, Search, SearchX, Trash2 } from 'lucide-react'
+import { api, downloadFile, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
+import { focusFirstInvalid } from '../../lib/focus'
 import { useAuth } from '../../auth/AuthProvider'
 import { useToast } from '../../components/ui/Toast'
 import Dialog from '../../components/ui/Dialog'
@@ -95,6 +97,24 @@ function ComponentsEditor({ machineId }) {
   )
 }
 
+/** Downloads printable QR labels: one machine, or every machine in use. */
+function useQrLabels() {
+  const i18n = useI18n()
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  const download = async (machineId) => {
+    setBusy(true)
+    try {
+      await downloadFile(`/oprema/qr-oznake.pdf${machineId ? `?ids=${machineId}` : ''}`, 'adix-paper-qr-oznake.pdf')
+    } catch (error) {
+      toast.error(`${i18n.t('machines.qrFailed')} ${errorMessage(error, i18n)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return { busy, download }
+}
+
 function MachineDialog({ machine, onClose, onSaved }) {
   const i18n = useI18n()
   const { t, machineStatus } = i18n
@@ -103,6 +123,7 @@ function MachineDialog({ machine, onClose, onSaved }) {
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const formRef = useRef(null)
+  const qr = useQrLabels()
 
   const update = (field) => (event) => {
     setForm((current) => ({ ...current, [field]: event.target.value }))
@@ -117,7 +138,7 @@ function MachineDialog({ machine, onClose, onSaved }) {
     setErrors(next)
     setFormError('')
     if (Object.keys(next).length) {
-      formRef.current?.querySelector('[aria-invalid=true]')?.focus()
+      focusFirstInvalid(formRef)
       return
     }
     setSaving(true)
@@ -148,6 +169,11 @@ function MachineDialog({ machine, onClose, onSaved }) {
       size="lg"
       footer={
         <>
+          {machine && (
+            <button type="button" className="btn-quiet mr-auto" onClick={() => qr.download(machine.id)} disabled={qr.busy}>
+              <QrCode size={17} aria-hidden="true" /> {t('machines.qrOne')}
+            </button>
+          )}
           <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>{t('common.cancel')}</button>
           <button type="submit" form="machine-form" className="btn-primary" disabled={saving}>{saving ? t('common.saving') : t('common.save')}</button>
         </>
@@ -196,6 +222,7 @@ export default function Machines() {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState(null) // null | 'new' | machine
   const [deleting, setDeleting] = useState(null)
+  const qr = useQrLabels()
   const machines = useAsync(() => api.get('/oprema').then((response) => asArray(response.data)), [])
   const canDelete = user?.rola === 'admin'
 
@@ -246,7 +273,14 @@ export default function Machines() {
       <PageHeader
         title={t('machines.title')}
         meta={machines.data ? t('common.results', { n: rows.length }) : ' '}
-        actions={<button type="button" className="btn-primary" onClick={() => setEditing('new')}><Plus size={18} aria-hidden="true" /> {t('machines.add')}</button>}
+        actions={
+          <>
+            <button type="button" className="btn-secondary" onClick={() => qr.download()} disabled={qr.busy || !machines.data?.length} title={t('machines.qrHint')}>
+              <QrCode size={17} aria-hidden="true" /> {t('machines.qrAll')}
+            </button>
+            <button type="button" className="btn-primary" onClick={() => setEditing('new')}><Plus size={18} aria-hidden="true" /> {t('machines.add')}</button>
+          </>
+        }
       />
 
       <div className="relative mb-4">
@@ -274,7 +308,13 @@ export default function Machines() {
                   <p className="truncate text-ink-2">{[machine.tip, machine.lokacija].filter(Boolean).join(' · ')}</p>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-2">
                     <MachineStatus status={machine.status} />
-                    <span>{t('machines.faults')}: <span className="numeral text-ink">{machine.broj_kvarova}</span></span>
+                    {machine.broj_kvarova > 0 ? (
+                      <Link to={`/admin/kvarovi?oprema=${machine.id}`} className="link inline-flex min-h-[2.75rem] items-center" aria-label={t('machines.showFaults', { name: machine.naziv, n: machine.broj_kvarova })}>
+                        {t('machines.faults')}: <span className="numeral ml-1">{machine.broj_kvarova}</span>
+                      </Link>
+                    ) : (
+                      <span className="inline-flex min-h-[2.75rem] items-center">{t('machines.faults')}: <span className="numeral ml-1 text-ink">0</span></span>
+                    )}
                   </div>
                 </div>
                 {actions(machine)}
@@ -304,7 +344,13 @@ export default function Machines() {
                     <td className="px-4 py-2.5 text-ink-2">{machine.lokacija || '—'}</td>
                     <td className="hidden px-4 py-2.5 text-ink-2 lg:table-cell">{machine.tvrtka || '—'}</td>
                     <td className="px-4 py-2.5"><MachineStatus status={machine.status} /></td>
-                    <td className="numeral px-4 py-2.5 text-right text-lg">{machine.broj_kvarova}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      {machine.broj_kvarova > 0 ? (
+                        <Link to={`/admin/kvarovi?oprema=${machine.id}`} className="numeral link text-lg" aria-label={t('machines.showFaults', { name: machine.naziv, n: machine.broj_kvarova })}>
+                          {machine.broj_kvarova}
+                        </Link>
+                      ) : <span className="numeral text-lg text-ink-3">0</span>}
+                    </td>
                     <td className="hidden px-4 py-2.5 text-right text-ink-2 tabular lg:table-cell">{format.money(machine.ukupni_troskovi)}</td>
                     <td className="px-2 py-1.5">{actions(machine)}</td>
                   </tr>

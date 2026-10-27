@@ -6,7 +6,7 @@ from pathlib import Path
 
 from sqlalchemy import func, inspect, text
 
-from .auth import get_password_hash
+from .auth import set_password
 from .config import settings
 from .database import Base, SessionLocal, engine
 from .models import Dobavljac, Korisnik, RezervniDio, RolaEnum
@@ -23,9 +23,13 @@ def ensure_additive_schema():
     kvarovi_columns = {c["name"] for c in inspector.get_columns("kvarovi")} if "kvarovi" in table_names else set()
     dijelovi_info = {c["name"]: c for c in inspector.get_columns("rezervni_dijelovi")} if "rezervni_dijelovi" in table_names else {}
     dijelovi_columns = set(dijelovi_info)
+    korisnici_columns = {c["name"] for c in inspector.get_columns("korisnici")} if "korisnici" in table_names else set()
     with engine.begin() as connection:
         if kvarovi_columns and "komponenta_id" not in kvarovi_columns:
             connection.execute(text("ALTER TABLE kvarovi ADD COLUMN komponenta_id INTEGER"))
+        if korisnici_columns and "sesije_od" not in korisnici_columns:
+            column_type = "TIMESTAMP WITH TIME ZONE" if engine.dialect.name == "postgresql" else "DATETIME"
+            connection.execute(text(f"ALTER TABLE korisnici ADD COLUMN sesije_od {column_type}"))
         if dijelovi_columns and "zaliha" not in dijelovi_columns:
             connection.execute(text("ALTER TABLE rezervni_dijelovi ADD COLUMN zaliha NUMERIC(10, 2)"))
         # Supplier became optional on spare parts (2026-10-27). SQLite cannot alter
@@ -150,7 +154,7 @@ def seed_initial_admin():
             user.email = settings.ADMIN_EMAIL or None
             user.telefon = settings.ADMIN_TELEFON or None
             user.odjel = settings.ADMIN_ODJEL or None
-            user.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
+            set_password(user, settings.ADMIN_PASSWORD)
             user.rola = RolaEnum.admin
             user.aktivan = True
             logger.info("Admin account %s: %s", "created" if created else "reset", username)
@@ -171,7 +175,7 @@ def reset_user_password_from_env():
         if not user:
             logger.warning("Password reset skipped: user not found (%s)", username)
             return
-        user.hashed_password = get_password_hash(password)
+        set_password(user, password)
         user.aktivan = True
         db.commit()
         logger.info("Password reset applied for %s", user.username)

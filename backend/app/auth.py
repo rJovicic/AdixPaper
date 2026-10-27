@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from .database import get_db
 from .models import Korisnik
 from .config import settings
-from .timeutil import utcnow
+from .timeutil import as_utc, utcnow
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 MAX_BCRYPT_PASSWORD_BYTES = 72
@@ -38,10 +38,32 @@ def _password_bytes(password: str) -> bytes:
         raise ValueError("Lozinka je predugačka. Koristite najviše 72 bajta.")
     return value
 
+_dummy_hash: Optional[str] = None
+
+
+def verify_password_or_dummy(user: Optional[Korisnik], plain_password: str) -> bool:
+    """Checks a password; for an unknown user still spends one bcrypt check so the
+    response time does not reveal which usernames exist."""
+    global _dummy_hash
+    if user is None:
+        if _dummy_hash is None:
+            _dummy_hash = bcrypt.hashpw(b"unused-password", bcrypt.gensalt()).decode("utf-8")
+        verify_password(plain_password, _dummy_hash)
+        return False
+    return verify_password(plain_password, user.hashed_password)
+
+
+def set_password(user: Korisnik, password: str) -> None:
+    """Stores a new password and signs the user out everywhere else."""
+    user.hashed_password = get_password_hash(password)
+    user.sesije_od = utcnow()
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = utcnow() + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
+    now = utcnow()
+    expire = now + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire, "iat": now.timestamp()})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 def get_user_from_token(token: str, db: Session) -> Korisnik:
@@ -53,6 +75,7 @@ def get_user_from_token(token: str, db: Session) -> Korisnik:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str = payload.get("sub")
+        issued_at = payload.get("iat")
         if username is None:
             raise credentials_exception
     except InvalidTokenError:
@@ -61,6 +84,11 @@ def get_user_from_token(token: str, db: Session) -> Korisnik:
     user = db.query(Korisnik).filter(Korisnik.username == username, Korisnik.aktivan == True).first()
     if user is None:
         raise credentials_exception from None
+    if user.sesije_od is not None:
+        # Tokens issued before the last password change are revoked; tokens without iat
+        # predate this check and are treated the same way.
+        if not isinstance(issued_at, (int, float)) or issued_at < as_utc(user.sesije_od).timestamp():
+            raise credentials_exception
     return user
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Korisnik:

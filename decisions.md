@@ -71,3 +71,33 @@
 - Why: the plant does not track parts by supplier or stock level in this app; the fields added noise to the catalogue and the repair form.
 - Rejected: deleting the data. The columns stay in the database (supplier became optional, via a non-destructive `DROP NOT NULL`); existing values are kept and edits leave them untouched. The "parts used by supplier" Excel export still works and groups parts without a supplier as "Bez dobavljača".
 - Rests on: owner's request after launch.
+
+## 2026-10-27 · A fault cannot be resolved without "work done"
+- Decided by: Claude (default), reversible
+- Why: downtime and repair analytics, and the worker's view of the outcome, rest on this field; resolving with nothing recorded made the record empty. The server returns 400 and the form focuses the field.
+- Rejected: a resolve dialog asking for every resolution field (more clicks for the common case).
+- Rests on: PRODUCT.md principle 4 ("the record is the truth").
+
+## 2026-10-27 · Only admins can delete a fault
+- Decided by: Claude (default)
+- Why: deleting erases the fault's history; the UI never offered it, but any lead could do it through the API. Kept for admins to remove test or duplicate entries; each deletion is logged.
+- Rejected: removing the endpoint (no way to clean up test data); soft-delete (schema change with little benefit now).
+
+## 2026-10-27 · Sign-in is limited per username from any IP
+- Decided by: Claude (default)
+- Why: the per-IP limit relied on `X-Forwarded-For`, which clients can forge. 20 failures per username per 15 min bounds password guessing.
+- Trade-off: someone can lock a username out for 15 minutes on purpose. Acceptable for an internal tool; revisit if it happens (AUDIT.md A2-36 makes the per-IP key trustworthy).
+
+## 2026-10-27 · Workers do not see costs, material, parts or internal notes of their faults
+- Decided by: Claude (default), following PRODUCT.md ("internal notes are never shown")
+- Why: the API sent them to workers although the UI hid them. Workers still see status, assignee, work done and public comments.
+
+## 2026-10-27 · Machine QR codes point at a role-neutral link
+- Decided by: Claude (default)
+- Why: a printed label must serve everyone who scans it. `/m/<id>` sends workers to the report form with the machine chosen and leads to that machine's faults; signed-out users sign in and continue.
+- Rejected: encoding `/radnik/prijava?oprema=<id>` (leads scanning it would land on their overview); generating codes in the browser (needs a QR library in the worker bundle).
+- Rests on: PRODUCT.md principle 1.
+
+## 2026-10-27 · PDFs embed Liberation Sans
+- Decided by: Claude (default)
+- Why: reportlab's built-in Helvetica cannot encode č, ć, đ. Liberation Sans (SIL OFL 1.1, licence in `backend/app/fonts/`) is metric-compatible with Helvetica/Arial, so layouts did not change. Archivo, the UI font, is only available as WOFF2 in the repository.

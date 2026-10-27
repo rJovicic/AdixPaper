@@ -150,3 +150,94 @@ def test_spare_part_without_supplier(client, admin, make_user, machine):
     usage = client.get("/api/dashboard/utrosak-dijelova", headers=admin).json()
     assert any(row["sifra"] == "RB42" and row["dobavljac"] is None for row in usage)
     assert client.get("/api/kvarovi/export-dijelovi.xlsx", headers=admin).status_code == 200
+
+
+# The full form FaultDetail.jsx sent before it switched to changed-fields-only payloads.
+STALE_FORM = {"prioritet": "Hitno", "voditelj_id": None, "komponenta_id": None, "sto_je_uradjeno": "", "materijal": "",
+              "napomene_voditelja": "", "troskovi": 0, "trajanje_min": 0, "utroseni_dijelovi": []}
+
+
+def test_taking_a_fault_assigns_the_lead_even_when_the_form_says_unassigned(client, make_user, machine):
+    _, worker = make_user()
+    lead, lead_h = make_user(rola="voditelj")
+    kvar = report(client, worker, machine)
+    taken = client.put(f"/api/kvarovi/{kvar['id']}", json={**STALE_FORM, "status": "U rješavanju"}, headers=lead_h).json()
+    assert taken["status"] == "U rješavanju"
+    assert taken["voditelj_id"] == lead["id"]
+    assert taken["datum_pocetka"]
+
+
+def test_taking_keeps_an_existing_assignee(client, make_user, machine):
+    _, worker = make_user()
+    first, _ = make_user(rola="voditelj")
+    _, second_h = make_user(rola="voditelj")
+    kvar = report(client, worker, machine)
+    client.put(f"/api/kvarovi/{kvar['id']}", json={"voditelj_id": first["id"]}, headers=second_h)
+    taken = client.put(f"/api/kvarovi/{kvar['id']}", json={"status": "U rješavanju"}, headers=second_h).json()
+    assert taken["voditelj_id"] == first["id"]
+
+
+def test_assignee_must_be_an_active_lead_or_admin(client, make_user, machine):
+    _, worker = make_user()
+    other_worker, _ = make_user()
+    inactive_lead, _ = make_user(rola="voditelj")
+    _, lead_h = make_user(rola="voditelj")
+    kvar = report(client, worker, machine)
+    from tests.conftest import ADMIN, login
+    admin_h = login(client, *ADMIN)
+    client.put(f"/api/korisnici/{inactive_lead['id']}", json={"aktivan": False}, headers=admin_h)
+    for assignee in (999999, other_worker["id"], inactive_lead["id"]):
+        response = client.put(f"/api/kvarovi/{kvar['id']}", json={"voditelj_id": assignee}, headers=lead_h)
+        assert response.status_code == 400, (assignee, response.text)
+
+
+def test_resolving_requires_work_done(client, make_user, machine):
+    _, worker = make_user()
+    _, lead_h = make_user(rola="voditelj")
+    kvar = report(client, worker, machine)
+    response = client.put(f"/api/kvarovi/{kvar['id']}", json={"status": "Riješeno"}, headers=lead_h)
+    assert response.status_code == 400
+    assert client.get(f"/api/kvarovi/{kvar['id']}", headers=lead_h).json()["status"] == "Novo"
+    resolved = client.put(f"/api/kvarovi/{kvar['id']}", json={"status": "Riješeno", "sto_je_uradjeno": "Naoštren nož"}, headers=lead_h)
+    assert resolved.status_code == 200 and resolved.json()["datum_rjesavanja"]
+
+
+def test_only_admins_can_delete_a_fault(client, admin, make_user, machine):
+    _, worker = make_user()
+    _, lead_h = make_user(rola="voditelj")
+    kvar = report(client, worker, machine)
+    assert client.delete(f"/api/kvarovi/{kvar['id']}", headers=lead_h).status_code == 403
+    assert client.delete(f"/api/kvarovi/{kvar['id']}", headers=admin).status_code == 204
+
+
+def test_open_filter_and_invalid_filters(client, make_user, machine):
+    _, worker = make_user()
+    _, lead_h = make_user(rola="voditelj")
+    open_fault = report(client, worker, machine)
+    done = report(client, worker, machine)
+    client.put(f"/api/kvarovi/{done['id']}", json={"status": "Riješeno", "sto_je_uradjeno": "x"}, headers=lead_h)
+    ids = {k["id"] for k in client.get("/api/kvarovi?status=otvoreni", headers=lead_h).json()}
+    assert open_fault["id"] in ids and done["id"] not in ids
+    assert client.get("/api/kvarovi?status=nepostojeci", headers=lead_h).status_code == 422
+    assert client.get("/api/oprema?status=nepostojeci", headers=lead_h).status_code == 422
+
+
+def test_workers_never_receive_internal_notes_costs_or_parts(client, admin, make_user, machine):
+    _, worker = make_user()
+    _, lead_h = make_user(rola="voditelj")
+    kvar = report(client, worker, machine)
+    part = client.post("/api/rezervni-dijelovi", json={"naziv": "Brtva", "cijena": "3.00"}, headers=admin).json()
+    client.put(
+        f"/api/kvarovi/{kvar['id']}",
+        json={"napomene_voditelja": "Interna procjena", "materijal": "Ljepilo", "troskovi": 120,
+              "utroseni_dijelovi": [{"rezervni_dio_id": part["id"], "kolicina": 1}]},
+        headers=lead_h,
+    )
+    seen = client.get(f"/api/kvarovi/{kvar['id']}", headers=worker).json()
+    assert seen["napomene_voditelja"] is None and seen["materijal"] is None and seen["troskovi"] is None
+    assert seen["utroseni_dijelovi"] == []
+    listed = next(k for k in client.get("/api/kvarovi", headers=worker).json() if k["id"] == kvar["id"])
+    assert "napomene_voditelja" not in listed and "troskovi" not in listed
+    # Leads still get everything on the detail endpoint.
+    full = client.get(f"/api/kvarovi/{kvar['id']}", headers=lead_h).json()
+    assert full["napomene_voditelja"] == "Interna procjena" and len(full["utroseni_dijelovi"]) == 1

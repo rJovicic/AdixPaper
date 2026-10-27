@@ -3,6 +3,7 @@ import { PackageSearch, Pencil, Plus, Search, SearchX, Trash2 } from 'lucide-rea
 import { api, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
+import { focusFirstInvalid } from '../../lib/focus'
 import { useToast } from '../../components/ui/Toast'
 import Dialog from '../../components/ui/Dialog'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
@@ -38,7 +39,7 @@ function PartDialog({ part, onClose, onSaved }) {
     setErrors(next)
     setFormError('')
     if (Object.keys(next).length) {
-      formRef.current?.querySelector('[aria-invalid=true]')?.focus()
+      focusFirstInvalid(formRef)
       return
     }
     setSaving(true)
