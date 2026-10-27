@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { PHONE, setupFixture, signIn } from './helpers'
+import { ADMIN, PHONE, setupFixture, signIn } from './helpers'
 
 test.use({ viewport: PHONE })
 
@@ -85,4 +85,39 @@ test('after an expired session, signing in returns to the same screen', async ({
   await page.getByLabel(/^(Lozinka|Password)$/).fill(worker.password)
   await page.getByRole('button', { name: /Prijavi se|Sign in/ }).click()
   await expect(page).toHaveURL(/\/radnik\/prijava$/)
+})
+
+test('scanning a machine QR label opens the report with that machine chosen, even when signed out', async ({ page, request }) => {
+  const { machine, worker } = await setupFixture(request)
+  await page.goto(`/m/${machine.id}`)
+  await expect(page).toHaveURL(/\/login$/)
+  await page.getByLabel(/Korisničko ime|Username/).fill(worker.username)
+  await page.getByLabel(/^(Lozinka|Password)$/).fill(worker.password)
+  await page.getByRole('button', { name: /Prijavi se|Sign in/ }).click()
+
+  await expect(page).toHaveURL(new RegExp(`/radnik/prijava\\?oprema=${machine.id}$`))
+  await expect(page.getByLabel('Mašina', { exact: true })).toHaveValue(String(machine.id))
+  await expect(page.getByText('Odabrano skeniranjem QR oznake na mašini.')).toBeVisible()
+
+  // A half-written report survives a reload.
+  await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await page.getByLabel('Što se događa?').fill('Remen proklizava')
+  await page.reload()
+  await expect(page.getByLabel('Što se događa?')).toHaveValue('Remen proklizava')
+  await expect(page.getByLabel('Dio mašine')).toHaveValue(/\d+/)
+
+  await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
+  await expect(page).toHaveURL(/\/radnik$/)
+  await expect(page.getByRole('link', { name: /Remen proklizava/ })).toContainText(machine.naziv)
+  // The draft is gone after sending.
+  await page.goto('/radnik/prijava')
+  await expect(page.getByLabel('Što se događa?')).toHaveValue('')
+})
+
+test('a lead scanning a machine QR label sees that machine\'s faults', async ({ page, request }) => {
+  const { machine } = await setupFixture(request)
+  await signIn(page, ADMIN)
+  await page.goto(`/m/${machine.id}`)
+  await expect(page).toHaveURL(new RegExp(`/admin/kvarovi\\?oprema=${machine.id}$`))
+  await expect(page.getByText(`Mašina: ${machine.naziv}`)).toBeVisible()
 })

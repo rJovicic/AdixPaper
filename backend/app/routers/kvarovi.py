@@ -106,6 +106,13 @@ def _sla_state(kvar: Kvar, now: Optional[datetime] = None) -> str:
     return "ok"
 
 
+SLA_LABELS = {"kasni": "Kasni", "uskoro": "Ističe uskoro", "ok": "U roku", "nema": "—"}
+
+
+def _sla_label(kvar: Kvar) -> str:
+    return SLA_LABELS[_sla_state(kvar)]
+
+
 def _add_event(
     db: Session,
     kvar: Kvar,
@@ -282,7 +289,7 @@ def export_kvarovi_xlsx(
     ws = wb.active
     ws.title = "Kvarovi"
     headers = [
-        "ID", "Naslov", "Oprema", "Lokacija", "Prioritet", "Status", "SLA",
+        "ID", "Naslov", "Oprema", "Lokacija", "Prioritet", "Status", "Rok",
         "Prijavio", "Voditelj", "Datum prijave", "Datum pocetka", "Datum rjesavanja",
         "Trajanje min", "Troskovi EUR", "Materijal", "Sto je uradjeno"
     ]
@@ -304,7 +311,7 @@ def export_kvarovi_xlsx(
             k.oprema.lokacija if k.oprema else "",
             _enum_value(k.prioritet),
             _enum_value(k.status),
-            _sla_state(k),
+            _sla_label(k),
             _user_label(k.prijavio),
             _user_label(k.voditelj),
             local_naive(k.datum_prijave),
@@ -416,20 +423,22 @@ def export_kvarovi_pdf(
 ):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.styles import getSampleStyleSheet
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+
+    from ..pdf import BRAND_BLUE, register_fonts, stylesheet
 
     records = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla)
     output = BytesIO()
     doc = SimpleDocTemplate(output, pagesize=landscape(A4), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
-    styles = getSampleStyleSheet()
+    regular, bold = register_fonts()
+    styles = stylesheet()
     story = [
-        Paragraph("Adix Paper - izvjestaj kvarova", styles["Title"]),
+        Paragraph("Adix Paper – izvještaj kvarova", styles["Title"]),
         Paragraph(local_naive(utcnow()).strftime("Generirano: %d.%m.%Y. %H:%M"), styles["Normal"]),
         Spacer(1, 12),
     ]
 
-    rows = [["ID", "Naslov", "Oprema", "Prioritet", "Status", "SLA", "Prijava", "Trosak"]]
+    rows = [["ID", "Naslov", "Mašina", "Prioritet", "Status", "Rok", "Prijava", "Trošak €"]]
     for k in records:
         rows.append([
             str(k.id),
@@ -437,17 +446,18 @@ def export_kvarovi_pdf(
             Paragraph((k.oprema.naziv if k.oprema else "")[:36], styles["BodyText"]),
             _enum_value(k.prioritet),
             _enum_value(k.status),
-            _sla_state(k),
+            _sla_label(k),
             local_naive(k.datum_prijave).strftime("%d.%m.%Y") if k.datum_prijave else "",
             f"{float(k.troskovi or 0):.2f}",
         ])
 
     table = Table(rows, repeatRows=1, colWidths=[34, 180, 150, 72, 86, 58, 72, 58])
     table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E3A8A")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(BRAND_BLUE)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#CBD5E1")),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 0), (-1, -1), regular),
+        ("FONTNAME", (0, 0), (-1, 0), bold),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("FONTSIZE", (0, 0), (-1, -1), 8),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),

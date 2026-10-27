@@ -147,6 +147,7 @@ export default {
     waiting: 'Waiting to be picked up',
   },
   report: {
+    scanned: "Chosen by scanning the machine's QR label.",
     title: 'Report a fault',
     machine: 'Machine',
     machinePlaceholder: 'Choose a machine',
@@ -292,6 +293,10 @@ export default {
     noMatchTitle: 'No faults match the filters',
   },
   machines: {
+    qrAll: 'QR labels',
+    qrOne: 'QR label',
+    qrHint: 'A PDF with a QR label for every machine in use. A worker scans it and reports a fault on that machine straight away.',
+    qrFailed: 'Could not download the QR labels.',
     showFaults: 'Faults on {name}: {n}',
     title: 'Machines',
     add: 'Add machine',

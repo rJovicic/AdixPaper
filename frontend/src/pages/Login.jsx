@@ -46,7 +46,9 @@ export default function Login() {
     try {
       const signedIn = await signIn(username.trim(), password)
       const from = location.state?.from
-      const target = from && from.startsWith(homeForRole(signedIn.rola)) ? from : homeForRole(signedIn.rola)
+      // Return to where the user was headed: a screen of their own role, or a machine QR link.
+      const allowed = from && (from.startsWith(homeForRole(signedIn.rola)) || from.startsWith('/m/'))
+      const target = allowed ? from : homeForRole(signedIn.rola)
       navigate(target, { replace: true })
     } catch (error) {
       setFormError(error?.message === 'bad-response' ? t('login.badResponse') : errorMessage(error, i18n))

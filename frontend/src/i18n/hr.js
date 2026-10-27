@@ -147,6 +147,7 @@ export default {
     waiting: 'Čeka preuzimanje',
   },
   report: {
+    scanned: 'Odabrano skeniranjem QR oznake na mašini.',
     title: 'Prijava kvara',
     machine: 'Mašina',
     machinePlaceholder: 'Odaberite mašinu',
@@ -292,6 +293,10 @@ export default {
     noMatchTitle: 'Nijedan kvar ne odgovara filtrima',
   },
   machines: {
+    qrAll: 'QR oznake',
+    qrOne: 'QR oznaka',
+    qrHint: 'PDF s QR oznakom za svaku mašinu u upotrebi. Radnik skenira oznaku i odmah prijavljuje kvar na toj mašini.',
+    qrFailed: 'QR oznake nije moguće preuzeti.',
     showFaults: 'Kvarovi mašine {name}: {n}',
     title: 'Mašine',
     add: 'Dodaj mašinu',

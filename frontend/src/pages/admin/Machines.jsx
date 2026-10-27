@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { Factory, Pencil, Plus, Search, SearchX, Trash2 } from 'lucide-react'
-import { api, errorMessage, fieldErrors } from '../../api/client'
+import { Factory, Pencil, Plus, QrCode, Search, SearchX, Trash2 } from 'lucide-react'
+import { api, downloadFile, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
 import { focusFirstInvalid } from '../../lib/focus'
@@ -97,6 +97,24 @@ function ComponentsEditor({ machineId }) {
   )
 }
 
+/** Downloads printable QR labels: one machine, or every machine in use. */
+function useQrLabels() {
+  const i18n = useI18n()
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  const download = async (machineId) => {
+    setBusy(true)
+    try {
+      await downloadFile(`/oprema/qr-oznake.pdf${machineId ? `?ids=${machineId}` : ''}`, 'adix-paper-qr-oznake.pdf')
+    } catch (error) {
+      toast.error(`${i18n.t('machines.qrFailed')} ${errorMessage(error, i18n)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return { busy, download }
+}
+
 function MachineDialog({ machine, onClose, onSaved }) {
   const i18n = useI18n()
   const { t, machineStatus } = i18n
@@ -105,6 +123,7 @@ function MachineDialog({ machine, onClose, onSaved }) {
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const formRef = useRef(null)
+  const qr = useQrLabels()
 
   const update = (field) => (event) => {
     setForm((current) => ({ ...current, [field]: event.target.value }))
@@ -150,6 +169,11 @@ function MachineDialog({ machine, onClose, onSaved }) {
       size="lg"
       footer={
         <>
+          {machine && (
+            <button type="button" className="btn-quiet mr-auto" onClick={() => qr.download(machine.id)} disabled={qr.busy}>
+              <QrCode size={17} aria-hidden="true" /> {t('machines.qrOne')}
+            </button>
+          )}
           <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>{t('common.cancel')}</button>
           <button type="submit" form="machine-form" className="btn-primary" disabled={saving}>{saving ? t('common.saving') : t('common.save')}</button>
         </>
@@ -198,6 +222,7 @@ export default function Machines() {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState(null) // null | 'new' | machine
   const [deleting, setDeleting] = useState(null)
+  const qr = useQrLabels()
   const machines = useAsync(() => api.get('/oprema').then((response) => asArray(response.data)), [])
   const canDelete = user?.rola === 'admin'
 
@@ -248,7 +273,14 @@ export default function Machines() {
       <PageHeader
         title={t('machines.title')}
         meta={machines.data ? t('common.results', { n: rows.length }) : ' '}
-        actions={<button type="button" className="btn-primary" onClick={() => setEditing('new')}><Plus size={18} aria-hidden="true" /> {t('machines.add')}</button>}
+        actions={
+          <>
+            <button type="button" className="btn-secondary" onClick={() => qr.download()} disabled={qr.busy || !machines.data?.length} title={t('machines.qrHint')}>
+              <QrCode size={17} aria-hidden="true" /> {t('machines.qrAll')}
+            </button>
+            <button type="button" className="btn-primary" onClick={() => setEditing('new')}><Plus size={18} aria-hidden="true" /> {t('machines.add')}</button>
+          </>
+        }
       />
 
       <div className="relative mb-4">

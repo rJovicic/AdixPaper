@@ -43,6 +43,17 @@ test('no serious accessibility violations on worker screens', async ({ page, req
   await page.goto('/radnik/prijava')
   await page.getByLabel('Mašina', { exact: true }).waitFor()
   expect(await axe(page), 'report form').toEqual([])
+  await page.getByRole('button', { name: 'Promijeni lozinku' }).click()
+  await page.getByRole('dialog', { name: 'Promijeni lozinku' }).getByLabel('Trenutna lozinka').waitFor()
+  expect(await axe(page), 'change password dialog').toEqual([])
+})
+
+test('no serious accessibility violations on the machine-filtered fault list', async ({ page, request }) => {
+  const { machine } = await setupFixture(request)
+  await signIn(page, ADMIN)
+  await page.goto(`/admin/kvarovi?oprema=${machine.id}&preuzeo=ja`)
+  await page.getByText(`Mašina: ${machine.naziv}`).waitFor()
+  expect(await axe(page), 'filtered faults').toEqual([])
 })
 
 test('no serious accessibility violations on lead screens', async ({ page }) => {
