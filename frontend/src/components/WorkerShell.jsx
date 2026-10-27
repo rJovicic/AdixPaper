@@ -10,7 +10,7 @@ export default function WorkerShell() {
       <a href="#main" className="sr-only z-[80] rounded bg-stock px-4 py-2 font-semibold text-brand focus:not-sr-only focus:fixed focus:left-3 focus:top-3">
         {t('nav.skip')}
       </a>
-      <header className="sticky top-0 z-40 bg-key">
+      <header className="sticky top-0 z-40 bg-brand-deep">
         <div className="mx-auto flex max-w-2xl items-center gap-3 py-2 pl-4 pr-2">
           <BrandLogo size="sm" />
           <p className="min-w-0 flex-1 truncate font-semibold text-stock">{t('app.name')}</p>

@@ -21,7 +21,7 @@ Interface in Croatian (default) and English. Production: <https://adixpaper-prod
 ## Stack
 
 - **Backend:** Python 3.12, FastAPI, SQLAlchemy 2, PostgreSQL (psycopg 3), PyJWT, bcrypt; Excel/PDF via openpyxl/reportlab; optional Web Push.
-- **Frontend:** React 18, React Router 7, Vite 7, Tailwind CSS 3, recharts, lucide icons, Geist + Geist Mono (self-hosted).
+- **Frontend:** React 18, React Router 7, Vite 7, Tailwind CSS 3, recharts, lucide icons, Archivo (self-hosted).
 - **Deployment:** one Docker image (FastAPI serves the API and the built SPA) + Railway Postgres.
 
 ```

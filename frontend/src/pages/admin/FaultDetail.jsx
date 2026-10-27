@@ -9,7 +9,7 @@ import { useToast } from '../../components/ui/Toast'
 import Field from '../../components/ui/Field'
 import PartPicker from '../../components/ui/PartPicker'
 import Timeline from '../../components/Timeline'
-import { DueStrip, DueTag, FaultNumber, LabelFields, PriorityMark, StatusMark } from '../../components/ui/Marks'
+import { DueTag, FaultNumber, LabelFields, PriorityMark, StatusMark } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 
 const get = (path) => api.get(path).then((response) => response.data)
@@ -196,7 +196,6 @@ export default function FaultDetail() {
                 <PriorityMark priority={item.prioritet} />
                 <DueTag fault={item} />
               </div>
-              <DueStrip fault={item} className="mt-3 max-w-md" />
             </header>
             <LabelFields
               items={[

@@ -248,9 +248,6 @@ export default {
     eventChange: '{from} → {to}',
   },
   dashboard: {
-    inProgress: 'In progress',
-    unassigned: 'Unassigned',
-    colorBar: 'Open faults at a glance',
     attentionFilter: 'Show',
     tabAll: 'All',
     tabUnassigned: 'Unassigned',
@@ -317,6 +314,10 @@ export default {
     noMatchTitle: 'No faults match the filters',
   },
   machines: {
+    qrCreatedTitle: 'Machine added.',
+    qrCreatedBody: 'Print its QR label and stick it on the machine where workers can see it.',
+    qrPrint: 'Print QR label',
+    qrRow: 'QR label: {name}',
     qrAll: 'QR labels',
     qrOne: 'QR label',
     qrHint: 'A PDF with a QR label for every machine in use. A worker scans it and reports a fault on that machine straight away.',

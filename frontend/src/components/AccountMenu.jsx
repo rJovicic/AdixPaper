@@ -59,10 +59,10 @@ export default function AccountMenu({ variant = 'bar', children }) {
         aria-label={rail ? undefined : t('account.menu', { name })}
         onClick={() => setOpen((value) => !value)}
         className={rail
-          ? 'flex w-full items-center gap-3 rounded px-2.5 py-2 text-left transition-colors hover:bg-key-2 aria-expanded:bg-key-2'
-          : 'flex h-11 w-11 items-center justify-center rounded transition-colors hover:bg-key-2'}
+          ? 'flex w-full items-center gap-3 rounded px-2.5 py-2 text-left transition-colors hover:bg-white/10 aria-expanded:bg-white/10'
+          : 'flex h-11 w-11 items-center justify-center rounded transition-colors hover:bg-white/10'}
       >
-        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-stock font-mono text-xs font-semibold text-key">
+        <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-stock numeral text-xs text-brand-deep">
           {initials(user)}
         </span>
         {rail && (

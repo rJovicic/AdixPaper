@@ -52,11 +52,11 @@ export default function MyFaults() {
             aria-controls="worker-panel"
             onClick={() => setTab(item.id)}
             className={`-mb-px flex min-h-[2.75rem] items-center gap-2 border-b-2 px-4 font-semibold transition-colors ${
-              tab === item.id ? 'border-key text-ink' : 'border-transparent text-ink-2 hover:text-ink'
+              tab === item.id ? 'border-brand text-ink' : 'border-transparent text-ink-2 hover:text-ink'
             }`}
           >
             {item.label}
-            <span className="rounded-sm bg-[#E8EAED] px-1.5 py-0.5 font-mono text-xs font-medium text-ink-2">{faults.loading ? '·' : item.count}</span>
+            <span className="rounded-sm bg-[#E8EAED] px-1.5 py-0.5 text-xs font-semibold tabular text-ink-2">{faults.loading ? '·' : item.count}</span>
           </button>
         ))}
       </div>

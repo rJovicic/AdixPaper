@@ -107,7 +107,7 @@ export default function SearchPalette({ open, onClose }) {
       onMouseDown={(event) => {
         if (event.target === dialogRef.current) onClose()
       }}
-      className="enter-rise mx-auto mt-[12vh] w-[min(40rem,calc(100vw-2rem))] max-w-none overflow-hidden rounded-lg border border-rule bg-stock p-0 text-ink shadow-dialog backdrop:bg-key/50"
+      className="enter-rise mx-auto mt-[12vh] w-[min(40rem,calc(100vw-2rem))] max-w-none overflow-hidden rounded-lg border border-rule bg-stock p-0 text-ink shadow-dialog backdrop:bg-ink/45"
     >
       <div className="flex items-center gap-3 border-b border-rule px-4">
         <Search size={18} aria-hidden="true" className="shrink-0 text-ink-3" />
@@ -125,7 +125,7 @@ export default function SearchPalette({ open, onClose }) {
           onKeyDown={onKeyDown}
           className="h-14 min-w-0 flex-1 bg-transparent text-base text-ink placeholder:text-ink-3 focus:outline-none"
         />
-        <kbd className="hidden rounded-sm border border-rule px-1.5 py-0.5 font-mono text-[0.6875rem] text-ink-3 sm:inline">Esc</kbd>
+        <kbd className="hidden rounded-sm border border-rule px-1.5 py-0.5 text-[0.6875rem] font-semibold text-ink-3 sm:inline">Esc</kbd>
       </div>
 
       {data.error ? (
@@ -177,7 +177,7 @@ export default function SearchPalette({ open, onClose }) {
           })}
         </ul>
       )}
-      <p className="hidden border-t border-rule bg-[#FAFAFB] px-4 py-2 font-mono text-[0.6875rem] text-ink-3 sm:block">{t('search.hint')}</p>
+      <p className="hidden border-t border-rule bg-[#FAFAFB] px-4 py-2 text-[0.6875rem] font-semibold text-ink-3 sm:block">{t('search.hint')}</p>
     </dialog>
   )
 }

@@ -56,8 +56,12 @@ test('machine form keeps focus while typing and saves', async ({ page }) => {
   await page.getByLabel('Tip').fill('Rezačica')
   await page.getByRole('button', { name: 'Spremi', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Mašina je spremljena.' })).toBeVisible()
-  // New machine stays open for adding parts.
+  // New machine stays open for adding parts and printing its QR label.
   await expect(page.getByRole('heading', { name: 'Dijelovi mašine' })).toBeVisible()
+  await expect(page.getByText('Mašina je dodana.')).toBeVisible()
+  const download = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Ispiši QR oznaku' }).click()
+  expect((await download).suggestedFilename()).toBe('adix-paper-qr-oznake.pdf')
 })
 
 test('admin cannot deactivate their own account', async ({ page }) => {

@@ -113,3 +113,9 @@
 ## 2026-10-27 · Search lives in the rail, not the overview header
 - Decided by: Claude (default), at the finish review
 - Why: the mockup put search in the overview header; in the rail it is on every screen with the same Ctrl/⌘ K shortcut, and export stays on the fault list where its filters are.
+
+## 2026-10-27 · Back to the reel label, logo colours only (supersedes "press sheet")
+- Decided by: the owner, after seeing the press-sheet build: "colours only as on the web, no crayons; simple like at the start, with small changes"
+- What: the original reel-label system (Archivo, deep-blue rail, ruled label fields) with the palette limited to the logo's blue and wordmark grey (#949597, sampled from the logo), white and ink. States are shapes: filled blue new, half-filled blue in progress, hollow grey on hold, filled grey resolved. Red stays only for urgent, overdue and errors. Amber and green are gone.
+- Kept from the press-sheet round: Ctrl/⌘ K search, All / Unassigned / Mine on the overview with a "My faults" panel, the account menu, the time-left hairline.
+- Open: adixpaper.hr could not be reached from the build environment, so the palette rests on the logo file. If the website uses no red, urgent/overdue can become bold deep blue.

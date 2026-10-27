@@ -56,18 +56,18 @@ function MonthlyChart({ rows }) {
   return (
     <div className="px-2 pb-3 pt-4">
       <div className="mb-2 flex gap-4 px-3 text-meta text-ink-2" aria-hidden="true">
-        <span className="inline-flex items-center gap-1.5"><i className="chip bg-cyan-mark" />{t('dashboard.reportedSeries')}</span>
-        <span className="inline-flex items-center gap-1.5"><i className="chip bg-ok-mark" />{t('dashboard.resolvedSeries')}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[2px] bg-rule-strong" />{t('dashboard.reportedSeries')}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[2px] bg-brand" />{t('dashboard.resolvedSeries')}</span>
       </div>
       <div className="h-56" role="img" aria-label={`${t('dashboard.byMonth')}: ${data.map((row) => `${row.mjesec} ${row.ukupno}/${row.rijeseno}`).join(', ')}`}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 4, right: 12, left: -16, bottom: 0 }} barGap={2} barCategoryGap="22%">
-            <CartesianGrid vertical={false} stroke="rgb(227 229 233)" />
-            <XAxis dataKey="mjesec" tickLine={false} axisLine={{ stroke: 'rgb(227 229 233)' }} tick={{ fill: 'rgb(74 80 90)', fontSize: 12, fontFamily: 'Geist Mono Variable, monospace' }} />
-            <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: 'rgb(74 80 90)', fontSize: 12, fontFamily: 'Geist Mono Variable, monospace' }} width={40} />
-            <Tooltip cursor={{ fill: 'rgb(234 240 249 / 0.6)' }} contentStyle={{ borderRadius: 7, border: '1px solid rgb(227 229 233)', fontSize: 13 }} />
-            <Bar dataKey="ukupno" name={t('dashboard.reportedSeries')} fill="rgb(0 163 224)" radius={[2, 2, 0, 0]} />
-            <Bar dataKey="rijeseno" name={t('dashboard.resolvedSeries')} fill="rgb(0 160 80)" radius={[2, 2, 0, 0]} />
+            <CartesianGrid vertical={false} stroke="rgb(214 218 224)" />
+            <XAxis dataKey="mjesec" tickLine={false} axisLine={{ stroke: 'rgb(214 218 224)' }} tick={{ fill: 'rgb(71 78 89)', fontSize: 12 }} />
+            <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: 'rgb(71 78 89)', fontSize: 12 }} width={40} />
+            <Tooltip cursor={{ fill: 'rgb(231 237 247 / 0.6)' }} contentStyle={{ borderRadius: 5, border: '1px solid rgb(214 218 224)', fontSize: 13 }} />
+            <Bar dataKey="ukupno" name={t('dashboard.reportedSeries')} fill="rgb(133 140 151)" radius={[2, 2, 0, 0]} />
+            <Bar dataKey="rijeseno" name={t('dashboard.resolvedSeries')} fill="rgb(42 89 162)" radius={[2, 2, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -105,7 +105,7 @@ export default function Analytics() {
           ].map(([label, value]) => (
             <div key={label} className="flex min-w-0 flex-col gap-0.5 border-b border-r border-rule px-4 py-2.5 lg:border-b-0">
               <dt className="text-meta leading-snug text-ink-2">{label}</dt>
-              <dd className="numeral whitespace-nowrap text-lg text-ink">{value}</dd>
+              <dd className="whitespace-nowrap font-semibold tabular text-ink">{value}</dd>
             </div>
           ))}
         </dl>

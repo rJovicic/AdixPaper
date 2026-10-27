@@ -34,9 +34,9 @@ function writeDraft(userId, form) {
 }
 
 const PRIORITY_MARKERS = {
-  Hitno: 'bg-urgent-mark',
-  Normalno: 'bg-key',
-  Nisko: 'chip-hollow',
+  Hitno: 'bg-urgent',
+  Normalno: 'bg-ink-2',
+  Nisko: 'border-[1.5px] border-ink-3',
 }
 
 export default function ReportFault() {
@@ -220,7 +220,7 @@ export default function ReportFault() {
               value,
               label: priority(value),
               hint: t(`priorityHint.${value}`),
-              marker: <i aria-hidden="true" className={`chip ${PRIORITY_MARKERS[value]}`} />,
+              marker: <span aria-hidden="true" className={`inline-block h-2.5 w-2.5 rounded-[2px] ${PRIORITY_MARKERS[value]}`} />,
             }))}
           />
 

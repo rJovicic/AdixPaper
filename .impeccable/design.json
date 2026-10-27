@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-27T14:02:48.129893+00:00",
+  "generatedAt": "2026-10-26T14:32:59.232847+00:00",
   "title": "Design System: Adix Paper",
   "extensions": {
     "colorMeta": {
@@ -8,121 +8,85 @@
         "role": "primary",
         "displayName": "Logo Blue",
         "tonalRamp": [
-          "#EAF0F9",
+          "#E7EDF7",
           "#2A59A2",
-          "#224B8A"
+          "#224B8A",
+          "#152C52"
         ]
       },
-      "key": {
+      "shell-deep": {
         "role": "primary",
-        "displayName": "Key",
-        "tonalRamp": [
-          "#1D2025",
-          "#111316"
-        ]
+        "displayName": "Shell Deep"
       },
-      "ground": {
+      "reel-core": {
         "role": "neutral",
-        "displayName": "Ground"
+        "displayName": "Reel Core"
       },
-      "sheet": {
+      "label-stock": {
         "role": "neutral",
-        "displayName": "Sheet"
+        "displayName": "Label Stock"
       },
       "ink": {
         "role": "neutral",
         "displayName": "Ink",
         "tonalRamp": [
-          "#111316",
-          "#4A505A",
-          "#646B75",
-          "#8A9099",
-          "#E3E5E9"
+          "#15181D",
+          "#474E59",
+          "#636B77",
+          "#858C97",
+          "#D6DAE0"
         ]
       },
-      "process-cyan": {
+      "urgent": {
         "role": "state",
-        "displayName": "Process Cyan (new, on time)",
-        "tonalRamp": [
-          "#E3F5FC",
-          "#00A3E0",
-          "#006F99"
-        ]
+        "displayName": "Urgent"
       },
-      "process-yellow": {
-        "role": "state",
-        "displayName": "Process Yellow (in progress, due soon)",
-        "tonalRamp": [
-          "#FFF8CC",
-          "#FFE100",
-          "#C9AE00",
-          "#6E5B00"
-        ]
-      },
-      "process-magenta": {
-        "role": "state",
-        "displayName": "Process Magenta (urgent, overdue, errors)",
-        "tonalRamp": [
-          "#FDEEF5",
-          "#E4007C",
-          "#B3005F"
-        ]
-      },
-      "green-spot": {
-        "role": "state",
-        "displayName": "Green Spot (resolved)",
-        "tonalRamp": [
-          "#E2F4EA",
-          "#00A050",
-          "#006B37"
-        ]
+      "wordmark-grey": {
+        "role": "neutral",
+        "displayName": "Wordmark Grey (resolved, inactive)"
       }
     },
     "typographyMeta": {
-      "fault-number": {
-        "displayName": "Fault number",
-        "purpose": "Mono, padded to three digits; the zeros in ink-tertiary."
+      "reel-number": {
+        "displayName": "Reel number",
+        "purpose": "Fault number in condensed heavy Archivo (wdth 72)."
       },
       "figure": {
         "displayName": "Figure",
-        "purpose": "Colour-bar counts on the overview."
+        "purpose": "Dashboard counts."
       },
       "field-label": {
         "displayName": "Field label",
-        "purpose": "Mono uppercase labels: fields, table headers, colour-bar patches."
-      },
-      "numeral": {
-        "displayName": "Numeral",
-        "purpose": "Times left, dates and counts in rows."
+        "purpose": "Uppercase labels in ruled label grids and table headers."
       }
     },
     "shadows": [
       {
         "name": "label",
-        "value": "0 1px 2px rgb(17 19 22 / 0.06), 0 8px 20px -14px rgb(17 19 22 / 0.25)",
-        "purpose": "Every sheet surface."
+        "value": "0 1px 2px rgb(20 23 28 / 0.06), 0 1px 1px rgb(20 23 28 / 0.04)",
+        "purpose": "Every surface."
       },
       {
         "name": "lift",
-        "value": "0 12px 28px -12px rgb(17 19 22 / 0.28), 0 2px 6px rgb(17 19 22 / 0.08)",
-        "purpose": "Hovered cards, menus, toasts, comboboxes, account panel."
+        "value": "0 6px 16px -6px rgb(20 23 28 / 0.18), 0 2px 4px rgb(20 23 28 / 0.06)",
+        "purpose": "Hovered cards, menus, toasts, combobox lists."
       },
       {
         "name": "dialog",
-        "value": "0 24px 56px -16px rgb(17 19 22 / 0.45), 0 4px 12px rgb(17 19 22 / 0.1)",
-        "purpose": "Dialogs and the search palette."
+        "value": "0 20px 48px -12px rgb(20 23 28 / 0.35), 0 4px 12px rgb(20 23 28 / 0.08)",
+        "purpose": "Dialogs."
       }
     ],
     "motion": [
       {
         "name": "enter-rise",
-        "value": "260ms cubic-bezier(0.16, 1, 0.3, 1), 12px rise",
-        "purpose": "Dialogs, search palette, toasts, login card."
+        "value": "260ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Dialogs, toasts, login card."
       },
       {
         "name": "enter-fade",
         "value": "200ms ease-out",
-        "purpose": "Menus, account panel, drawer."
+        "purpose": "Menus and drawer."
       },
       {
         "name": "state",
@@ -155,73 +119,69 @@
   },
   "components": [
     {
-      "name": "Due strip",
-      "kind": "custom",
-      "refersTo": "due-strip",
-      "description": "The signature: a fault's response window as 12 density steps, cyan on time, yellow from 75 %, magenta overdue.",
-      "html": "<span class=\"ds-strip\" data-ink=\"soon\"><i data-on></i><i data-on></i><i data-on></i><i data-on></i><i data-on></i><i data-on></i><i data-on></i><i data-on></i><i data-on></i><i></i><i></i><i></i></span>",
-      "css": ".ds-strip{display:grid;grid-template-columns:repeat(12,1fr);gap:2px;height:8px;width:180px}.ds-strip i{border-radius:1px;background:#E8EAED}.ds-strip[data-ink=ok]{--ink:#00A3E0}.ds-strip[data-ink=soon]{--ink:#FFE100}.ds-strip[data-ink=late]{--ink:#E4007C}.ds-strip i[data-on]{background:var(--ink)}.ds-strip i[data-on]:nth-child(1){opacity:.35}.ds-strip i[data-on]:nth-child(2){opacity:.45}.ds-strip i[data-on]:nth-child(3){opacity:.55}.ds-strip i[data-on]:nth-child(4){opacity:.65}.ds-strip i[data-on]:nth-child(5){opacity:.75}.ds-strip i[data-on]:nth-child(6){opacity:.85}"
-    },
-    {
-      "name": "State chip",
-      "kind": "chip",
-      "refersTo": "chip",
-      "description": "An 11 px ink square beside its word.",
-      "html": "<span class=\"ds-mark\"><i class=\"ds-chip\" style=\"background:#E4007C\"></i>Hitno</span>",
-      "css": ".ds-mark{display:inline-flex;align-items:center;gap:7px;font:600 14px/1.4 Geist,system-ui;color:#B3005F}.ds-chip{width:11px;height:11px;border-radius:2px;display:inline-block}"
-    },
-    {
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The action ink: one primary action per view.",
-      "html": "<button class=\"ds-btn\">Prijavi kvar</button>",
-      "css": ".ds-btn{height:40px;padding:0 16px;border:0;border-radius:7px;background:#2A59A2;color:#fff;font:600 15px Geist,system-ui;box-shadow:0 1px 2px rgb(17 19 22/.18)}.ds-btn:hover{background:#224B8A}"
+      "description": "Main action on a screen.",
+      "html": "<button class=\"ap-btn\">Pošalji prijavu</button>",
+      "css": ".ap-btn{font:600 15px/1 'Archivo Variable',system-ui,sans-serif;background:#2A59A2;color:#fff;border:0;border-radius:5px;min-height:40px;padding:0 16px}.ap-btn:hover{background:#224B8A}.ap-btn:focus-visible{outline:2px solid #2A59A2;outline-offset:2px}"
     },
     {
-      "name": "Colour-bar patch",
-      "kind": "card",
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Text control with 3:1 border.",
+      "html": "<input class=\"ap-input\" placeholder=\"npr. Nož ne reže do kraja\">",
+      "css": ".ap-input{font:400 16px 'Archivo Variable',system-ui,sans-serif;border:1px solid #858C97;border-radius:5px;min-height:44px;padding:8px 12px;color:#15181D}.ap-input:focus{outline:none;border-color:#2A59A2;box-shadow:0 0 0 2px rgb(42 89 162/.25)}"
+    },
+    {
+      "name": "Rail navigation",
+      "kind": "nav",
+      "refersTo": "shell-rail",
+      "description": "Deep-blue rail; active item is a white chip.",
+      "html": "<nav class=\"ap-rail\"><a class=\"on\">Pregled</a><a>Kvarovi</a><a>Mašine</a></nav>",
+      "css": ".ap-rail{background:#152C52;padding:12px;width:240px;display:grid;gap:4px;font:500 15px 'Archivo Variable',system-ui}.ap-rail a{color:#B8C6DE;padding:12px;border-radius:5px}.ap-rail a.on{background:#fff;color:#152C52}"
+    },
+    {
+      "name": "Label block",
+      "kind": "custom",
       "refersTo": "surface",
-      "description": "Overview count: ink column, mono label, mono figure.",
-      "html": "<a class=\"ds-patch\"><span class=\"ds-ink\"></span><span><span class=\"ds-lbl\">HITNI</span><span class=\"ds-fig\">2</span></span></a>",
-      "css": ".ds-patch{display:grid;grid-template-columns:14px 1fr;width:180px;background:#fff;border:1px solid #E3E5E9;border-radius:10px;overflow:hidden;text-decoration:none}.ds-ink{background:#E4007C}.ds-patch>span:last-child{display:flex;flex-direction:column;gap:6px;padding:14px 16px}.ds-lbl{font:500 11px 'Geist Mono',monospace;letter-spacing:.04em;color:#646B75}.ds-fig{font:600 34px/1 'Geist Mono',monospace;color:#B3005F;letter-spacing:-.03em}"
+      "description": "Signature: fault number and ruled fields.",
+      "html": "<div class=\"ap-label\"><div class=\"n\"><span>#</span>42</div><dl><div><dt>Mašina</dt><dd>Rezačica 1</dd></div><div><dt>Rok</dt><dd>još 1 h 20 min</dd></div></dl></div>",
+      "css": ".ap-label{background:#fff;border:1px solid #D6DAE0;border-radius:8px;overflow:hidden;font-family:'Archivo Variable',system-ui}.ap-label .n{font:800 44px/1 'Archivo Variable';font-variation-settings:'wdth' 72;padding:16px 20px;border-bottom:1px solid #D6DAE0}.ap-label .n span{color:#636B77}.ap-label dl{display:grid;grid-template-columns:1fr 1fr;margin:0}.ap-label dl div{padding:10px 12px;border-right:1px solid #D6DAE0}.ap-label dt{font:600 12px 'Archivo Variable';letter-spacing:.06em;text-transform:uppercase;color:#474E59}.ap-label dd{margin:2px 0 0;color:#15181D}"
     }
   ],
   "narrative": {
-    "northStar": "The press sheet",
-    "overview": "The plant prints napkin and towel packaging; the app borrows the printer's instruments. A fault's response window is ink laid down in density steps; the overview reads like a colour bar between registration marks. Process inks carry state, the logo blue carries action, a key-black shell frames white sheets.",
+    "northStar": "The reel label",
+    "overview": "Each fault is presented like the ID label on a jumbo paper reel: one unmistakable condensed number, ruled fields, one ink. Standard web controls do the work; the world contributes type, palette, density and the label block.",
     "keyCharacteristics": [
-      "Key-black shell, white sheets, cool ground",
-      "Process inks for state only; logo blue for action",
-      "Geist for UI, Geist Mono for everything counted",
-      "Due strip on every open fault"
+      "One brand ink (logo blue)",
+      "Deep-blue shell",
+      "State = square marker + word",
+      "Condensed tabular numerals",
+      "Hairline-ruled field grids"
     ],
     "rules": [
       {
-        "name": "Ink means state",
-        "body": "Cyan, yellow, magenta and green appear only to state something; the logo blue is never a state.",
+        "name": "One Ink Rule",
+        "body": "Only the logo colours (blue, deep blue, wordmark grey) plus ink and white; red only for urgent, overdue and errors.",
         "section": "colors"
       },
       {
-        "name": "Shape-and-word",
-        "body": "Every chip sits beside its word.",
+        "name": "Shape-and-word Rule",
+        "body": "Every status or priority shows a marker and its word.",
         "section": "colors"
-      },
-      {
-        "name": "Mono is measurement",
-        "body": "Geist Mono only for numbers, times, counts and labels.",
-        "section": "typography"
       }
     ],
     "dos": [
       "Lead with what needs action",
-      "Pair every ink chip with its word",
-      "Set numbers in Geist Mono with tabular figures"
+      "Use the team's vocabulary: mašina, kvar, Raspisano",
+      "Translate every string in hr.js and en.js"
     ],
     "donts": [
-      "Colour that is not a state",
-      "Eyebrows, gradient text, glows, hard offset shadows, coloured side borders",
-      "Printing ornament beyond the colour bar, registration marks and due strip"
+      "No eyebrows, gradient text, glows or coloured side borders",
+      "No colour-only signals or pastel pills",
+      "No second typeface or accent"
     ]
   }
 }

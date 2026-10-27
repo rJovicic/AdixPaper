@@ -21,7 +21,7 @@ export default function Field({ label, hint, error, optional = false, required =
       {children({ id, 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined, 'aria-required': required || undefined })}
       {error && (
         <p id={errorId} className="mt-1.5 flex items-start gap-1.5 text-sm font-medium text-urgent">
-          <span aria-hidden="true" className="mt-[0.4rem] h-1.5 w-1.5 shrink-0 rounded-[1px] bg-urgent-mark" />
+          <span aria-hidden="true" className="mt-[0.4rem] h-1.5 w-1.5 shrink-0 rounded-[1px] bg-urgent" />
           {error}
         </p>
       )}

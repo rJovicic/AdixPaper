@@ -248,9 +248,6 @@ export default {
     eventChange: '{from} → {to}',
   },
   dashboard: {
-    inProgress: 'U rješavanju',
-    unassigned: 'Nepreuzeti',
-    colorBar: 'Stanje otvorenih kvarova',
     attentionFilter: 'Prikaži',
     tabAll: 'Svi',
     tabUnassigned: 'Nepreuzeti',
@@ -317,6 +314,10 @@ export default {
     noMatchTitle: 'Nijedan kvar ne odgovara filtrima',
   },
   machines: {
+    qrCreatedTitle: 'Mašina je dodana.',
+    qrCreatedBody: 'Ispišite njezinu QR oznaku i zalijepite je na mašinu, na mjesto gdje je radnici vide.',
+    qrPrint: 'Ispiši QR oznaku',
+    qrRow: 'QR oznaka: {name}',
     qrAll: 'QR oznake',
     qrOne: 'QR oznaka',
     qrHint: 'PDF s QR oznakom za svaku mašinu u upotrebi. Radnik skenira oznaku i odmah prijavljuje kvar na toj mašini.',

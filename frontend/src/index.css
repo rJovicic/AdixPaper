@@ -1,43 +1,37 @@
-@import '@fontsource-variable/geist/wght.css';
-@import '@fontsource-variable/geist-mono/wght.css';
+@import '@fontsource-variable/archivo/wdth.css';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /*
- * Press-sheet palette (DESIGN.md). Values are RGB channels so Tailwind can apply alpha.
- * Contrast (WCAG): every text pair >= 4.5:1, control borders >= 3:1.
- * Process inks carry state; the logo blue is the action ink.
+ * Reel-label palette, from the two colours of the Adix Paper logo: its blue and its
+ * wordmark grey. One red, only for urgent, overdue and errors. No other hues.
+ * Values are RGB channels so Tailwind can apply alpha.
+ * Contrast (WCAG): every text pair >= 4.5:1, control borders >= 3:1. See DESIGN.md.
  */
 :root {
-  --ground: 243 244 246;      /* #F3F4F6 */
-  --stock: 255 255 255;       /* the sheet */
-  --key: 17 19 22;            /* #111316 shell, key ink */
-  --key-2: 29 32 37;          /* #1D2025 raised shell */
-  --ink: 17 19 22;            /* #111316 */
-  --ink-2: 74 80 90;          /* #4A505A */
-  --ink-3: 100 107 117;       /* #646B75, 4.9:1 on ground */
-  --rule: 227 229 233;        /* #E3E5E9 hairlines */
-  --rule-strong: 138 144 153; /* #8A9099 control borders, 3.2:1 */
-  --brand: 42 89 162;         /* #2A59A2 logo blue: actions, links, focus */
+  --ground: 237 239 242;      /* #EDEFF2 reel-core grey */
+  --stock: 255 255 255;       /* label stock */
+  --ink: 21 24 29;            /* #15181D */
+  --ink-2: 71 78 89;          /* #474E59 */
+  --ink-3: 99 107 119;        /* #636B77 */
+  --rule: 214 218 224;        /* #D6DAE0 hairlines */
+  --rule-strong: 133 140 151; /* #858C97 control borders, 3.4:1 */
+  --brand: 42 89 162;         /* #2A59A2 logo blue */
   --brand-hover: 34 75 138;   /* #224B8A */
-  --brand-deep: 17 19 22;     /* shell = key */
-  --brand-wash: 234 240 249;  /* #EAF0F9 selection, hover */
-  --brand-on-deep: 169 175 184; /* #A9AFB8 quiet text on the shell, 8.4:1 */
-  --cyan: 0 163 224;          /* #00A3E0 process cyan, marks only */
-  --cyan-text: 0 111 153;     /* #006F99 */
-  --cyan-wash: 227 245 252;
-  --urgent: 179 0 95;         /* #B3005F magenta text, 6.8:1 */
-  --urgent-mark: 228 0 124;   /* #E4007C process magenta */
-  --urgent-wash: 253 238 245;
-  --warn: 110 91 0;           /* #6E5B00 text */
-  --warn-mark: 255 225 0;     /* #FFE100 process yellow, marks only */
-  --warn-edge: 201 174 0;     /* #C9AE00 edge that keeps yellow visible on white */
-  --warn-wash: 255 248 204;
-  --ok: 0 107 55;             /* #006B37 */
-  --ok-mark: 0 160 80;        /* #00A050 green spot */
-  --ok-wash: 226 244 234;
+  --brand-deep: 21 44 82;     /* #152C52 shell rail */
+  --brand-wash: 231 237 247;  /* #E7EDF7 selection */
+  --brand-on-deep: 184 198 222; /* #B8C6DE quiet text on rail */
+  --urgent: 180 35 24;        /* #B42318 */
+  --urgent-wash: 252 235 233;
+  --grey: 148 149 151;        /* #949597 logo wordmark grey: resolved, inactive */
+  /* "Due soon", "unsaved" and success use the logo blues, not amber or green. */
+  --warn: 21 44 82;           /* #152C52 */
+  --warn-mark: 42 89 162;     /* #2A59A2 */
+  --warn-wash: 231 237 247;
+  --ok: 42 89 162;            /* #2A59A2 */
+  --ok-wash: 231 237 247;
 
   color-scheme: light;
   -webkit-tap-highlight-color: transparent;
@@ -46,11 +40,11 @@
 @layer base {
   html {
     font-family: theme('fontFamily.sans');
-    font-feature-settings: 'ss01' off;
+    font-variation-settings: 'wdth' 100;
   }
   body {
     @apply bg-ground text-ink antialiased;
-    font-size: 0.9375rem;
+    font-size: 1rem;
     line-height: 1.5;
     text-rendering: optimizeLegibility;
   }
@@ -61,7 +55,7 @@
     text-wrap: pretty;
   }
   ::selection {
-    background: rgb(var(--cyan) / 0.22);
+    background: rgb(var(--brand) / 0.18);
     color: rgb(var(--ink));
   }
   :focus-visible {
@@ -84,22 +78,39 @@
 }
 
 @layer components {
-  /* Numbers, times and counts are set in Geist Mono, like the job numbers on a press sheet. */
+  /* Numerals set like the printed number on a reel label. */
   .numeral {
-    font-family: theme('fontFamily.mono');
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
+    font-variation-settings: 'wdth' 72;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.01em;
   }
   .tabular {
     font-variant-numeric: tabular-nums;
   }
   .field-label {
-    @apply font-mono text-label font-medium uppercase text-ink-3;
+    @apply text-label font-semibold uppercase text-ink-2;
   }
 
   .surface {
     @apply rounded-lg border border-rule bg-stock shadow-label;
+  }
+
+  /* In progress: a half-filled logo-blue square (filled = new, hollow = on hold, grey = resolved). */
+  .mark-half {
+    border: 1.5px solid rgb(var(--brand));
+    background: linear-gradient(90deg, rgb(var(--brand)) 50%, transparent 50%);
+  }
+
+  /* Time used of the response window: a hairline, logo blue, red once overdue. */
+  .due-bar {
+    @apply block h-[3px] overflow-hidden rounded-full bg-rule;
+  }
+  .due-bar > i {
+    @apply block h-full rounded-full bg-brand;
+  }
+  .due-bar[data-late] > i {
+    @apply bg-urgent;
   }
 
   .btn {
@@ -114,10 +125,10 @@
     @apply min-h-[2.25rem] px-3 text-sm;
   }
   .btn-primary {
-    @apply btn bg-brand text-stock shadow-[0_1px_2px_rgb(17_19_22/0.18)] hover:bg-brand-hover active:bg-key;
+    @apply btn bg-brand text-stock hover:bg-brand-hover active:bg-brand-deep;
   }
   .btn-secondary {
-    @apply btn border border-[#D2D6DC] bg-stock text-ink hover:border-rule-strong hover:bg-ground/60 active:bg-ground;
+    @apply btn border border-rule-strong bg-stock text-ink hover:border-ink-3 hover:bg-ground/60 active:bg-ground;
   }
   .btn-quiet {
     @apply btn text-ink-2 hover:bg-ink/5 hover:text-ink active:bg-ink/10;
@@ -152,39 +163,8 @@
   }
 
   .table-head {
-    @apply border-b border-rule bg-[#FAFAFB] text-left font-mono text-label font-medium uppercase text-ink-3;
+    @apply border-b border-rule bg-ground/50 text-left text-label font-semibold uppercase text-ink-2;
   }
-
-  /* State marker: a solid ink chip beside its word. */
-  .chip {
-    @apply inline-block h-[0.6875rem] w-[0.6875rem] shrink-0 rounded-[2px];
-  }
-  .chip-yellow {
-    @apply bg-warn-mark shadow-[inset_0_0_0_1px_rgb(var(--warn-edge))];
-  }
-  .chip-hollow {
-    @apply bg-transparent shadow-[inset_0_0_0_1.5px_rgb(var(--ink-3))];
-  }
-
-  /* Signature: the due strip, 12 density steps; ink rises with the share of the response window used. */
-  .due-strip {
-    @apply grid h-2 grid-cols-12 gap-[2px];
-  }
-  .due-strip > i {
-    @apply rounded-[1px] bg-[#E8EAED];
-  }
-  .due-strip > i[data-on] {
-    background: var(--strip-ink);
-  }
-  .due-strip > i[data-on]:nth-child(1) { opacity: 0.35; }
-  .due-strip > i[data-on]:nth-child(2) { opacity: 0.45; }
-  .due-strip > i[data-on]:nth-child(3) { opacity: 0.55; }
-  .due-strip > i[data-on]:nth-child(4) { opacity: 0.65; }
-  .due-strip > i[data-on]:nth-child(5) { opacity: 0.75; }
-  .due-strip > i[data-on]:nth-child(6) { opacity: 0.85; }
-  .due-strip[data-ink='ok'] { --strip-ink: rgb(var(--cyan)); }
-  .due-strip[data-ink='soon'] { --strip-ink: rgb(var(--warn-mark)); }
-  .due-strip[data-ink='late'] { --strip-ink: rgb(var(--urgent-mark)); }
 }
 
 @layer utilities {

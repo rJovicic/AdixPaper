@@ -1,81 +1,70 @@
 ---
 name: Adix Paper
-description: Fault and maintenance log for a paper-converting plant — the press-sheet system.
+description: Fault and maintenance log for a paper-converting plant — the reel-label system.
 colors:
-  key: "#111316"
-  key-raised: "#1D2025"
-  sheet: "#FFFFFF"
-  ground: "#F3F4F6"
-  ink: "#111316"
-  ink-secondary: "#4A505A"
-  ink-tertiary: "#646B75"
-  rule: "#E3E5E9"
-  rule-strong: "#8A9099"
-  on-key-quiet: "#A9AFB8"
+  reel-core: "#EDEFF2"
+  label-stock: "#FFFFFF"
+  ink: "#15181D"
+  ink-secondary: "#474E59"
+  ink-tertiary: "#636B77"
+  rule: "#D6DAE0"
+  rule-strong: "#858C97"
   logo-blue: "#2A59A2"
   logo-blue-hover: "#224B8A"
-  blue-wash: "#EAF0F9"
-  process-cyan: "#00A3E0"
-  cyan-text: "#006F99"
-  cyan-wash: "#E3F5FC"
-  process-magenta: "#E4007C"
-  magenta-text: "#B3005F"
-  magenta-wash: "#FDEEF5"
-  process-yellow: "#FFE100"
-  yellow-edge: "#C9AE00"
-  yellow-text: "#6E5B00"
-  yellow-wash: "#FFF8CC"
-  green-spot: "#00A050"
-  green-text: "#006B37"
-  green-wash: "#E2F4EA"
+  shell-deep: "#152C52"
+  blue-wash: "#E7EDF7"
+  on-shell-quiet: "#B8C6DE"
+  urgent: "#B42318"
+  urgent-wash: "#FCEBE9"
+  wordmark-grey: "#949597"
 typography:
+  reel-number:
+    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontSize: "2.75rem"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "-0.01em"
+  figure:
+    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontSize: "2.5rem"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "-0.01em"
   page-title:
-    fontFamily: "Geist Variable, Geist, system-ui, sans-serif"
+    fontFamily: "Archivo Variable, system-ui, sans-serif"
     fontSize: "1.75rem"
     fontWeight: 600
     lineHeight: 1.2
     letterSpacing: "-0.01em"
   section-title:
-    fontFamily: "Geist Variable, Geist, system-ui, sans-serif"
-    fontSize: "1rem"
+    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontSize: "1.125rem"
     fontWeight: 600
     lineHeight: 1.4
   body:
-    fontFamily: "Geist Variable, Geist, system-ui, sans-serif"
-    fontSize: "0.9375rem"
+    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontSize: "1rem"
     fontWeight: 400
     lineHeight: 1.5
-  meta:
-    fontFamily: "Geist Variable, Geist, system-ui, sans-serif"
-    fontSize: "0.8125rem"
+  table:
+    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontSize: "0.9375rem"
     fontWeight: 400
-    lineHeight: 1.4
-  figure:
-    fontFamily: "Geist Mono Variable, Geist Mono, ui-monospace, monospace"
-    fontSize: "2.125rem"
-    fontWeight: 600
-    lineHeight: 1
-    letterSpacing: "-0.03em"
-  fault-number:
-    fontFamily: "Geist Mono Variable, Geist Mono, ui-monospace, monospace"
-    fontSize: "2.25rem"
-    fontWeight: 600
-    lineHeight: 1
-    letterSpacing: "-0.02em"
-  numeral:
-    fontFamily: "Geist Mono Variable, Geist Mono, ui-monospace, monospace"
+    lineHeight: 1.45
+  meta:
+    fontFamily: "Archivo Variable, system-ui, sans-serif"
     fontSize: "0.8125rem"
     fontWeight: 400
     lineHeight: 1.4
   field-label:
-    fontFamily: "Geist Mono Variable, Geist Mono, ui-monospace, monospace"
-    fontSize: "0.6875rem"
-    fontWeight: 500
-    lineHeight: 1.45
-    letterSpacing: "0.04em"
+    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontSize: "0.75rem"
+    fontWeight: 600
+    lineHeight: 1.33
+    letterSpacing: "0.06em"
 rounded:
-  sm: "4px"
-  md: "7px"
+  sm: "3px"
+  md: "6px"
   lg: "10px"
 spacing:
   xs: "4px"
@@ -88,51 +77,46 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.logo-blue}"
-    textColor: "{colors.sheet}"
+    textColor: "{colors.label-stock}"
     rounded: "{rounded.md}"
     padding: "0 16px"
     height: "40px"
   button-primary-hover:
     backgroundColor: "{colors.logo-blue-hover}"
   button-primary-active:
-    backgroundColor: "{colors.key}"
+    backgroundColor: "{colors.shell-deep}"
   button-primary-large:
     backgroundColor: "{colors.logo-blue}"
-    textColor: "{colors.sheet}"
+    textColor: "{colors.label-stock}"
     rounded: "{rounded.md}"
     height: "52px"
   button-secondary:
-    backgroundColor: "{colors.sheet}"
+    backgroundColor: "{colors.label-stock}"
     textColor: "{colors.ink}"
     rounded: "{rounded.md}"
     padding: "0 16px"
     height: "40px"
   button-danger:
-    backgroundColor: "{colors.magenta-text}"
-    textColor: "{colors.sheet}"
+    backgroundColor: "{colors.urgent}"
+    textColor: "{colors.label-stock}"
     rounded: "{rounded.md}"
     height: "40px"
-  filter-toggle-on:
-    backgroundColor: "{colors.key}"
-    textColor: "{colors.sheet}"
-    rounded: "{rounded.md}"
-    height: "32px"
   input:
-    backgroundColor: "{colors.sheet}"
+    backgroundColor: "{colors.label-stock}"
     textColor: "{colors.ink}"
     rounded: "{rounded.md}"
     padding: "8px 12px"
     height: "44px"
   surface:
-    backgroundColor: "{colors.sheet}"
+    backgroundColor: "{colors.label-stock}"
     rounded: "{rounded.lg}"
   shell-rail:
-    backgroundColor: "{colors.key}"
-    textColor: "{colors.on-key-quiet}"
-    width: "224px"
+    backgroundColor: "{colors.shell-deep}"
+    textColor: "{colors.on-shell-quiet}"
+    width: "256px"
   nav-item-active:
-    backgroundColor: "{colors.key-raised}"
-    textColor: "{colors.sheet}"
+    backgroundColor: "{colors.label-stock}"
+    textColor: "{colors.shell-deep}"
     rounded: "{rounded.md}"
     height: "44px"
 ---
@@ -141,129 +125,143 @@ components:
 
 ## Overview
 
-**North star: the press sheet.** The plant converts paper into printed napkins and towels; every sheet that comes off its presses carries a colour bar, density steps and registration marks so the printer can see at a glance whether the ink is right. Adix Paper uses the same instruments for time: each fault's response window is ink laid down in twelve density steps — cyan while on time, yellow once 75 % of the window is used, magenta when overdue. The overview's counts read like the colour bar on a sheet's edge, between registration marks.
+**North star: the reel label.** Every jumbo reel that leaves a paper machine carries a label — one unmistakable number, ruled fields, one ink. AdixPaper treats each fault the same way: a big condensed number, small uppercase field labels over values in hairline-ruled cells, and the logo blue as the only brand ink. It is a working tool (Impeccable "Operate" mode): the world contributes type, palette, density and one signature move; navigation, tables, forms and dialogs are standard web controls.
 
-It is a working tool (Impeccable "Operate" mode). The world lends only type, palette, density and the one signature move; navigation, tables, forms, dialogs and menus are the standard web controls a lead or worker already knows.
+It replaces three competing looks (blue gradient login, black-and-amber admin, pastel badge pills) with one system, keeping the brand's confirmed asset — the Adix Paper logo and its blue.
 
-Light theme only: workers use phones under bright production-floor lighting and leads use desktops in the workshop office.
+Light theme only: workers use phones on a brightly lit production floor and leads use desktops in the workshop office.
 
 **Key characteristics**
-- A key-black shell (rail on desktop, top bar on phones) around white sheets on a cool grey ground.
-- Process inks carry state; the logo blue carries action (buttons, links, focus). Nothing else is coloured.
-- State is a solid 11 px ink chip + a word — never colour alone, never a pill.
-- Numbers — fault numbers, times, counts, labels — are set in Geist Mono with tabular figures.
-- Replaced the earlier "reel label" system (Archivo, deep-blue shell) on 2026-10-27; see decisions.md.
+- One brand ink (`logo-blue`), a deep-blue shell, everything else neutral until a state needs colour.
+- State is a solid 10 px square + a word — never colour alone, never a pastel pill.
+- Numbers are set condensed and heavy, with tabular figures.
+- Hairline rules group information; shadows are minimal and only lift surfaces.
 
 ## Colors
 
 ### Primary
-- **Logo Blue `#2A59A2`** — the action ink: primary buttons, links, focus rings, selection wash. Sampled from `adix-paper-logo.png`; the brand commitment in PRODUCT.md.
-- **Key `#111316`** — the shell (rail, phone top bar, sign-in header), the "Normal" priority chip, the active filter toggle, assignee initials. Text on it is white or `on-key-quiet #A9AFB8` (8.4:1).
-
-### Process inks (state only)
-| Ink | Mark | Text | Wash | Means |
-|---|---|---|---|---|
-| Cyan | `#00A3E0` | `#006F99` (5.6:1) | `#E3F5FC` | New fault; due strip while on time; "reported" chart series |
-| Yellow | `#FFE100` + `#C9AE00` edge | `#6E5B00` (6.7:1) | `#FFF8CC` | In progress; due strip once 75 % of the window is used |
-| Magenta | `#E4007C` | `#B3005F` (6.8:1) | `#FDEEF5` | Urgent priority, overdue, errors, destructive actions, overdue count in the rail |
-| Green spot | `#00A050` | `#006B37` (6.7:1) | `#E2F4EA` | Resolved; success; "resolved" chart series |
-| Hollow key | 1.5 px `#646B75` inset | ink-secondary | — | On hold, low priority, inactive |
+- **Logo Blue `#2A59A2`** — primary buttons, links, focus rings, selection, active tab underline, the "resolved" chart series. Sampled from `adix-paper-logo.png`.
+- **Shell Deep `#152C52`** — the navigation rail and the phone top bar. Text on it is white or `on-shell-quiet #B8C6DE` (8:1).
+- **Blue Wash `#E7EDF7`** — selected radio cards, hovered rows, menu focus.
 
 ### Neutral
-- **Ground `#F3F4F6`**, **Sheet `#FFFFFF`** for every surface.
-- **Ink `#111316`** (18:1), **Ink Secondary `#4A505A`** (7.4:1 on ground), **Ink Tertiary `#646B75`** (4.9:1 on ground) for metadata, placeholders and field labels.
-- **Rule `#E3E5E9`** hairlines; **Rule Strong `#8A9099`** (3.2:1) for control borders.
+- **Reel Core `#EDEFF2`** — page ground. **Label Stock `#FFFFFF`** — every surface.
+- **Ink `#15181D`** (17.8:1) for text and numerals; **Ink Secondary `#474E59`** (8.4:1) for supporting text; **Ink Tertiary `#636B77`** (5.4:1 on stock, 4.7:1 on ground) for metadata and placeholders.
+- **Rule `#D6DAE0`** for hairlines; **Rule Strong `#858C97`** (3.4:1) for control borders — meets the 3:1 non-text contrast rule.
+
+### State: the logo's two colours, as shapes
+The palette is only what the Adix Paper logo and website use: the logo blue, its deep shade, the wordmark grey `#949597`, white and ink. States are told apart by **shape** (owner's decision, 2026-10-27: no amber, green or other hues).
+
+| State | Mark | Text |
+|---|---|---|
+| New | filled logo-blue square | ink |
+| In progress | half-filled logo-blue square (`.mark-half`) | ink |
+| On hold, low priority, inactive | hollow 1.5 px `#636B77` square | ink-secondary |
+| Resolved | filled wordmark-grey square | ink |
+| Machine in service | half-filled logo-blue | ink |
+| Due soon, unsaved changes, success | — | deep blue `#152C52`, semibold |
+| **Urgent, overdue, errors, destructive** | `#B42318` | `#B42318` (6.6:1), wash `#FCEBE9` |
+
+Red is the one colour outside the logo, kept because "urgent" and "late" must stop the eye on a busy screen; it appears nowhere else.
 
 ### Named Rules
-- **Ink means state.** Cyan, yellow, magenta and green appear only to say what state something is in. The logo blue is never a state.
-- **Shape-and-word Rule.** Every status, priority and machine state shows its chip *and* its word, so it survives greyscale and colour blindness. Cyan and yellow chips are below 3:1 on white by design — the word carries the meaning.
+- **Logo Colours Only.** Logo blue, deep blue, wordmark grey, white and ink. Red only for urgent, overdue and errors. Never amber, green, cyan or other hues.
+- **Shape-and-word Rule.** Every status/priority shows a marker *and* its word, so it survives greyscale and colour blindness.
 
 ## Typography
 
-Two faces of one family, self-hosted via `@fontsource-variable/geist` and `@fontsource-variable/geist-mono` (Latin + Latin Extended for Croatian diacritics).
-- **Geist** for all prose and UI text.
-- **Geist Mono** for anything counted or measured: fault numbers (padded to three digits, `#047`, the zeros in ink-tertiary), times left, counts, dates in the overview header, table headers and field labels (`.field-label`, uppercase, +0.04 em). Monospace here is measurement, never decoration.
+One family: **Archivo Variable** (self-hosted via `@fontsource-variable/archivo`, `wdth` + `wght` axes, Latin-Ext for Croatian diacritics). Normal width for UI; condensed (`wdth 72`, weight 800) for numerals via the `.numeral` class.
 
 ### Hierarchy
 | Role | Size / weight | Use |
 |---|---|---|
-| fault-number | 2.25 rem / 600 mono | Fault detail and worker fault headers |
-| figure | 2.125 rem / 600 mono | Overview colour-bar counts |
+| reel-number | 2.75 rem / 800 condensed | Fault number on detail headers |
+| figure | 2.5 rem / 800 condensed | Dashboard counts |
 | page-title | 1.5–1.75 rem / 600 | One `h1` per page |
-| section-title | 1 rem / 600 | Panel and form section headings |
-| body | 0.9375 rem / 400, 1.5 | Default. Form controls are 16 px on phones (no iOS zoom), 15 px from `sm` |
-| meta | 0.8125 rem | Secondary lines, machine · component |
-| numeral | 0.8125 rem mono | Times left, dates, counts in tables |
-| field-label | 0.6875 rem / 500 mono uppercase | Field labels, table headers, colour-bar labels |
+| section-title | 1–1.125 rem / 600 | Panel and form section headings |
+| body | 1 rem / 400, 1.5 | Default; never below 16 px for prose or inputs |
+| table | 0.9375 rem | Dense lead tables |
+| meta | 0.8125 rem | Timestamps, secondary lines |
+| field-label | 0.75 rem / 600, uppercase, +0.06 em | The label grid and table headers only |
 
-Headings use `text-wrap: balance`, paragraphs `pretty`.
+Headings use `text-wrap: balance`, paragraphs `pretty`. Prose is capped at ~75 ch.
 
 ## Layout
 
-- **Spacing:** Tailwind's 4 px scale; groups 8–12 px, sections 20–24 px.
-- **Shell:** desktop (≥ 1024 px) — fixed 224 px key-black rail: logo, search field (Ctrl/⌘ K), nav with the overdue count beside "Kvarovi", account menu at the foot. Below 1024 px — key-black top bar with menu (drawer), logo and search. Workers get their own top bar with the avatar account menu. Content max width 76 rem (lead) / 42 rem (worker).
-- **Breakpoints:** `xs 420`, `sm 640`, `md 768`, `lg 1024`, `xl 1280`. Tables appear at `md`; below it lists are cards.
-- **Overview (Pregled):** the colour bar (Open · Urgent · Overdue · In progress · Unassigned, each a link into the filtered list); "Needs attention" with All / Unassigned / Mine toggles and the due strip on every row; "My faults" panel beside it from `xl`, below it before. On phones the colour bar is two patches over three.
+- **Spacing:** Tailwind's 4 px scale; groups tight (8–12 px), sections generous (24–32 px). More space above a heading than below.
+- **Shell:** desktop (≥ 1024 px) — fixed 256 px deep-blue rail with nav, language, notifications, account. Below 1024 px — sticky top bar + drawer (native `<dialog>`). Content max width 72 rem (lead) / 42 rem (worker).
+- **Breakpoints:** `xs 420`, `sm 640`, `md 768`, `lg 1024`, `xl 1280`. Tables appear at `md`; below it, lists render as label cards.
+- **Overview (Pregled):** three figures (Open · Urgent · Overdue, each a link into the filtered list); "Needs attention" (up to 10 open faults by time left) with All / Unassigned / Mine toggles; a "My faults" panel beside it from `xl`, below it before. Nothing else: the overview is for acting today.
+- **Analytics (Analize):** one ruled "This month" summary row, faults by month, machines / machine parts with most faults, most used spare parts. Charts load only here. Durations under 10 h show hours and minutes; longer ones show whole hours.
 - **Fault detail:** main column + 18.5 rem status panel (sticky on desktop, first on phones).
 
 ## Elevation & Depth
 
-Flat sheets on a ground; hairlines carry structure.
-- `shadow-label` `0 1px 2px rgb(17 19 22/.06), 0 8px 20px -14px rgb(17 19 22/.25)` — every surface.
-- `shadow-lift` — hovered cards, menus, toasts, comboboxes, the account panel.
-- `shadow-dialog` — dialogs and the search palette; backdrop key at 45–50 %.
+Flat by default; hairlines carry structure.
+- `shadow-label` `0 1px 2px rgb(20 23 28/.06), 0 1px 1px rgb(20 23 28/.04)` — every surface.
+- `shadow-lift` — hovered cards, menus, toasts, comboboxes.
+- `shadow-dialog` — dialogs; backdrop `ink` at 45 %.
 
 ## Shapes
 
-4 px (chips, kbd hints), 7 px (buttons, inputs, nav items, initials), 10 px (surfaces, dialogs, menus). State chips are 11 px squares with a 2 px radius. Assignee initials are 24–32 px rounded squares, key with white mono letters (a hollow square when unassigned).
+Radii are small, like die-cut label corners: 3 px (markers, chips), 6 px (buttons, inputs), 10 px (surfaces, dialogs). Status markers are 10 px squares with a 2 px radius.
 
 ## Components
 
 ### Buttons
-Primary (logo blue), secondary (white, `#D2D6DC` border), quiet (text), danger (magenta), icon (40 × 40, always with `aria-label`). Heights 40 px; `btn-lg` 52 px for the worker's main actions. Filter toggles (overview tabs) are 32 px bordered buttons with `aria-pressed`; on = key fill. Labels name the action ("Pošalji prijavu", "Označi riješenim").
+Primary (logo blue), secondary (white, rule-strong border), quiet (text), danger (urgent), icon (40 × 40, always with `aria-label`). Heights 40 px; `btn-lg` 52 px for the worker's main actions. Disabled at 55 % opacity with `not-allowed` cursor. Labels name the action ("Pošalji prijavu", "Označi riješenim"), never "OK".
 
 ### Inputs / Fields
-`Field` wires label, hint and error to the control (`aria-describedby`, `aria-invalid`). 44 px minimum, rule-strong border, blue focus border + ring; invalid → magenta border. Errors appear under the field with a magenta square and focus moves to the first invalid field on submit (`lib/focus.js`). Optional fields are marked "(neobavezno)".
+`Field` wires label, hint and error to the control (`aria-describedby`, `aria-invalid`). 44 px minimum height, 16 px text (no iOS zoom), rule-strong border, blue focus border + 2 px ring; invalid → urgent border. Errors appear under the field with a red square marker and focus moves to the first invalid field on submit (`lib/focus.js` `focusFirstInvalid`, which waits for the error markers to render). Optional fields are marked "(neobavezno)" rather than required ones starred.
+
+### Radio cards
+For choices that need a sentence (urgency on the report form, role on the user form): 52 px rows, radio + marker + label + hint; selected = blue border on blue wash.
+
+### Cards / Containers
+`surface`: white stock, 1 px rule border, 10 px radius, `shadow-label`. Never nested.
 
 ### Navigation
-Rail items 44 px; active = key-raised fill with a hairline inner ring, `aria-current` from `NavLink`. The overdue count is a magenta mono badge with visually hidden text ("kasni"). Skip link to `#main` on every shell.
+Rail items 44 px tall; active = white chip with deep-blue text; `aria-current` from `NavLink`. The overdue count sits beside "Kvarovi" as a small red badge. Skip link to `#main` on every shell.
 
-### Search palette
-Ctrl/⌘ K or the rail field opens a native `<dialog>`: combobox + listbox, ↑ ↓ Enter Esc, `aria-activedescendant`. Empty query lists open faults by risk; a number finds that fault; text matches title, machine and part, and machines.
+### Search (Ctrl/⌘ K)
+The rail's search field (or Ctrl/⌘ K anywhere) opens a dialog: combobox + listbox, ↑ ↓ Enter Esc. Empty query lists open faults by risk; a number finds that fault; text matches title, machine and part, and machines.
 
 ### Account menu
-A disclosure (not an ARIA menu, because it mixes a language switch with actions): name and role, HR/EN switch, push toggle (leads, when VAPID is set), change password, sign out. Rail row on desktop (opens upward), avatar button in the worker bar.
+A disclosure with name and role, HR/EN switch, push toggle (leads, when VAPID is set), change password and sign out. Rail row on desktop, initials button in the worker's top bar.
 
-### Signature: the due strip
-`DueStrip` (12 steps, 8 px tall, 2 px gaps): steps fill with the share of the response window used, opacity rising 35 % → 100 % across the first six steps like a density scale; ink cyan → yellow (≥ 75 %) → magenta (overdue). Decorative (`aria-hidden`); the mono time text beside it carries the information. Used on overview and list rows (`Due` = time over strip), across the top edge of every phone fault card, under fault headers, and in "My faults".
+### Time left
+`DueTag` (clock + time, red when overdue, deep blue when ≥ 75 % used) over a 3 px `DueBar` hairline showing the share of the response window used (logo blue, red when overdue). On overview rows and in "My faults".
 
-### The colour bar
-Five patches between registration marks: a 14 px solid ink column, mono label, mono figure. Overdue is magenta laid in a 45° screen so it reads apart from urgent. Each patch links to the matching filtered list.
+### Signature: the label block
+`FaultNumber` (condensed numeral, grey `#`) + `LabelFields` (ruled 2- or 4-column `dl` with uppercase field labels). Used on fault detail headers and the worker fault view. Fault cards carry the number beside the title and a ruled STATUS | PRIORITY | DUE strip; an overdue card gets an urgent border and tinted strip. Tables and dashboard rows lead with the number.
+
+The printed **machine QR label** (Machines → QR oznake) carries the same identity: logo-blue "ADIX PAPER" kicker, machine name in bold, type · location in ink-secondary, the call to action "Kvar? Skenirajte kod." in shell-deep, dashed cut lines. PDFs use Liberation Sans (metric twin of Helvetica) because reportlab cannot embed the WOFF2 Archivo.
 
 ### Feedback
-Toasts (`aria-live`): success 5 s, info with link 12 s, errors 9 s with `role="alert"`. Empty states say what will appear; error states name the problem and offer "Pokušaj ponovno". Destructive actions use `ConfirmDialog`. Loading: skeleton rows with `aria-busy`.
+- Toasts (`aria-live`): success 5 s, info with link 12 s, errors 9 s with `role="alert"`.
+- Empty states say what will appear and offer the next action; error states name the problem and offer "Pokušaj ponovno".
+- Destructive or hard-to-reverse actions use `ConfirmDialog` with a specific consequence sentence.
+- Loading: skeleton rows with `aria-busy`.
 
 ## Do's and Don'ts
 
 ### Do:
-- Lead with what needs action; totals and charts come after.
-- Pair every ink chip with its word.
-- Set numbers, times and counts in Geist Mono with tabular figures.
+- Lead with what needs action; put totals and charts after it.
+- Pair every state colour with a marker shape and a word.
 - Use the team's words: *mašina*, *kvar*, *Raspisano*.
-- Translate every new string in `src/i18n/hr.js` and `en.js`; `npm run check:i18n` enforces parity.
+- Translate every new string in both `src/i18n/hr.js` and `en.js`; `npm run check:i18n` enforces parity.
 - Define components at module level (ESLint `react/no-unstable-nested-components`).
 
 ### Don't:
-- Use cyan, yellow, magenta or green for anything that is not a state.
-- Use the logo blue as a state colour, or a second action colour.
-- Add eyebrows above headings, gradient text, glows, hard offset shadows, or coloured side borders.
-- Add printing ornament beyond the colour bar, registration marks and the due strip — on a working screen more world is a costume.
+- Add eyebrows/kickers above headings, gradient text, glows, or coloured side borders.
+- Use colour as the only signal, or pastel pill badges.
+- Introduce a second typeface or a second accent colour.
 - Use `alert()`/`confirm()`; use toasts and `ConfirmDialog`.
 
 ## Accessibility
 
-Target WCAG 2.2 AA, verified by axe-core in the e2e suite on every screen, with the search palette and account menu open (0 serious/critical). Text ≥ 4.5:1, control borders ≥ 3:1, 2 px blue focus outline, keyboard-operable menus, combobox, palette and dialogs (native `<dialog>`), 44 px touch targets, `lang` follows the language switch, reduced motion disables entrance animations and skeleton pulses.
+Target WCAG 2.2 AA. Verified by axe-core in the e2e suite on every screen (0 serious/critical). All text ≥ 4.5:1, control borders ≥ 3:1, visible 2 px focus outline, keyboard-operable menus/combobox/dialogs (native `<dialog>` traps focus and closes on Escape), 44 px touch targets, `lang` attribute follows the language switch, reduced motion disables entrance animations and skeleton pulses.
 
 ## Motion
 
-`enter-rise` (260 ms, `cubic-bezier(0.16, 1, 0.3, 1)`, 12 px rise) for dialogs, the search palette, toasts and the login card; `enter-fade` (200 ms) for menus, the account panel and the drawer. Colour/border transitions 150 ms. All disabled under `prefers-reduced-motion`.
+One motion vocabulary: `enter-rise` (260 ms, `cubic-bezier(0.16, 1, 0.3, 1)`, 12 px rise) for dialogs, toasts and the login card; `enter-fade` (200 ms) for menus and the drawer. Colour/border transitions 150 ms. Everything is disabled under `prefers-reduced-motion`.

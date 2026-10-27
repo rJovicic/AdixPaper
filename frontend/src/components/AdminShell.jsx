@@ -98,11 +98,11 @@ function SearchTrigger({ onOpen }) {
     <button
       type="button"
       onClick={onOpen}
-      className="flex h-10 w-full items-center gap-2.5 rounded border border-white/10 bg-key-2 px-3 text-sm text-brand-on-deep transition-colors hover:border-white/25 hover:text-stock"
+      className="flex h-10 w-full items-center gap-2.5 rounded border border-white/15 bg-white/[0.06] px-3 text-sm text-brand-on-deep transition-colors hover:border-white/25 hover:text-stock"
     >
       <Search size={16} aria-hidden="true" />
       <span className="flex-1 text-left">{t('search.trigger')}</span>
-      <kbd className="rounded-sm border border-white/15 px-1.5 py-0.5 font-mono text-[0.6875rem]">{isMac ? '⌘ K' : 'Ctrl K'}</kbd>
+      <kbd className="rounded-sm border border-white/15 px-1.5 py-0.5 text-[0.6875rem] font-semibold">{isMac ? '⌘ K' : 'Ctrl K'}</kbd>
     </button>
   )
 }
@@ -119,14 +119,14 @@ function ShellNav({ isAdmin, overdue, onNavigate }) {
             onClick={onNavigate}
             className={({ isActive }) =>
               `mb-0.5 flex min-h-[2.75rem] items-center gap-3 rounded px-3 text-[0.9375rem] font-medium transition-colors ${
-                isActive ? 'bg-key-2 text-stock shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]' : 'text-brand-on-deep hover:bg-white/[0.06] hover:text-stock'
+                isActive ? 'bg-stock text-brand-deep shadow-label' : 'text-brand-on-deep hover:bg-white/10 hover:text-stock'
               }`
             }
           >
             <Icon size={18} aria-hidden="true" />
             {t(key)}
             {badge && overdue > 0 && (
-              <span className="ml-auto rounded-sm bg-urgent-mark px-1.5 py-0.5 font-mono text-xs font-semibold text-stock">
+              <span className="ml-auto rounded-sm bg-urgent px-1.5 py-0.5 numeral text-xs text-stock">
                 {overdue}
                 <span className="sr-only"> {t('nav.overdue')}</span>
               </span>
@@ -211,24 +211,24 @@ export default function AdminShell() {
         {t('nav.skip')}
       </a>
 
-      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col bg-key lg:flex">
+      <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col bg-brand-deep lg:flex">
         <div className="px-5 pb-4 pt-5"><Brand /></div>
         <ShellBody isAdmin={isAdmin} overdue={overdue} onSearch={openSearch} />
       </aside>
 
-      <header className="sticky top-0 z-40 flex items-center gap-2 bg-key px-2 py-2 lg:hidden">
+      <header className="sticky top-0 z-40 flex items-center gap-2 bg-brand-deep px-2 py-2 lg:hidden">
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
-          className="btn-icon relative h-11 w-11 text-stock hover:bg-key-2 hover:text-stock"
+          className="btn-icon relative h-11 w-11 text-stock hover:bg-white/10 hover:text-stock"
           aria-label={t('common.menu')}
           aria-expanded={drawerOpen}
         >
           <MenuIcon size={22} aria-hidden="true" />
-          {overdue > 0 && <span aria-hidden="true" className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-urgent-mark ring-2 ring-key" />}
+          {overdue > 0 && <span aria-hidden="true" className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-urgent ring-2 ring-brand-deep" />}
         </button>
         <div className="min-w-0 flex-1"><Brand /></div>
-        <button type="button" onClick={openSearch} className="btn-icon h-11 w-11 text-stock hover:bg-key-2 hover:text-stock" aria-label={t('search.title')}>
+        <button type="button" onClick={openSearch} className="btn-icon h-11 w-11 text-stock hover:bg-white/10 hover:text-stock" aria-label={t('search.title')}>
           <Search size={20} aria-hidden="true" />
         </button>
       </header>
@@ -243,13 +243,13 @@ export default function AdminShell() {
         onMouseDown={(event) => {
           if (event.target === drawerRef.current) setDrawerOpen(false)
         }}
-        className="m-0 h-dvh max-h-dvh w-[min(20rem,86vw)] max-w-none overflow-visible bg-key p-0 backdrop:bg-key/50 lg:hidden"
+        className="m-0 h-dvh max-h-dvh w-[min(20rem,86vw)] max-w-none overflow-visible bg-brand-deep p-0 backdrop:bg-ink/45 lg:hidden"
       >
         {drawerOpen && (
           <div className="enter-fade flex h-full flex-col">
             <div className="flex items-center justify-between px-4 py-3">
               <Brand />
-              <button type="button" onClick={() => setDrawerOpen(false)} className="btn-icon text-stock hover:bg-key-2 hover:text-stock" aria-label={t('common.close')}>
+              <button type="button" onClick={() => setDrawerOpen(false)} className="btn-icon text-stock hover:bg-white/10 hover:text-stock" aria-label={t('common.close')}>
                 <X size={22} aria-hidden="true" />
               </button>
             </div>
