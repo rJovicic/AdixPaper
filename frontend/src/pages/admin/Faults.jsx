@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { ClipboardList, Download, FileSpreadsheet, FileText, RotateCw, Search, SearchX } from 'lucide-react'
+import { ClipboardList, Download, FileSpreadsheet, FileText, Factory, RotateCw, Search, SearchX, X } from 'lucide-react'
 import { api, downloadFile, errorMessage } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
-import { byRisk, OPEN_STATUSES } from '../../lib/sla'
+import { byRisk } from '../../lib/sla'
 import { useI18n } from '../../i18n'
+import { useAuth } from '../../auth/AuthProvider'
 import { useToast } from '../../components/ui/Toast'
 import Menu from '../../components/ui/Menu'
 import FaultCard from '../../components/FaultCard'
@@ -20,6 +21,7 @@ export default function Faults() {
   const { t, format, status: statusLabel, priority: priorityLabel } = i18n
   const toast = useToast()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [params, setParams] = useSearchParams()
   const [limit, setLimit] = useState(PAGE)
   const filters = {
@@ -28,23 +30,30 @@ export default function Faults() {
     prioritet: params.get('prioritet') || '',
     sla: params.get('sla') || '',
     sort: params.get('sort') || 'novo',
+    assignee: params.get('preuzeo') || '',
+    machine: params.get('oprema') || '',
   }
 
-  // Server-side filters; "otvoreni" (all open states) is applied in the browser.
+  // Server-side filters (also used by the exports); search and assignee are applied in the browser.
   const serverQuery = useMemo(() => {
     const query = new URLSearchParams()
-    if (filters.status && filters.status !== 'otvoreni') query.set('status', filters.status)
+    if (filters.status) query.set('status', filters.status)
     if (filters.prioritet) query.set('prioritet', filters.prioritet)
     if (filters.sla) query.set('sla', filters.sla)
+    if (/^\d+$/.test(filters.machine)) query.set('oprema_id', filters.machine)
     return query.toString()
-  }, [filters.status, filters.prioritet, filters.sla])
+  }, [filters.status, filters.prioritet, filters.sla, filters.machine])
 
   const faults = useAsync(() => api.get(`/kvarovi${serverQuery ? `?${serverQuery}` : ''}`).then((response) => asArray(response.data)), [serverQuery])
+  const machine = useAsync(
+    () => (/^\d+$/.test(filters.machine) ? api.get(`/oprema/${filters.machine}`).then((response) => response.data) : null),
+    [filters.machine],
+  )
 
   useEffect(() => {
     document.title = `${t('faults.title')} · ${t('app.name')}`
   }, [t])
-  useEffect(() => setLimit(PAGE), [serverQuery, filters.q, filters.sort])
+  useEffect(() => setLimit(PAGE), [serverQuery, filters.q, filters.sort, filters.assignee])
 
   const setFilter = (key, value) => {
     const next = new URLSearchParams(params)
@@ -56,16 +65,17 @@ export default function Faults() {
   const rows = useMemo(() => {
     const q = filters.q.trim().toLowerCase().replace(/^#/, '')
     let list = faults.data || []
-    if (filters.status === 'otvoreni') list = list.filter((fault) => OPEN_STATUSES.includes(fault.status))
+    if (filters.assignee === 'ja') list = list.filter((fault) => String(fault.voditelj_id) === String(user?.id))
+    if (filters.assignee === 'nitko') list = list.filter((fault) => !fault.voditelj_id)
     if (q) {
       list = list.filter((fault) =>
         String(fault.id) === q ||
         `${fault.naslov} ${fault.oprema?.naziv || ''} ${fault.komponenta?.naziv || ''}`.toLowerCase().includes(q))
     }
     return filters.sort === 'rizik' ? [...list].sort(byRisk) : list
-  }, [faults.data, filters.q, filters.status, filters.sort])
+  }, [faults.data, filters.q, filters.sort, filters.assignee, user?.id])
 
-  const hasFilters = Boolean(filters.q || filters.status || filters.prioritet || filters.sla)
+  const hasFilters = Boolean(filters.q || filters.status || filters.prioritet || filters.sla || filters.assignee || filters.machine)
 
   const exportFile = async (path, filename) => {
     try {
@@ -100,8 +110,20 @@ export default function Faults() {
         }
       />
 
-      <div className="surface mb-4 grid grid-cols-2 gap-2 p-3 sm:gap-3 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
-        <div className="relative col-span-2 lg:col-span-1">
+      {filters.machine && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded border border-rule-strong bg-stock pl-3 text-sm">
+            <Factory size={16} aria-hidden="true" className="text-ink-3" />
+            <span>{t('faults.machineFilter')}: <span className="font-semibold">{machine.data?.naziv || `#${filters.machine}`}</span></span>
+            <button type="button" className="btn-icon h-9 w-9" aria-label={t('faults.clearMachine')} onClick={() => setFilter('oprema', '')}>
+              <X size={16} aria-hidden="true" />
+            </button>
+          </span>
+        </div>
+      )}
+
+      <div className="surface mb-4 grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:gap-3 xl:grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))]">
+        <div className="relative col-span-2 sm:col-span-3 xl:col-span-1">
           <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
           <input
             type="search"
@@ -127,7 +149,12 @@ export default function Faults() {
           <option value="uskoro">{t('sla.filterSoon')}</option>
           <option value="ok">{t('sla.filterOk')}</option>
         </select>
-        <select className="control" aria-label={t('faults.sort')} value={filters.sort} onChange={(event) => setFilter('sort', event.target.value === 'novo' ? '' : event.target.value)}>
+        <select className="control" aria-label={t('faults.assignee')} value={filters.assignee} onChange={(event) => setFilter('preuzeo', event.target.value)}>
+          <option value="">{t('faults.allAssignees')}</option>
+          <option value="ja">{t('faults.assignedToMe')}</option>
+          <option value="nitko">{t('faults.unassigned')}</option>
+        </select>
+        <select className="control col-span-2 sm:col-span-1" aria-label={t('faults.sort')} value={filters.sort} onChange={(event) => setFilter('sort', event.target.value === 'novo' ? '' : event.target.value)}>
           <option value="novo">{t('faults.sortNewest')}</option>
           <option value="rizik">{t('faults.sortRisk')}</option>
         </select>

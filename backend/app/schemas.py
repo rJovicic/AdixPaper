@@ -351,6 +351,31 @@ class KvarOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class KvarListOut(BaseModel):
+    """A fault in lists: what the list views show, without resolution details or parts."""
+    id: int
+    oprema_id: int
+    komponenta_id: Optional[int] = None
+    prijavio_id: int
+    voditelj_id: Optional[int] = None
+    naslov: str
+    prioritet: PrioritetEnum
+    status: StatusKvaraEnum
+    datum_prijave: datetime
+    datum_pocetka: Optional[datetime] = None
+    datum_rjesavanja: Optional[datetime] = None
+    oprema: Optional[OpremaMini] = None
+    komponenta: Optional[KomponentaMini] = None
+    prijavio: Optional[KorisnikMini] = None
+    voditelj: Optional[KorisnikMini] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# Fields of a fault that only leads and admins may see.
+KVAR_INTERNAL_FIELDS = {"napomene_voditelja": None, "materijal": None, "troskovi": None, "utroseni_dijelovi": []}
+
+
 class KvarNovoOut(BaseModel):
     id: int
     naslov: str

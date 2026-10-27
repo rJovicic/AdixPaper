@@ -25,14 +25,14 @@ function Figure({ label, value, to, alert = false, loading }) {
 export default function Dashboard() {
   const { t, format } = useI18n()
   const stats = useAsync(() => get('/dashboard/stats'), [])
-  const faults = useAsync(() => get('/kvarovi').then(asArray), [])
+  const faults = useAsync(() => get('/kvarovi?status=otvoreni').then(asArray), [])
 
   useEffect(() => {
     document.title = `${t('dashboard.title')} · ${t('app.name')}`
   }, [t])
 
   const attention = useMemo(
-    () => (faults.data || []).filter((fault) => OPEN_STATUSES.includes(fault.status)).sort(byRisk).slice(0, 10),
+    () => [...(faults.data || [])].filter((fault) => OPEN_STATUSES.includes(fault.status)).sort(byRisk).slice(0, 10),
     [faults.data],
   )
 

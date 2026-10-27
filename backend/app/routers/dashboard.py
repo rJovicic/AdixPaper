@@ -96,7 +96,7 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
         Kvar.datum_rjesavanja >= month_start
     ).all()
     trajanja = [
-        (k.datum_rjesavanja.replace(tzinfo=None) - k.datum_prijave.replace(tzinfo=None)).total_seconds() / 60
+        (as_utc(k.datum_rjesavanja) - as_utc(k.datum_prijave)).total_seconds() / 60
         for k in rijeseni_records
     ]
     prosjek_min = sum(trajanja) / len(trajanja) if trajanja else 0

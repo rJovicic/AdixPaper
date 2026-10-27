@@ -220,3 +220,24 @@ def test_open_filter_and_invalid_filters(client, make_user, machine):
     assert open_fault["id"] in ids and done["id"] not in ids
     assert client.get("/api/kvarovi?status=nepostojeci", headers=lead_h).status_code == 422
     assert client.get("/api/oprema?status=nepostojeci", headers=lead_h).status_code == 422
+
+
+def test_workers_never_receive_internal_notes_costs_or_parts(client, admin, make_user, machine):
+    _, worker = make_user()
+    _, lead_h = make_user(rola="voditelj")
+    kvar = report(client, worker, machine)
+    part = client.post("/api/rezervni-dijelovi", json={"naziv": "Brtva", "cijena": "3.00"}, headers=admin).json()
+    client.put(
+        f"/api/kvarovi/{kvar['id']}",
+        json={"napomene_voditelja": "Interna procjena", "materijal": "Ljepilo", "troskovi": 120,
+              "utroseni_dijelovi": [{"rezervni_dio_id": part["id"], "kolicina": 1}]},
+        headers=lead_h,
+    )
+    seen = client.get(f"/api/kvarovi/{kvar['id']}", headers=worker).json()
+    assert seen["napomene_voditelja"] is None and seen["materijal"] is None and seen["troskovi"] is None
+    assert seen["utroseni_dijelovi"] == []
+    listed = next(k for k in client.get("/api/kvarovi", headers=worker).json() if k["id"] == kvar["id"])
+    assert "napomene_voditelja" not in listed and "troskovi" not in listed
+    # Leads still get everything on the detail endpoint.
+    full = client.get(f"/api/kvarovi/{kvar['id']}", headers=lead_h).json()
+    assert full["napomene_voditelja"] == "Interna procjena" and len(full["utroseni_dijelovi"]) == 1

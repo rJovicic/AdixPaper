@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router'
 import { Factory, Pencil, Plus, Search, SearchX, Trash2 } from 'lucide-react'
 import { api, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
@@ -275,7 +276,9 @@ export default function Machines() {
                   <p className="truncate text-ink-2">{[machine.tip, machine.lokacija].filter(Boolean).join(' · ')}</p>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-2">
                     <MachineStatus status={machine.status} />
-                    <span>{t('machines.faults')}: <span className="numeral text-ink">{machine.broj_kvarova}</span></span>
+                    <Link to={`/admin/kvarovi?oprema=${machine.id}`} className="link inline-flex min-h-[2.75rem] items-center" aria-label={t('machines.showFaults', { name: machine.naziv, n: machine.broj_kvarova })}>
+                      {t('machines.faults')}: <span className="numeral ml-1">{machine.broj_kvarova}</span>
+                    </Link>
                   </div>
                 </div>
                 {actions(machine)}
@@ -305,7 +308,11 @@ export default function Machines() {
                     <td className="px-4 py-2.5 text-ink-2">{machine.lokacija || '—'}</td>
                     <td className="hidden px-4 py-2.5 text-ink-2 lg:table-cell">{machine.tvrtka || '—'}</td>
                     <td className="px-4 py-2.5"><MachineStatus status={machine.status} /></td>
-                    <td className="numeral px-4 py-2.5 text-right text-lg">{machine.broj_kvarova}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <Link to={`/admin/kvarovi?oprema=${machine.id}`} className="numeral link text-lg" aria-label={t('machines.showFaults', { name: machine.naziv, n: machine.broj_kvarova })}>
+                        {machine.broj_kvarova}
+                      </Link>
+                    </td>
                     <td className="hidden px-4 py-2.5 text-right text-ink-2 tabular lg:table-cell">{format.money(machine.ukupni_troskovi)}</td>
                     <td className="px-2 py-1.5">{actions(machine)}</td>
                   </tr>

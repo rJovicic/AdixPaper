@@ -24,7 +24,16 @@ from ..models import (
     StatusKvaraEnum,
     SLA_SATI,
 )
-from ..schemas import KvarCreate, KvarVoditeljUpdate, KvarOut, KvarKomentarCreate, KvarDogadjajOut, KvarNovoOut
+from ..schemas import (
+    KVAR_INTERNAL_FIELDS,
+    KvarCreate,
+    KvarDogadjajOut,
+    KvarKomentarCreate,
+    KvarListOut,
+    KvarNovoOut,
+    KvarOut,
+    KvarVoditeljUpdate,
+)
 from ..auth import get_current_user, require_admin, require_voditelj_or_admin, role_value
 from ..timeutil import utcnow, as_utc, local_naive
 
@@ -65,6 +74,14 @@ def _can_manage(user: Korisnik) -> bool:
 def _ensure_kvar_access(kvar: Kvar, user: Korisnik):
     if role_value(user.rola) == "radnik" and kvar.prijavio_id != user.id:
         raise HTTPException(status_code=404, detail="Kvar nije pronađen")
+
+
+def _kvar_for(kvar: Kvar, user: Korisnik) -> KvarOut:
+    """The fault as this user may see it: workers never get internal notes, costs or parts."""
+    out = KvarOut.model_validate(kvar)
+    if not _can_manage(user):
+        out = out.model_copy(update=KVAR_INTERNAL_FIELDS)
+    return out
 
 
 def _sla_ratio(kvar: Kvar, now: Optional[datetime] = None) -> Optional[float]:
@@ -119,14 +136,16 @@ def _query_kvarovi(
     prioritet: Optional[str] = None,
     oprema_id: Optional[int] = None,
     sla: Optional[str] = None,
+    with_parts: bool = True,
 ) -> List[Kvar]:
     q = db.query(Kvar).options(
         joinedload(Kvar.oprema),
         joinedload(Kvar.komponenta),
         joinedload(Kvar.prijavio),
         joinedload(Kvar.voditelj),
-        joinedload(Kvar.utroseni_dijelovi).joinedload(KvarRezervniDio.rezervni_dio).joinedload(RezervniDio.dobavljac),
     )
+    if with_parts:
+        q = q.options(joinedload(Kvar.utroseni_dijelovi).joinedload(KvarRezervniDio.rezervni_dio).joinedload(RezervniDio.dobavljac))
     if role_value(current_user.rola) == "radnik":
         q = q.filter(Kvar.prijavio_id == current_user.id)
     if status and status.strip().lower() == OPEN_FILTER:
@@ -217,7 +236,7 @@ def _load_kvar(kvar_id: int, db: Session) -> Kvar:
     return kvar
 
 
-@router.get("", response_model=List[KvarOut])
+@router.get("", response_model=List[KvarListOut])
 def list_kvarovi(
     status: Optional[str] = None,
     prioritet: Optional[str] = None,
@@ -226,7 +245,7 @@ def list_kvarovi(
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(get_current_user)
 ):
-    return _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla)
+    return _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, with_parts=False)
 
 
 @router.get("/novi", response_model=List[KvarNovoOut])
@@ -444,7 +463,7 @@ def export_kvarovi_pdf(
 def get_kvar(kvar_id: int, db: Session = Depends(get_db), current_user: Korisnik = Depends(get_current_user)):
     kvar = _load_kvar(kvar_id, db)
     _ensure_kvar_access(kvar, current_user)
-    return kvar
+    return _kvar_for(kvar, current_user)
 
 
 @router.post("", response_model=KvarOut, status_code=201)
@@ -496,7 +515,7 @@ def create_kvar(
         f"/admin/kvarovi/{kvar.id}"
     )
 
-    return _load_kvar(kvar.id, db)
+    return _kvar_for(_load_kvar(kvar.id, db), current_user)
 
 
 @router.get("/{kvar_id}/dogadjaji", response_model=List[KvarDogadjajOut])
