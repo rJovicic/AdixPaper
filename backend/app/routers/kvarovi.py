@@ -25,7 +25,7 @@ from ..models import (
     SLA_SATI,
 )
 from ..schemas import KvarCreate, KvarVoditeljUpdate, KvarOut, KvarKomentarCreate, KvarDogadjajOut, KvarNovoOut
-from ..auth import get_current_user, require_voditelj_or_admin, role_value
+from ..auth import get_current_user, require_admin, require_voditelj_or_admin, role_value
 from ..timeutil import utcnow, as_utc, local_naive
 
 router = APIRouter(prefix="/api/kvarovi", tags=["kvarovi"])
@@ -39,6 +39,9 @@ def _enum_value(value) -> str:
     return str(raw) if raw is not None else ""
 
 
+OPEN_FILTER = "otvoreni"
+
+
 def _enum_param(enum_cls, value: Optional[str]):
     if not value:
         return None
@@ -46,7 +49,7 @@ def _enum_param(enum_cls, value: Optional[str]):
     for item in enum_cls:
         if item.name.lower() == normalized or item.value.lower() == normalized:
             return item
-    return value
+    raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
 
 
 def _user_label(user: Optional[Korisnik]) -> str:
@@ -126,7 +129,9 @@ def _query_kvarovi(
     )
     if role_value(current_user.rola) == "radnik":
         q = q.filter(Kvar.prijavio_id == current_user.id)
-    if status:
+    if status and status.strip().lower() == OPEN_FILTER:
+        q = q.filter(Kvar.status.in_(list(OPEN_STATUSES)))
+    elif status:
         q = q.filter(Kvar.status == _enum_param(StatusKvaraEnum, status))
     if prioritet:
         q = q.filter(Kvar.prioritet == _enum_param(PrioritetEnum, prioritet))
@@ -468,7 +473,6 @@ def create_kvar(
         naslov=data.naslov,
         opis=data.opis,
         prioritet=data.prioritet,
-        foto_url=data.foto_url,
         status=StatusKvaraEnum.novo
     )
     db.add(kvar)
@@ -569,19 +573,31 @@ def update_kvar(
         if not component:
             raise HTTPException(status_code=404, detail="Komponenta nije pronađena za odabranu opremu")
 
-    if "status" in update_data:
-        new_status = update_data["status"]
-        if new_status == StatusKvaraEnum.u_rjesavanju and not kvar.datum_pocetka:
-            kvar.datum_pocetka = utcnow()
-            if not kvar.voditelj_id:
-                kvar.voditelj_id = current_user.id
-        if new_status == StatusKvaraEnum.rijeseno and not kvar.datum_rjesavanja:
-            kvar.datum_rjesavanja = utcnow()
-        if new_status != StatusKvaraEnum.rijeseno:
-            kvar.datum_rjesavanja = None
+    new_assignee = update_data.get("voditelj_id")
+    if new_assignee is not None and new_assignee != kvar.voditelj_id:
+        assignee = db.query(Korisnik).filter(Korisnik.id == new_assignee).first()
+        if not assignee or not assignee.aktivan or role_value(assignee.rola) not in ("admin", "voditelj"):
+            raise HTTPException(status_code=400, detail="Kvar se može dodijeliti samo aktivnom voditelju ili administratoru")
 
     for field, value in update_data.items():
         setattr(kvar, field, value)
+
+    if "status" in update_data and _enum_value(update_data["status"]) != old_status:
+        new_status = update_data["status"]
+        if new_status == StatusKvaraEnum.u_rjesavanju:
+            if not kvar.datum_pocetka:
+                kvar.datum_pocetka = utcnow()
+            # Taking a fault makes you its owner unless someone else already is. Applied after
+            # the payload so a form that still says "unassigned" cannot undo it.
+            if not kvar.voditelj_id:
+                kvar.voditelj_id = current_user.id
+        if new_status == StatusKvaraEnum.rijeseno:
+            if not (kvar.sto_je_uradjeno or "").strip():
+                raise HTTPException(status_code=400, detail="Prije zatvaranja kvara upišite što je napravljeno")
+            if not kvar.datum_rjesavanja:
+                kvar.datum_rjesavanja = utcnow()
+        else:
+            kvar.datum_rjesavanja = None
 
     db.flush()
 
@@ -679,10 +695,12 @@ def update_kvar(
 def delete_kvar(
     kvar_id: int,
     db: Session = Depends(get_db),
-    _: Korisnik = Depends(require_voditelj_or_admin)
+    current_user: Korisnik = Depends(require_admin),
 ):
+    """Removes a fault and its history. Admin only (e.g. a test or duplicate entry); not offered in the UI."""
     kvar = db.query(Kvar).filter(Kvar.id == kvar_id).first()
     if not kvar:
         raise HTTPException(status_code=404, detail="Kvar nije pronađen")
     db.delete(kvar)
     db.commit()
+    logger.warning("Fault %s deleted by %s", kvar_id, current_user.username)

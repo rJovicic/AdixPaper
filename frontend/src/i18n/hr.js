@@ -171,6 +171,7 @@ export default {
     noDescription: 'Bez opisa.',
     workDone: 'Što je napravljeno',
     workDonePlaceholder: 'Opis radova, uzrok kvara…',
+    workDoneRequired: 'Prije zatvaranja upišite što je napravljeno.',
     duration: 'Zastoj (min)',
     cost: 'Trošak (€)',
     material: 'Ostali materijal',

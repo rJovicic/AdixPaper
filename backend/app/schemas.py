@@ -1,4 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic_core import PydanticCustomError
 from typing import Annotated, Optional, List
 from datetime import date, datetime
 from decimal import Decimal
@@ -21,12 +22,28 @@ class CleanModel(BaseModel):
         return value
 
 
+def not_null(*fields: str):
+    """Rejects an explicit null (or blank text) for columns that cannot be empty.
+
+    Update models make every field optional so clients can send only what changed;
+    without this, `{"naziv": null}` reached the database and failed with a 500.
+    """
+
+    def _check(cls, value):
+        if value is None:
+            raise PydanticCustomError("missing", "Field required")
+        return value
+
+    return field_validator(*fields)(classmethod(_check))
+
+
 Name = Annotated[str, Field(min_length=1, max_length=100)]
 ShortText = Annotated[str, Field(max_length=200)]
 LongText = Annotated[str, Field(max_length=5000)]
 Password = Annotated[str, Field(min_length=8, max_length=72)]
 Username = Annotated[str, Field(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9._-]+$")]
 Money = Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)]
+OptionalName = Optional[Annotated[str, Field(max_length=100)]]
 
 
 # --- AUTH ---
@@ -72,6 +89,8 @@ class KorisnikUpdate(CleanModel):
     aktivan: Optional[bool] = None
     password: Optional[Password] = None
 
+    require_values = not_null("ime", "prezime", "rola", "aktivan")
+
 class KorisnikOut(KorisnikBase):
     id: int
     aktivan: bool
@@ -105,21 +124,27 @@ class OpremaBase(CleanModel):
 class OpremaCreate(OpremaBase):
     naziv: Annotated[str, Field(min_length=1, max_length=200)]
     tip: Name
-    serijski_broj: Optional[Name] = None
+    proizvodac: OptionalName = None
+    model: OptionalName = None
+    serijski_broj: OptionalName = None
     lokacija: Optional[Annotated[str, Field(max_length=150)]] = None
     napomene: Optional[LongText] = None
+
+    require_values = not_null("status")
 
 class OpremaUpdate(CleanModel):
     naziv: Optional[Annotated[str, Field(min_length=1, max_length=200)]] = None
     tip: Optional[Name] = None
     tvrtka: Optional[TvrtkaEnum] = None
-    proizvodac: Optional[str] = None
-    model: Optional[str] = None
-    serijski_broj: Optional[str] = None
-    lokacija: Optional[str] = None
+    proizvodac: OptionalName = None
+    model: OptionalName = None
+    serijski_broj: OptionalName = None
+    lokacija: Optional[Annotated[str, Field(max_length=150)]] = None
     datum_kupnje: Optional[date] = None
     status: Optional[StatusOpremaEnum] = None
-    napomene: Optional[str] = None
+    napomene: Optional[LongText] = None
+
+    require_values = not_null("naziv", "tip", "status")
 
 class OpremaOut(OpremaBase):
     id: int
@@ -148,8 +173,10 @@ class KomponentaCreate(KomponentaBase):
 
 class KomponentaUpdate(CleanModel):
     naziv: Optional[Annotated[str, Field(min_length=1, max_length=150)]] = None
-    opis: Optional[str] = None
+    opis: Optional[LongText] = None
     aktivna: Optional[bool] = None
+
+    require_values = not_null("naziv", "aktivna")
 
 
 class KomponentaOut(KomponentaBase):
@@ -179,7 +206,6 @@ class KvarCreate(CleanModel):
     naslov: ShortText = Field(min_length=1)
     opis: Optional[LongText] = None
     prioritet: PrioritetEnum = PrioritetEnum.normalno
-    foto_url: Optional[str] = None
 
 
 class KvarRezervniDioInput(CleanModel):
@@ -234,8 +260,10 @@ class DobavljacCreate(DobavljacBase):
 
 class DobavljacUpdate(CleanModel):
     naziv: Optional[Annotated[str, Field(min_length=1, max_length=180)]] = None
-    oznaka: Optional[str] = None
+    oznaka: Optional[Annotated[str, Field(max_length=40)]] = None
     aktivan: Optional[bool] = None
+
+    require_values = not_null("naziv", "aktivan")
 
 
 class DobavljacOut(DobavljacBase):
@@ -267,6 +295,8 @@ class RezervniDioUpdate(CleanModel):
     zaliha: Optional[Annotated[Decimal, Field(max_digits=10, decimal_places=2)]] = None
     cijena: Optional[Money] = None
     aktivan: Optional[bool] = None
+
+    require_values = not_null("naziv", "jedinica", "aktivan")
 
 
 class RezervniDioOut(RezervniDioBase):

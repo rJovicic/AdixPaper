@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from ..database import get_db
-from ..models import Oprema, Kvar, Korisnik, KomponentaOpreme
+from ..models import Oprema, Kvar, Korisnik, KomponentaOpreme, StatusOpremaEnum, TvrtkaEnum
 from ..schemas import OpremaCreate, OpremaOut, OpremaUpdate, OpremaWithStats, KomponentaCreate, KomponentaUpdate, KomponentaOut
 from ..auth import get_current_user, require_admin, require_voditelj_or_admin
 
@@ -12,8 +12,8 @@ router = APIRouter(prefix="/api/oprema", tags=["oprema"])
 @router.get("", response_model=List[OpremaWithStats])
 def get_oprema(
     search: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    tvrtka: Optional[str] = Query(None),
+    status: Optional[StatusOpremaEnum] = Query(None),
+    tvrtka: Optional[TvrtkaEnum] = Query(None),
     db: Session = Depends(get_db),
     _: Korisnik = Depends(get_current_user)
 ):
@@ -32,18 +32,25 @@ def get_oprema(
 
     oprema_list = query.order_by(Oprema.naziv).all()
 
-    result = []
-    for o in oprema_list:
-        stats = db.query(
+    # One grouped query instead of one per machine.
+    stats = {
+        row.oprema_id: row
+        for row in db.query(
+            Kvar.oprema_id,
             func.count(Kvar.id).label("broj"),
             func.coalesce(func.sum(Kvar.troskovi), 0).label("troskovi"),
-            func.max(Kvar.datum_prijave).label("zadnji")
-        ).filter(Kvar.oprema_id == o.id).first()
+            func.max(Kvar.datum_prijave).label("zadnji"),
+        ).group_by(Kvar.oprema_id).all()
+    }
 
+    result = []
+    for o in oprema_list:
         item = OpremaWithStats.model_validate(o)
-        item.broj_kvarova = stats.broj or 0
-        item.ukupni_troskovi = float(stats.troskovi or 0)
-        item.zadnji_kvar = stats.zadnji
+        row = stats.get(o.id)
+        if row:
+            item.broj_kvarova = row.broj or 0
+            item.ukupni_troskovi = float(row.troskovi or 0)
+            item.zadnji_kvar = row.zadnji
         result.append(item)
 
     return result

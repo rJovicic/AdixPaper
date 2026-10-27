@@ -16,6 +16,13 @@ test('lead takes, records parts for, and resolves a fault; the worker sees the r
 
   await page.getByRole('button', { name: 'Preuzmi kvar' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Status: U rješavanju' })).toBeVisible()
+  // Taking a fault makes the lead its owner (the form used to send "unassigned" and undo it).
+  await expect(page.locator('dl').getByText('Admin Adix')).toBeVisible()
+
+  // Resolving needs a description of the work done.
+  await page.getByRole('button', { name: 'Označi riješenim' }).click()
+  await expect(page.getByText('Prije zatvaranja upišite što je napravljeno.')).toBeVisible()
+  await expect(page.getByLabel('Što je napravljeno')).toBeFocused()
 
   await page.getByLabel('Što je napravljeno').fill('Zamijenjena brtva ventila.')
   await page.getByLabel('Zastoj (min)').fill('40')

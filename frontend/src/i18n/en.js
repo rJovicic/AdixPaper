@@ -171,6 +171,7 @@ export default {
     noDescription: 'No description.',
     workDone: 'Work done',
     workDonePlaceholder: 'What was done, root cause…',
+    workDoneRequired: 'Describe the work done before resolving.',
     duration: 'Downtime (min)',
     cost: 'Cost (€)',
     material: 'Other material',
@@ -367,6 +368,9 @@ export default {
     home: 'Go to start',
   },
   backend: {
+    'Prije zatvaranja kvara upišite što je napravljeno': 'Describe the work done before resolving the fault.',
+    'Kvar se može dodijeliti samo aktivnom voditelju ili administratoru': 'A fault can only be assigned to an active maintenance lead or administrator.',
+    'Neispravna vrijednost filtra': 'Invalid filter value.',
     'Dobavljač nije pronađen': 'Supplier not found.',
     'Dobavljač već postoji': 'A supplier with this name already exists.',
     'Email već postoji': 'This email is already used by another user.',
