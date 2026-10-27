@@ -39,7 +39,7 @@ from ..schemas import (
     KvarVoditeljUpdate,
 )
 from ..auth import get_current_user, require_admin, require_voditelj_or_admin, role_value
-from ..timeutil import utcnow, as_utc, local_naive
+from ..timeutil import utcnow, as_utc, local_naive, period_start
 from ..images import reencode_photo
 
 router = APIRouter(prefix="/api/kvarovi", tags=["kvarovi"])
@@ -157,6 +157,7 @@ def _query_kvarovi(
     sort: Optional[str] = None,
     limit: Optional[int] = None,
     offset: int = 0,
+    rijeseno: Optional[str] = None,
 ):
     """Faults matching the filters, as (page, total). Without `limit`, the page is every match."""
     query = db.query(Kvar).options(
@@ -181,6 +182,12 @@ def _query_kvarovi(
         if cekanje not in RAZLOZI_CEKANJA:
             raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
         query = query.filter(Kvar.status == StatusKvaraEnum.na_cekanju, Kvar.razlog_cekanja == cekanje)
+    if rijeseno:
+        # Resolved within an overview period ("7d", "mjesec", …), so the overview's count links here.
+        since = period_start(rijeseno)
+        if since is None:
+            raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
+        query = query.filter(Kvar.status == StatusKvaraEnum.rijeseno, Kvar.datum_rjesavanja >= since)
     if preuzeo:
         if preuzeo == "ja":
             query = query.filter(Kvar.voditelj_id == current_user.id)
@@ -315,13 +322,14 @@ def list_kvarovi(
     sort: Optional[str] = None,
     limit: Optional[int] = Query(None, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    rijeseno: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(get_current_user)
 ):
     """Faults the user may see. With `limit`, one page; the total is in the X-Total-Count header."""
     records, total = _query_kvarovi(
         db, current_user, status, prioritet, oprema_id, sla, with_parts=False,
-        cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, limit=limit, offset=offset,
+        cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, limit=limit, offset=offset, rijeseno=rijeseno,
     )
     response.headers["X-Total-Count"] = str(total)
     return records
@@ -375,13 +383,14 @@ def export_kvarovi_xlsx(
     preuzeo: Optional[str] = Query(None, max_length=20),
     q: Optional[str] = Query(None, max_length=200),
     sort: Optional[str] = None,
+    rijeseno: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(require_voditelj_or_admin),
 ):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
 
-    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort)
+    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, rijeseno=rijeseno)
     wb = Workbook()
     ws = wb.active
     ws.title = "Kvarovi"
@@ -441,13 +450,14 @@ def export_utroseni_dijelovi_xlsx(
     preuzeo: Optional[str] = Query(None, max_length=20),
     q: Optional[str] = Query(None, max_length=200),
     sort: Optional[str] = None,
+    rijeseno: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(require_voditelj_or_admin),
 ):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
 
-    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort)
+    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, rijeseno=rijeseno)
     kvar_ids = [k.id for k in records]
     utrosci = []
     if kvar_ids:
@@ -523,6 +533,7 @@ def export_kvarovi_pdf(
     preuzeo: Optional[str] = Query(None, max_length=20),
     q: Optional[str] = Query(None, max_length=200),
     sort: Optional[str] = None,
+    rijeseno: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(require_voditelj_or_admin),
 ):
@@ -532,7 +543,7 @@ def export_kvarovi_pdf(
 
     from ..pdf import BRAND_BLUE, register_fonts, stylesheet
 
-    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort)
+    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, rijeseno=rijeseno)
     output = BytesIO()
     doc = SimpleDocTemplate(output, pagesize=landscape(A4), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
     regular, bold = register_fonts()

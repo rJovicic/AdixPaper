@@ -1,29 +1,55 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { ClipboardList, Download, FileSpreadsheet, FileText, Factory, RotateCw, Search, SearchX, X } from 'lucide-react'
+import { CalendarCheck, ClipboardList, Download, FileSpreadsheet, FileText, Factory, RotateCw, Search, SearchX, X } from 'lucide-react'
 import { api, downloadFile, errorMessage } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
-import { byRisk } from '../../lib/sla'
 import { useI18n } from '../../i18n'
-import { useAuth } from '../../auth/AuthProvider'
 import { useToast } from '../../components/ui/Toast'
 import Menu from '../../components/ui/Menu'
 import FaultCard from '../../components/FaultCard'
-import { DueTag, FaultNumber, PriorityMark, StatusMark } from '../../components/ui/Marks'
+import { DueTag, FaultNumber, PriorityMark, StatusMark, WaitingTag } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
 
 const PAGE = 50
 const STATUSES = ['Novo', 'U rješavanju', 'Na čekanju', 'Riješeno']
 const PRIORITIES = ['Hitno', 'Normalno', 'Nisko']
+const WAITING = ['dijelovi', 'vanjski_servis', 'odobrenje', 'proizvodnja', 'ostalo']
+const PERIODS = ['danas', '7d', '30d', 'mjesec']
+const SEARCH_DELAY_MS = 250
+
+async function fetchPage(query, offset) {
+  const response = await api.get(`/kvarovi?${query}${query ? '&' : ''}limit=${PAGE}&offset=${offset}`)
+  return { rows: asArray(response.data), total: Number(response.headers['x-total-count'] ?? response.data.length) }
+}
+
+/** The URL's search text, settled: the list is not re-fetched on every keystroke. */
+function useSettled(value, delay) {
+  const [settled, setSettled] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return settled
+}
+
+function FilterChip({ icon: Icon, label, value, clearLabel, onClear }) {
+  return (
+    <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded border border-rule-strong bg-stock pl-3 text-sm">
+      <Icon size={16} aria-hidden="true" className="text-ink-3" />
+      <span>{label}: <span className="font-semibold">{value}</span></span>
+      <button type="button" className="btn-icon h-9 w-9" aria-label={clearLabel} onClick={onClear}>
+        <X size={16} aria-hidden="true" />
+      </button>
+    </span>
+  )
+}
 
 export default function Faults() {
   const i18n = useI18n()
-  const { t, format, status: statusLabel, priority: priorityLabel } = i18n
+  const { t, format, status: statusLabel, priority: priorityLabel, waitingReason } = i18n
   const toast = useToast()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const [params, setParams] = useSearchParams()
-  const [limit, setLimit] = useState(PAGE)
   const filters = {
     q: params.get('q') || '',
     status: params.get('status') || '',
@@ -32,28 +58,40 @@ export default function Faults() {
     sort: params.get('sort') || 'novo',
     assignee: params.get('preuzeo') || '',
     machine: params.get('oprema') || '',
+    waiting: params.get('cekanje') || '',
+    resolved: PERIODS.includes(params.get('rijeseno')) ? params.get('rijeseno') : '',
   }
+  const settledQ = useSettled(filters.q.trim(), SEARCH_DELAY_MS)
 
-  // Server-side filters (also used by the exports); search and assignee are applied in the browser.
+  // Every filter is applied on the server, so the count, the pages and the exports agree.
   const serverQuery = useMemo(() => {
     const query = new URLSearchParams()
     if (filters.status) query.set('status', filters.status)
     if (filters.prioritet) query.set('prioritet', filters.prioritet)
     if (filters.sla) query.set('sla', filters.sla)
     if (/^\d+$/.test(filters.machine)) query.set('oprema_id', filters.machine)
+    if (WAITING.includes(filters.waiting)) query.set('cekanje', filters.waiting)
+    if (filters.assignee === 'ja' || filters.assignee === 'nitko' || /^\d+$/.test(filters.assignee)) query.set('preuzeo', filters.assignee)
+    if (filters.resolved) query.set('rijeseno', filters.resolved)
+    if (settledQ) query.set('q', settledQ)
+    if (filters.sort !== 'novo') query.set('sort', filters.sort)
     return query.toString()
-  }, [filters.status, filters.prioritet, filters.sla, filters.machine])
+  }, [filters.status, filters.prioritet, filters.sla, filters.machine, filters.waiting, filters.assignee, filters.resolved, settledQ, filters.sort])
 
-  const faults = useAsync(() => api.get(`/kvarovi${serverQuery ? `?${serverQuery}` : ''}`).then((response) => asArray(response.data)), [serverQuery])
+  const firstPage = useAsync(() => fetchPage(serverQuery, 0), [serverQuery])
+  // Pages loaded with "Show more" belong to the first page they extend; a new first page drops them.
+  const [moreState, setMore] = useState({ base: null, rows: [], loading: false })
+  const more = moreState.base === firstPage.data ? moreState : { base: firstPage.data, rows: [], loading: false }
+
   const machine = useAsync(
     () => (/^\d+$/.test(filters.machine) ? api.get(`/oprema/${filters.machine}`).then((response) => response.data) : null),
     [filters.machine],
   )
+  const leads = useAsync(() => api.get('/korisnici/radnici/lista').then((response) => asArray(response.data).filter((user) => user.rola !== 'radnik')), [])
 
   useEffect(() => {
     document.title = `${t('faults.title')} · ${t('app.name')}`
   }, [t])
-  useEffect(() => setLimit(PAGE), [serverQuery, filters.q, filters.sort, filters.assignee])
 
   const setFilter = (key, value) => {
     const next = new URLSearchParams(params)
@@ -62,20 +100,22 @@ export default function Faults() {
     setParams(next, { replace: true })
   }
 
-  const rows = useMemo(() => {
-    const q = filters.q.trim().toLowerCase().replace(/^#/, '')
-    let list = faults.data || []
-    if (filters.assignee === 'ja') list = list.filter((fault) => String(fault.voditelj_id) === String(user?.id))
-    if (filters.assignee === 'nitko') list = list.filter((fault) => !fault.voditelj_id)
-    if (q) {
-      list = list.filter((fault) =>
-        String(fault.id) === q ||
-        `${fault.naslov} ${fault.oprema?.naziv || ''} ${fault.komponenta?.naziv || ''}`.toLowerCase().includes(q))
-    }
-    return filters.sort === 'rizik' ? [...list].sort(byRisk) : list
-  }, [faults.data, filters.q, filters.sort, filters.assignee, user?.id])
+  const rows = useMemo(() => [...(firstPage.data?.rows || []), ...more.rows], [firstPage.data, more.rows])
+  const total = firstPage.data?.total ?? 0
 
-  const hasFilters = Boolean(filters.q || filters.status || filters.prioritet || filters.sla || filters.assignee || filters.machine)
+  const loadMore = async () => {
+    const base = firstPage.data
+    setMore({ ...more, loading: true })
+    try {
+      const page = await fetchPage(serverQuery, rows.length)
+      setMore((current) => (current.base === base ? { base, rows: [...current.rows, ...page.rows], loading: false } : current))
+    } catch (error) {
+      setMore((current) => ({ ...current, loading: false }))
+      toast.error(`${t('faults.loadMoreFailed')} ${errorMessage(error, i18n)}`)
+    }
+  }
+
+  const hasFilters = Boolean(filters.q || filters.status || filters.prioritet || filters.sla || filters.assignee || filters.machine || filters.waiting || filters.resolved)
 
   const exportFile = async (path, filename) => {
     try {
@@ -85,15 +125,16 @@ export default function Faults() {
     }
   }
 
+  const loading = firstPage.loading
   return (
     <div>
       <PageHeader
         title={t('faults.title')}
-        meta={faults.data ? t('common.results', { n: rows.length }) : ' '}
+        meta={firstPage.data ? t('common.results', { n: total }) : ' '}
         actions={
           <>
-            <button type="button" onClick={faults.reload} disabled={faults.loading} className="btn-secondary" aria-label={t('common.refresh')}>
-              <RotateCw size={17} aria-hidden="true" className={faults.loading ? 'animate-spin motion-reduce:animate-none' : ''} />
+            <button type="button" onClick={firstPage.reload} disabled={loading} className="btn-secondary" aria-label={t('common.refresh')}>
+              <RotateCw size={17} aria-hidden="true" className={loading ? 'animate-spin motion-reduce:animate-none' : ''} />
               <span className="hidden sm:inline">{t('common.refresh')}</span>
             </button>
             <Menu
@@ -110,19 +151,30 @@ export default function Faults() {
         }
       />
 
-      {filters.machine && (
+      {(filters.machine || filters.resolved) && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="inline-flex min-h-[2.25rem] items-center gap-2 rounded border border-rule-strong bg-stock pl-3 text-sm">
-            <Factory size={16} aria-hidden="true" className="text-ink-3" />
-            <span>{t('faults.machineFilter')}: <span className="font-semibold">{machine.data?.naziv || `#${filters.machine}`}</span></span>
-            <button type="button" className="btn-icon h-9 w-9" aria-label={t('faults.clearMachine')} onClick={() => setFilter('oprema', '')}>
-              <X size={16} aria-hidden="true" />
-            </button>
-          </span>
+          {filters.machine && (
+            <FilterChip
+              icon={Factory}
+              label={t('faults.machineFilter')}
+              value={machine.data?.naziv || `#${filters.machine}`}
+              clearLabel={t('faults.clearMachine')}
+              onClear={() => setFilter('oprema', '')}
+            />
+          )}
+          {filters.resolved && (
+            <FilterChip
+              icon={CalendarCheck}
+              label={t('faults.resolvedFilter')}
+              value={t(`dashboard.periodName.${filters.resolved}`)}
+              clearLabel={t('faults.clearResolved')}
+              onClear={() => setFilter('rijeseno', '')}
+            />
+          )}
         </div>
       )}
 
-      <div className="surface mb-4 grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:gap-3 xl:grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))]">
+      <div className="surface mb-4 grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:gap-3 xl:grid-cols-[minmax(0,1.6fr)_repeat(6,minmax(0,1fr))]">
         <div className="relative col-span-2 sm:col-span-3 xl:col-span-1">
           <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
           <input
@@ -130,6 +182,7 @@ export default function Faults() {
             className="control pl-9"
             aria-label={t('common.search')}
             placeholder={t('faults.searchPlaceholder')}
+            maxLength={200}
             value={filters.q}
             onChange={(event) => setFilter('q', event.target.value)}
           />
@@ -149,21 +202,31 @@ export default function Faults() {
           <option value="uskoro">{t('sla.filterSoon')}</option>
           <option value="ok">{t('sla.filterOk')}</option>
         </select>
+        <select className="control" aria-label={t('waiting.filter')} value={filters.waiting} onChange={(event) => setFilter('cekanje', event.target.value)}>
+          <option value="">{t('waiting.allReasons')}</option>
+          {WAITING.map((value) => <option key={value} value={value}>{waitingReason(value)}</option>)}
+        </select>
         <select className="control" aria-label={t('faults.assignee')} value={filters.assignee} onChange={(event) => setFilter('preuzeo', event.target.value)}>
           <option value="">{t('faults.allAssignees')}</option>
           <option value="ja">{t('faults.assignedToMe')}</option>
           <option value="nitko">{t('faults.unassigned')}</option>
+          {(leads.data || []).length > 0 && (
+            <optgroup label={t('faults.allLeads')}>
+              {leads.data.map((user) => <option key={user.id} value={String(user.id)}>{user.ime} {user.prezime}</option>)}
+            </optgroup>
+          )}
         </select>
-        <select className="control col-span-2 sm:col-span-1" aria-label={t('faults.sort')} value={filters.sort} onChange={(event) => setFilter('sort', event.target.value === 'novo' ? '' : event.target.value)}>
+        <select className="control" aria-label={t('faults.sort')} value={filters.sort} onChange={(event) => setFilter('sort', event.target.value === 'novo' ? '' : event.target.value)}>
           <option value="novo">{t('faults.sortNewest')}</option>
+          <option value="staro">{t('faults.sortOldest')}</option>
           <option value="rizik">{t('faults.sortRisk')}</option>
         </select>
       </div>
 
-      {faults.loading && !faults.data ? (
+      {loading && !firstPage.data ? (
         <div className="surface"><LoadingRows rows={6} /></div>
-      ) : faults.error ? (
-        <div className="surface"><ErrorState error={faults.error} onRetry={faults.reload} /></div>
+      ) : firstPage.error ? (
+        <div className="surface"><ErrorState error={firstPage.error} onRetry={firstPage.reload} /></div>
       ) : rows.length === 0 ? (
         <div className="surface">
           {hasFilters ? (
@@ -177,9 +240,9 @@ export default function Faults() {
           )}
         </div>
       ) : (
-        <>
+        <div aria-busy={loading} className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
           <ul className="space-y-3 md:hidden">
-            {rows.slice(0, limit).map((fault) => (
+            {rows.map((fault) => (
               <li key={fault.id}><FaultCard fault={fault} to={`/admin/kvarovi/${fault.id}`} /></li>
             ))}
           </ul>
@@ -198,7 +261,7 @@ export default function Faults() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
-                {rows.slice(0, limit).map((fault) => (
+                {rows.map((fault) => (
                   <tr
                     key={fault.id}
                     onClick={(event) => {
@@ -213,8 +276,15 @@ export default function Faults() {
                       <span className="block truncate text-meta text-ink-2">{[fault.oprema?.naziv, fault.komponenta?.naziv].filter(Boolean).join(' · ')}</span>
                     </td>
                     <td className="px-4 py-3"><PriorityMark priority={fault.prioritet} /></td>
-                    <td className="px-4 py-3"><StatusMark status={fault.status} /></td>
-                    <td className="px-4 py-3">{fault.status === 'Riješeno' ? <span className="text-ink-3">—</span> : <DueTag fault={fault} />}</td>
+                    <td className="px-4 py-3">
+                      <StatusMark status={fault.status} />
+                      <WaitingTag fault={fault} className="mt-0.5 flex text-meta" />
+                    </td>
+                    <td className="px-4 py-3">
+                      {fault.status === 'Riješeno'
+                        ? <span className="whitespace-nowrap text-sm tabular text-ink-2">{format.dateShort(fault.datum_rjesavanja)}</span>
+                        : <DueTag fault={fault} />}
+                    </td>
                     <td className="hidden max-w-[11rem] truncate px-4 py-3 text-ink-2 lg:table-cell">
                       {fault.voditelj ? `${fault.voditelj.ime} ${fault.voditelj.prezime}` : '—'}
                     </td>
@@ -225,14 +295,14 @@ export default function Faults() {
             </table>
           </div>
 
-          {rows.length > limit && (
+          {rows.length < total && (
             <div className="mt-4 flex justify-center">
-              <button type="button" className="btn-secondary" onClick={() => setLimit((value) => value + PAGE)}>
-                {t('common.showMore', { n: Math.min(PAGE, rows.length - limit) })}
+              <button type="button" className="btn-secondary" disabled={more.loading} onClick={loadMore}>
+                {more.loading ? t('faults.loadingMore') : t('common.showMore', { n: Math.min(PAGE, total - rows.length) })}
               </button>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   )

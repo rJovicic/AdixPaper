@@ -101,3 +101,67 @@ export function Due({ fault, className = '' }) {
     </span>
   )
 }
+
+const REASON_TONE = {
+  kasni: { mark: 'bg-urgent', text: 'font-semibold text-urgent' },
+  hitno: { mark: 'bg-urgent', text: 'font-semibold text-urgent' },
+  uskoro: { mark: 'mark-half', text: 'font-semibold text-warn' },
+  nedodijeljen: { mark: 'border-[1.5px] border-brand bg-transparent', text: 'font-semibold text-warn' },
+  ceka_dugo: { mark: 'border-[1.5px] border-ink-3 bg-transparent', text: 'font-medium text-ink-2' },
+}
+
+function reasonText(reason, fault, i18n, now) {
+  const { t, format } = i18n
+  if (reason === 'kasni' || reason === 'uskoro') {
+    const info = slaInfo(fault, now)
+    return t(`attention.${reason}`, { time: format.duration(Math.abs(info.minutesLeft ?? 0)) })
+  }
+  if (reason === 'ceka_dugo') {
+    const waited = fault.cekanje_od ? (now - new Date(fault.cekanje_od).getTime()) / 60000 : 0
+    const text = t('attention.ceka_dugo', { time: format.duration(waited) })
+    return fault.razlog_cekanja ? `${text} · ${i18n.waitingReason(fault.razlog_cekanja)}` : text
+  }
+  return t(`attention.${reason}`)
+}
+
+/**
+ * Why a fault needs attention, in words (server codes in `fault.razlozi_paznje`, most pressing
+ * first). Overdue/due-soon are recomputed from the clock so the times stay current.
+ */
+export function AttentionReasons({ fault, max = 3, skip = [], className = '' }) {
+  const i18n = useI18n()
+  const now = Date.now()
+  const info = slaInfo(fault, now)
+  // The server's codes were right when the list loaded; time may have moved a fault from "soon" to "late".
+  const reasons = (fault.razlozi_paznje || [])
+    .map((reason) => (reason === 'uskoro' && info.state === 'late' ? 'kasni' : reason))
+    .filter((reason) => !skip.includes(reason))
+  if (reasons.length === 0) return null
+  return (
+    <ul className={`flex flex-wrap gap-x-3 gap-y-1 ${className}`}>
+      {reasons.slice(0, max).map((reason) => {
+        const tone = REASON_TONE[reason] || REASON_TONE.ceka_dugo
+        return (
+          <li key={reason} className={`inline-flex items-center gap-1.5 whitespace-nowrap text-sm ${tone.text}`}>
+            <Square className={tone.mark} />
+            {reasonText(reason, fault, i18n, now)}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+/** "Waiting: spare parts · 2 d" for faults on hold. Renders nothing otherwise. */
+export function WaitingTag({ fault, className = '' }) {
+  const { t, format, waitingReason } = useI18n()
+  if (fault?.status !== 'Na čekanju' || !fault.razlog_cekanja) return null
+  const waited = fault.cekanje_od ? (Date.now() - new Date(fault.cekanje_od).getTime()) / 60000 : null
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-sm text-ink-2 ${className}`}>
+      <Square className="border-[1.5px] border-ink-3 bg-transparent" />
+      {t('waiting.waitingFor', { reason: waitingReason(fault.razlog_cekanja) })}
+      {waited !== null && <span className="tabular text-ink-3">· {format.duration(waited)}</span>}
+    </span>
+  )
+}

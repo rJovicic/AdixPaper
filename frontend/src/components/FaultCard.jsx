@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 import { ChevronRight } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { slaInfo } from '../lib/sla'
-import { DueTag, FaultNumber, PriorityMark, StatusMark } from './ui/Marks'
+import { DueTag, FaultNumber, PriorityMark, StatusMark, WaitingTag } from './ui/Marks'
 
 function Cell({ label, children, wrap = false }) {
   return (
@@ -46,9 +46,10 @@ export default function FaultCard({ fault, to, highlight = false }) {
         )}
       </div>
       {!resolved && (
-        <p className="border-t border-rule px-4 py-2 text-meta text-ink-2">
-          {fault.voditelj ? t('worker.handledBy', { name: `${fault.voditelj.ime} ${fault.voditelj.prezime}` }) : t('worker.waiting')}
-        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-rule px-4 py-2 text-meta text-ink-2">
+          <span>{fault.voditelj ? t('worker.handledBy', { name: `${fault.voditelj.ime} ${fault.voditelj.prezime}` }) : t('worker.waiting')}</span>
+          <WaitingTag fault={fault} className="text-meta" />
+        </div>
       )}
     </Link>
   )

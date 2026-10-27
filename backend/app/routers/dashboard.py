@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Optional
 
 from ..database import get_db
 from ..models import Oprema, Kvar, Korisnik, KvarDogadjaj, RolaEnum, StatusKvaraEnum, PrioritetEnum, SLA_SATI, KomponentaOpreme, KvarRezervniDio, RezervniDio, Dobavljac
 from ..schemas import Pregled, PregledAktivnost, PregledKpi, PregledOpterecenje, KorisnikMini, DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
 from ..auth import require_voditelj_or_admin
-from ..timeutil import utcnow, as_utc, local_day_start, local_month_start, local_year_start, local_month_number
+from ..timeutil import utcnow, as_utc, local_day_start, local_month_start, local_year_start, local_month_number, period_start
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -31,21 +31,7 @@ def _sla_ratio(kvar: Kvar, now: datetime) -> Optional[float]:
     return elapsed / limit
 
 
-PERIODS = ("danas", "7d", "30d", "mjesec")
-
-
-def period_start(period: str, now: datetime) -> datetime:
-    """Start of a reporting period in the plant's calendar ("7d" = the last 7 days, today included)."""
-    if period == "danas":
-        return local_day_start(now)
-    if period == "mjesec":
-        return local_month_start(now)
-    if period in ("7d", "30d"):
-        return local_day_start(now) - timedelta(days=int(period[:-1]) - 1)
-    raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
-
-
-ACTIVITY_ROWS = 12
+ACTIVITY_ROWS = 8
 
 
 @router.get("/pregled", response_model=Pregled)
@@ -61,6 +47,8 @@ def get_pregled(
     """
     now = utcnow()
     od = period_start(period, now)
+    if od is None:
+        raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
 
     open_faults = db.query(Kvar).options(joinedload(Kvar.voditelj)).filter(Kvar.status.in_(OPEN_STATUSES)).all()
     reasons = {k.id: k.razlozi_paznje_u(now) for k in open_faults}

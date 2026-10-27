@@ -122,6 +122,7 @@ def test_overview_counts_match_the_lists_they_link_to(client, admin, make_user, 
     assert kpi["na_cekanju"] == count("status=Na čekanju")
     assert kpi["ceka_dijelove"] == count("cekanje=dijelovi")
     assert kpi["kasni"] >= 1 and kpi["ceka_dijelove"] >= 1
+    assert kpi["rijeseni_u_periodu"] == count("rijeseno=7d")
 
     load = {row["korisnik"]["id"]: row for row in overview.json()["opterecenje"]}
     assert load[lead_user["id"]]["na_cekanju"] == 1
