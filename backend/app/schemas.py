@@ -56,6 +56,11 @@ class Token(BaseModel):
     prezime: str
     user_id: int
 
+class PasswordChange(BaseModel):
+    current_password: Annotated[str, Field(min_length=1, max_length=72)]
+    new_password: Password
+
+
 class TokenData(BaseModel):
     username: Optional[str] = None
 

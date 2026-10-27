@@ -59,6 +59,8 @@ class Korisnik(Base):
     aktivan = Column(Boolean, default=True)
     kreiran = Column(DateTime(timezone=True), server_default=func.now())
     zadnja_prijava = Column(DateTime(timezone=True), nullable=True)
+    # Sessions (tokens) issued before this moment are rejected; set when the password changes.
+    sesije_od = Column(DateTime(timezone=True), nullable=True)
 
     prijavljeni_kvarovi = relationship("Kvar", foreign_keys="Kvar.prijavio_id", back_populates="prijavio")
     rijesavani_kvarovi = relationship("Kvar", foreign_keys="Kvar.voditelj_id", back_populates="voditelj")

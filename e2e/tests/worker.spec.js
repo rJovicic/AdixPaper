@@ -49,3 +49,40 @@ test('worker cannot open lead screens', async ({ page, request }) => {
   await page.goto('/admin/kvarovi')
   await expect(page).toHaveURL(/\/radnik$/)
 })
+
+test('worker changes their own password; the old one stops working', async ({ page, request }) => {
+  const { worker } = await setupFixture(request)
+  await signIn(page, worker)
+  await page.getByRole('button', { name: 'Promijeni lozinku' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Promijeni lozinku' })
+  await dialog.getByLabel('Trenutna lozinka').fill(worker.password)
+  await dialog.getByLabel('Nova lozinka', { exact: true }).fill('nova-lozinka-42')
+  await dialog.getByLabel('Ponovite novu lozinku').fill('nova-lozinka-43')
+  await dialog.getByRole('button', { name: 'Promijeni lozinku' }).click()
+  await expect(dialog.getByText('Lozinke se ne podudaraju.')).toBeVisible()
+  await dialog.getByLabel('Ponovite novu lozinku').fill('nova-lozinka-42')
+  await dialog.getByRole('button', { name: 'Promijeni lozinku' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Lozinka je promijenjena.' })).toBeVisible()
+
+  // This device stays signed in with the new token.
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Moji kvarovi' })).toBeVisible()
+  expect((await request.post('/api/auth/login', { form: worker })).status()).toBe(401)
+  expect((await request.post('/api/auth/login', { form: { ...worker, password: 'nova-lozinka-42' } })).ok()).toBeTruthy()
+})
+
+test('after an expired session, signing in returns to the same screen', async ({ page, request }) => {
+  const { worker } = await setupFixture(request)
+  await signIn(page, worker)
+  await page.evaluate(() => {
+    const session = JSON.parse(localStorage.getItem('adix.session'))
+    localStorage.setItem('adix.session', JSON.stringify({ ...session, token: 'expired-token' }))
+  })
+  await page.goto('/radnik/prijava')
+  await expect(page).toHaveURL(/\/login\?reason=expired/)
+  await expect(page.getByText('Sesija je istekla. Prijavite se ponovno.')).toBeVisible()
+  await page.getByLabel(/Korisničko ime|Username/).fill(worker.username)
+  await page.getByLabel(/^(Lozinka|Password)$/).fill(worker.password)
+  await page.getByRole('button', { name: /Prijavi se|Sign in/ }).click()
+  await expect(page).toHaveURL(/\/radnik\/prijava$/)
+})

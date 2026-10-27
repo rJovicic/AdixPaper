@@ -32,14 +32,21 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 class LoginThrottle:
-    """Limits failed sign-ins per client IP and username.
+    """Limits failed sign-ins per client IP and username, and per username overall.
+
+    The client IP comes from X-Forwarded-For, which a client can forge, so the
+    per-username cap is what actually bounds password guessing. The trade-off: someone
+    can lock a username out for one window by failing on purpose.
 
     State lives in process memory, which matches the single-replica deployment;
     a restart clears it.
     """
 
-    def __init__(self, max_failures: int = 10, window_seconds: int = 900):
+    ANY_IP = "*"
+
+    def __init__(self, max_failures: int = 10, window_seconds: int = 900, max_failures_per_user: int = 20):
         self.max_failures = max_failures
+        self.max_failures_per_user = max_failures_per_user
         self.window = window_seconds
         self._failures: dict[tuple[str, str], deque] = defaultdict(deque)
         self._lock = threading.Lock()
@@ -52,22 +59,28 @@ class LoginThrottle:
         while attempts and now - attempts[0] > self.window:
             attempts.popleft()
 
+    def _user_key(self, username: str) -> tuple[str, str]:
+        return self.ANY_IP, username.strip().lower()
+
     def check(self, request: Request, username: str):
         now = time.monotonic()
         with self._lock:
-            attempts = self._failures[self._key(request, username)]
-            self._prune(attempts, now)
-            if len(attempts) >= self.max_failures:
-                retry_after = int(self.window - (now - attempts[0])) + 1
-                raise HTTPException(
-                    status_code=429,
-                    detail="Previše neuspješnih prijava. Pokušajte ponovno za nekoliko minuta.",
-                    headers={"Retry-After": str(retry_after)},
-                )
+            for key, limit in ((self._key(request, username), self.max_failures), (self._user_key(username), self.max_failures_per_user)):
+                attempts = self._failures[key]
+                self._prune(attempts, now)
+                if len(attempts) >= limit:
+                    retry_after = int(self.window - (now - attempts[0])) + 1
+                    raise HTTPException(
+                        status_code=429,
+                        detail="Previše neuspješnih prijava. Pokušajte ponovno za nekoliko minuta.",
+                        headers={"Retry-After": str(retry_after)},
+                    )
 
     def record_failure(self, request: Request, username: str):
+        now = time.monotonic()
         with self._lock:
-            self._failures[self._key(request, username)].append(time.monotonic())
+            self._failures[self._key(request, username)].append(now)
+            self._failures[self._user_key(username)].append(now)
 
     def reset(self, request: Request, username: str):
         with self._lock:

@@ -1,19 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router'
 import { api, onUnauthorized } from '../api/client'
 import { clearSession, readSession, writeSession } from './session'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const navigate = useNavigate()
   const [session, setSession] = useState(readSession)
+  // Why the last session ended ('expired' | 'signedOut'). RequireRole turns it into the
+  // redirect: navigating here as well raced with it (React Router applies navigations as
+  // transitions) and the "session expired" notice and return path were lost.
+  const [endReason, setEndReason] = useState(null)
 
   const signOut = useCallback((reason) => {
     clearSession()
+    setEndReason(reason || null)
     setSession(null)
-    navigate(reason ? `/login?reason=${reason}` : '/login', { replace: true })
-  }, [navigate])
+  }, [])
 
   useEffect(() => {
     onUnauthorized(() => signOut('expired'))
@@ -41,11 +43,20 @@ export function AuthProvider({ children }) {
     const { data } = await api.post('/auth/login', form)
     if (!data?.access_token) throw new Error('bad-response')
     const next = writeSession(data.access_token, data)
+    setEndReason(null)
     setSession(next)
     return next.user
   }, [])
 
-  const value = useMemo(() => ({ user: session?.user ?? null, signIn, signOut }), [session, signIn, signOut])
+  /** Keeps the signed-in user but swaps the token (after a password change revokes the old one). */
+  const replaceToken = useCallback((token) => {
+    setSession((current) => (current ? writeSession(token, { ...current.user, user_id: current.user.id }) : current))
+  }, [])
+
+  const value = useMemo(
+    () => ({ user: session?.user ?? null, endReason, signIn, signOut, replaceToken }),
+    [session, endReason, signIn, signOut, replaceToken],
+  )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

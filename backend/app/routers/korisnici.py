@@ -5,7 +5,7 @@ from typing import List
 from ..database import get_db
 from ..models import Korisnik
 from ..schemas import KorisnikCreate, KorisnikOut, KorisnikUpdate
-from ..auth import get_password_hash, require_admin, require_voditelj_or_admin, role_value
+from ..auth import get_password_hash, require_admin, require_voditelj_or_admin, role_value, set_password
 
 router = APIRouter(prefix="/api/korisnici", tags=["korisnici"])
 
@@ -52,7 +52,7 @@ def update_korisnik(user_id: int, data: KorisnikUpdate, db: Session = Depends(ge
 
     for field, value in update_data.items():
         if field == "password" and value:
-            user.hashed_password = get_password_hash(value)
+            set_password(user, value)
         elif field != "password":
             setattr(user, field, value)
 
