@@ -308,9 +308,13 @@ export default function Machines() {
                   <p className="truncate text-ink-2">{[machine.tip, machine.lokacija].filter(Boolean).join(' · ')}</p>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-ink-2">
                     <MachineStatus status={machine.status} />
-                    <Link to={`/admin/kvarovi?oprema=${machine.id}`} className="link inline-flex min-h-[2.75rem] items-center" aria-label={t('machines.showFaults', { name: machine.naziv, n: machine.broj_kvarova })}>
-                      {t('machines.faults')}: <span className="numeral ml-1">{machine.broj_kvarova}</span>
-                    </Link>
+                    {machine.broj_kvarova > 0 ? (
+                      <Link to={`/admin/kvarovi?oprema=${machine.id}`} className="link inline-flex min-h-[2.75rem] items-center" aria-label={t('machines.showFaults', { name: machine.naziv, n: machine.broj_kvarova })}>
+                        {t('machines.faults')}: <span className="numeral ml-1">{machine.broj_kvarova}</span>
+                      </Link>
+                    ) : (
+                      <span className="inline-flex min-h-[2.75rem] items-center">{t('machines.faults')}: <span className="numeral ml-1 text-ink">0</span></span>
+                    )}
                   </div>
                 </div>
                 {actions(machine)}
@@ -341,9 +345,11 @@ export default function Machines() {
                     <td className="hidden px-4 py-2.5 text-ink-2 lg:table-cell">{machine.tvrtka || '—'}</td>
                     <td className="px-4 py-2.5"><MachineStatus status={machine.status} /></td>
                     <td className="px-4 py-2.5 text-right">
-                      <Link to={`/admin/kvarovi?oprema=${machine.id}`} className="numeral link text-lg" aria-label={t('machines.showFaults', { name: machine.naziv, n: machine.broj_kvarova })}>
-                        {machine.broj_kvarova}
-                      </Link>
+                      {machine.broj_kvarova > 0 ? (
+                        <Link to={`/admin/kvarovi?oprema=${machine.id}`} className="numeral link text-lg" aria-label={t('machines.showFaults', { name: machine.naziv, n: machine.broj_kvarova })}>
+                          {machine.broj_kvarova}
+                        </Link>
+                      ) : <span className="numeral text-lg text-ink-3">0</span>}
                     </td>
                     <td className="hidden px-4 py-2.5 text-right text-ink-2 tabular lg:table-cell">{format.money(machine.ukupni_troskovi)}</td>
                     <td className="px-2 py-1.5">{actions(machine)}</td>
