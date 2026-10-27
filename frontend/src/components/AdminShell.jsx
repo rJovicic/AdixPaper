@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
-import { AlertTriangle, BarChart3, Bell, BellOff, Factory, LayoutGrid, Menu as MenuIcon, PackageSearch, Search, Users, X } from 'lucide-react'
+import { AlertTriangle, BarChart3, Factory, LayoutGrid, Menu as MenuIcon, MoreHorizontal, PackageSearch, Search, Users, X } from 'lucide-react'
 import BrandLogo from './BrandLogo'
 import AccountMenu from './AccountMenu'
 import SearchPalette from './SearchPalette'
 import { api } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n'
-import { useToast } from './ui/Toast'
 import { useNewFaultAlerts } from '../lib/useNewFaultAlerts'
-import { currentSubscription, disablePush, enablePush, getPushKey, pushSupported } from '../lib/push'
+import PushToggle from './PushToggle'
 
 const NAV = [
   { to: '/admin', key: 'nav.dashboard', icon: LayoutGrid, end: true },
@@ -27,7 +26,10 @@ function useOverdueCount() {
   const [count, setCount] = useState(0)
   useEffect(() => {
     let active = true
-    const load = () => api.get('/dashboard/stats').then(({ data }) => active && setCount(data?.sla_kasni || 0)).catch(() => {})
+    // One page of overdue faults is enough: the count comes back in X-Total-Count.
+    const load = () => api.get('/kvarovi?status=otvoreni&sla=kasni&limit=1')
+      .then((response) => active && setCount(Number(response.headers['x-total-count']) || 0))
+      .catch(() => {})
     load()
     const timer = window.setInterval(load, OVERDUE_POLL_MS)
     return () => {
@@ -36,60 +38,6 @@ function useOverdueCount() {
     }
   }, [])
   return count
-}
-
-function usePushToggle() {
-  const [state, setState] = useState({ available: false, enabled: false, busy: false, key: '' })
-
-  useEffect(() => {
-    if (!pushSupported()) return
-    let active = true
-    Promise.all([getPushKey().catch(() => ''), currentSubscription().catch(() => null)]).then(([key, subscription]) => {
-      if (active) setState({ available: Boolean(key), enabled: Boolean(subscription), busy: false, key })
-    })
-    return () => { active = false }
-  }, [])
-
-  return [state, setState]
-}
-
-function PushToggle() {
-  const { t } = useI18n()
-  const toast = useToast()
-  const [push, setPush] = usePushToggle()
-  if (!push.available) return null
-
-  const toggle = async () => {
-    setPush((current) => ({ ...current, busy: true }))
-    try {
-      if (push.enabled) {
-        await disablePush()
-        setPush((current) => ({ ...current, enabled: false, busy: false }))
-        toast.info(t('notify.off'))
-      } else {
-        await enablePush(push.key)
-        setPush((current) => ({ ...current, enabled: true, busy: false }))
-        toast.success(t('notify.on'))
-      }
-    } catch (error) {
-      setPush((current) => ({ ...current, busy: false }))
-      toast.error(error?.code === 'denied' ? t('notify.denied') : t('notify.failed'))
-    }
-  }
-
-  const Icon = push.enabled ? BellOff : Bell
-  return (
-    <button
-      type="button"
-      onClick={toggle}
-      disabled={push.busy}
-      aria-pressed={push.enabled}
-      className="flex min-h-[2.75rem] w-full items-center gap-3 rounded px-3 text-left text-[0.9375rem] font-medium text-ink transition-colors hover:bg-brand-wash disabled:opacity-60"
-    >
-      <Icon size={17} aria-hidden="true" className="text-ink-2" />
-      {push.enabled ? t('notify.disable') : t('notify.enable')}
-    </button>
-  )
 }
 
 function SearchTrigger({ onOpen }) {
@@ -135,6 +83,45 @@ function ShellNav({ isAdmin, overdue, onNavigate }) {
           {divider && <div className="mx-1 my-2.5 h-px bg-white/[0.08]" />}
         </div>
       ))}
+    </nav>
+  )
+}
+
+const tabClass = ({ isActive }) =>
+  `relative flex min-h-[3.5rem] flex-1 flex-col items-center justify-center gap-0.5 text-xs font-semibold transition-colors ${
+    isActive ? 'text-brand' : 'text-ink-2 hover:text-ink'
+  }`
+
+/** Phones: the lead's daily destinations under the thumb; everything else stays in the menu. */
+function TabBar({ overdue, onMenu, menuOpen }) {
+  const { t } = useI18n()
+  const { pathname } = useLocation()
+  // Screens without their own tab (parts, analytics, users) live under "More".
+  const elsewhere = !/^\/admin(\/?$|\/(kvarovi|oprema)(\/|$))/.test(pathname)
+  return (
+    <nav aria-label={t('nav.main')} className="pb-safe fixed inset-x-0 bottom-0 z-40 flex border-t border-rule bg-stock/95 backdrop-blur-sm sm:hidden">
+      <NavLink to="/admin" end className={tabClass}>
+        <LayoutGrid size={21} aria-hidden="true" />
+        {t('nav.dashboard')}
+      </NavLink>
+      <NavLink to="/admin/kvarovi" className={tabClass}>
+        <AlertTriangle size={21} aria-hidden="true" />
+        {t('nav.faults')}
+        {overdue > 0 && (
+          <span className="absolute left-1/2 top-1.5 ml-2 rounded-sm bg-urgent px-1 numeral text-[0.6875rem] text-stock">
+            {overdue}
+            <span className="sr-only"> {t('nav.overdue')}</span>
+          </span>
+        )}
+      </NavLink>
+      <NavLink to="/admin/oprema" className={tabClass}>
+        <Factory size={21} aria-hidden="true" />
+        {t('nav.machines')}
+      </NavLink>
+      <button type="button" onClick={onMenu} aria-expanded={menuOpen} className={tabClass({ isActive: elsewhere })}>
+        <MoreHorizontal size={21} aria-hidden="true" />
+        {t('nav.more')}
+      </button>
     </nav>
   )
 }
@@ -220,14 +207,14 @@ export default function AdminShell() {
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
-          className="btn-icon relative h-11 w-11 text-stock hover:bg-white/10 hover:text-stock"
+          className="btn-icon relative hidden h-11 w-11 text-stock hover:bg-white/10 hover:text-stock sm:inline-flex"
           aria-label={t('common.menu')}
           aria-expanded={drawerOpen}
         >
           <MenuIcon size={22} aria-hidden="true" />
           {overdue > 0 && <span aria-hidden="true" className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-urgent ring-2 ring-brand-deep" />}
         </button>
-        <div className="min-w-0 flex-1"><Brand /></div>
+        <div className="min-w-0 flex-1 pl-2 sm:pl-0"><Brand /></div>
         <button type="button" onClick={openSearch} className="btn-icon h-11 w-11 text-stock hover:bg-white/10 hover:text-stock" aria-label={t('search.title')}>
           <Search size={20} aria-hidden="true" />
         </button>
@@ -259,8 +246,9 @@ export default function AdminShell() {
       </dialog>
 
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <TabBar overdue={overdue} onMenu={() => setDrawerOpen(true)} menuOpen={drawerOpen} />
 
-      <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 pb-16 pt-6 focus:outline-none sm:px-6 lg:px-8 lg:pt-7">
+      <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 pb-28 pt-6 focus:outline-none sm:px-6 sm:pb-16 lg:px-8 lg:pt-7">
         <div className="mx-auto max-w-[76rem]">
           <Outlet />
         </div>

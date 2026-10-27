@@ -161,6 +161,7 @@ export default {
     notNegative: 'Value cannot be negative.',
   },
   nav: {
+    more: 'More',
     overdue: 'overdue',
     dashboard: 'Overview',
     faults: 'Faults',

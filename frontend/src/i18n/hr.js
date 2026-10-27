@@ -161,6 +161,7 @@ export default {
     notNegative: 'Vrijednost ne može biti negativna.',
   },
   nav: {
+    more: 'Više',
     overdue: 'kasni',
     dashboard: 'Pregled',
     faults: 'Kvarovi',

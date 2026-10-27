@@ -237,8 +237,9 @@ def _query_kvarovi(
     return records, len(records)
 
 
-def _send_push_notifications(title: str, body: str, url: str = "/"):
-    """Runs as a background task, after the request's session is closed, so it opens its own."""
+def _send_push_notifications(title: str, body: str, url: str = "/", user_ids: Optional[List[int]] = None):
+    """Runs as a background task, after the request's session is closed, so it opens its own.
+    Without `user_ids`, goes to every active lead and admin (new faults)."""
     from ..config import settings
 
     if not settings.VAPID_PRIVATE_KEY:
@@ -248,12 +249,12 @@ def _send_push_notifications(title: str, body: str, url: str = "/"):
     try:
         from pywebpush import webpush, WebPushException
 
-        pretplate = (
-            db.query(PushPretplata)
-            .join(Korisnik, PushPretplata.korisnik_id == Korisnik.id)
-            .filter(Korisnik.aktivan == True, Korisnik.rola.in_([RolaEnum.admin, RolaEnum.voditelj]))
-            .all()
-        )
+        query = db.query(PushPretplata).join(Korisnik, PushPretplata.korisnik_id == Korisnik.id).filter(Korisnik.aktivan == True)
+        if user_ids is None:
+            query = query.filter(Korisnik.rola.in_([RolaEnum.admin, RolaEnum.voditelj]))
+        else:
+            query = query.filter(Korisnik.id.in_(user_ids))
+        pretplate = query.all()
         mrtve = []
         for p in pretplate:
             try:
@@ -277,6 +278,14 @@ def _send_push_notifications(title: str, body: str, url: str = "/"):
         logger.exception("Sending push notifications failed")
     finally:
         db.close()
+
+
+def _notify_reporter(background_tasks: BackgroundTasks, kvar: Kvar, actor: Korisnik, body: str):
+    """Tell the worker who reported the fault that something they can see changed."""
+    if kvar.prijavio_id and kvar.prijavio_id != actor.id:
+        background_tasks.add_task(
+            _send_push_notifications, f"Kvar #{kvar.id}: {kvar.naslov}"[:120], body, f"/radnik/kvar/{kvar.id}", [kvar.prijavio_id]
+        )
 
 
 def _normalized(value):
@@ -663,6 +672,7 @@ def list_kvar_dogadjaji(
 def add_kvar_komentar(
     kvar_id: int,
     data: KvarKomentarCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(get_current_user),
 ):
@@ -686,6 +696,8 @@ def add_kvar_komentar(
         kvar.azurirano = utcnow()
     db.commit()
     db.refresh(event)
+    if not interno:
+        _notify_reporter(background_tasks, kvar, current_user, f"Komentar: {tekst[:140]}")
     return event
 
 
@@ -693,6 +705,7 @@ def add_kvar_komentar(
 def update_kvar(
     kvar_id: int,
     data: KvarVoditeljUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(require_voditelj_or_admin)
 ):
@@ -875,6 +888,10 @@ def update_kvar(
     if old_status != new_status or old_voditelj_id != kvar.voditelj_id or kvar.razlog_cekanja != old_waiting_reason:
         kvar.azurirano = utcnow()
     db.commit()
+    if old_status != new_status:
+        _notify_reporter(background_tasks, kvar, current_user, f"Status: {new_status}")
+    elif old_voditelj_id != kvar.voditelj_id and kvar.voditelj:
+        _notify_reporter(background_tasks, kvar, current_user, f"Preuzeo: {_user_label(kvar.voditelj)}")
     return _load_kvar(kvar_id, db)
 
 

@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation } from 'react-router'
 import { ClipboardList, Plus } from 'lucide-react'
 import BrandLogo from './BrandLogo'
 import AccountMenu from './AccountMenu'
+import PushToggle from './PushToggle'
 import { useI18n } from '../i18n'
 
 const tabClass = ({ isActive }) =>
@@ -22,14 +23,16 @@ export default function WorkerShell() {
         <div className="mx-auto flex max-w-2xl items-center gap-3 py-2 pl-4 pr-2">
           <BrandLogo size="sm" />
           <p className="min-w-0 flex-1 truncate font-semibold text-stock">{t('app.name')}</p>
-          <AccountMenu variant="bar" />
+          <AccountMenu variant="bar">
+            <PushToggle />
+          </AccountMenu>
         </div>
       </header>
       <main id="main" tabIndex={-1} className={`mx-auto max-w-2xl px-4 pt-5 focus:outline-none sm:pb-16 ${reporting ? 'pb-16' : 'pb-28'}`}>
         <Outlet />
       </main>
       {/* Phones: the two things a worker does stay under the thumb, however long the list. */}
-      <nav hidden={reporting} aria-label={t('nav.main')} className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-rule bg-stock/95 pb-0 backdrop-blur-sm sm:hidden">
+      <nav hidden={reporting} aria-label={t('nav.main')} className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-rule bg-stock/95 backdrop-blur-sm sm:hidden">
         <div className="mx-auto flex max-w-2xl">
           <NavLink to="/radnik" end className={tabClass}>
             <ClipboardList size={22} aria-hidden="true" />

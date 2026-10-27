@@ -192,3 +192,29 @@ def test_worker_sees_when_their_fault_changes(client, admin, make_user, machine)
     assert first
     client.post(f"/api/kvarovi/{kvar['id']}/komentari", json={"tekst": "Interno", "interno": True}, headers=admin)
     assert client.get("/api/kvarovi", headers=worker).json()[0]["azurirano"] == first
+
+
+def test_reporter_is_notified_of_changes_they_can_see(client, admin, make_user, machine, monkeypatch):
+    from app.routers import kvarovi
+
+    sent = []
+    monkeypatch.setattr(kvarovi, "_send_push_notifications", lambda title, body, url="/", user_ids=None: sent.append((body, url, user_ids)))
+    worker_user, worker = make_user()
+    kvar = report(client, worker, machine)
+    sent.clear()  # the new-fault push to leads
+
+    put(client, admin, kvar["id"], troskovi="5")
+    client.post(f"/api/kvarovi/{kvar['id']}/komentari", json={"tekst": "Interno", "interno": True}, headers=admin)
+    assert sent == []  # nothing the worker can see changed
+
+    put(client, admin, kvar["id"], status="U rješavanju")
+    client.post(f"/api/kvarovi/{kvar['id']}/komentari", json={"tekst": "Stiže dio", "interno": False}, headers=admin)
+    assert [(body, user_ids) for body, _, user_ids in sent] == [
+        ("Status: U rješavanju", [worker_user["id"]]),
+        ("Komentar: Stiže dio", [worker_user["id"]]),
+    ]
+    assert sent[0][1] == f"/radnik/kvar/{kvar['id']}"
+
+    # The worker's own comment does not notify the worker.
+    client.post(f"/api/kvarovi/{kvar['id']}/komentari", json={"tekst": "Hvala"}, headers=worker)
+    assert len(sent) == 2

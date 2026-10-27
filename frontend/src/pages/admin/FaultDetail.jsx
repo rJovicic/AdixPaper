@@ -444,7 +444,7 @@ export default function FaultDetail() {
               </Field>
             </div>
 
-            <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-3 border-t border-rule bg-stock/95 px-5 py-3 backdrop-blur-sm">
+            <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] flex flex-wrap items-center justify-end gap-3 border-t border-rule bg-stock/95 sm:bottom-0 px-5 py-3 backdrop-blur-sm">
               {dirty && <span role="status" className="mr-auto text-sm font-medium text-warn">{t('common.unsavedChanges')}</span>}
               <button type="submit" className="btn-primary" disabled={busy || !dirty}>
                 <Save size={17} aria-hidden="true" />

@@ -171,6 +171,10 @@
   .safe-bottom {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+  /* Fixed bottom bars: clear the home indicator on iPhones, nothing elsewhere. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
