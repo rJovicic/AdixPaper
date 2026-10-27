@@ -5,6 +5,8 @@ import { api } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
 import FaultCard from '../../components/FaultCard'
+import { useAuth } from '../../auth/AuthProvider'
+import { isUpdated } from '../../lib/seen'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 
 export default function MyFaults() {
@@ -12,7 +14,15 @@ export default function MyFaults() {
   const location = useLocation()
   const newId = location.state?.newId
   const [tab, setTab] = useState('open')
+  const { user } = useAuth()
   const faults = useAsync(() => api.get('/kvarovi').then((response) => asArray(response.data)), [])
+
+  // Workers keep this screen open to see whether someone is on it: refresh while visible.
+  const { reload } = faults
+  useEffect(() => {
+    const timer = setInterval(() => document.visibilityState === 'visible' && reload(), 60_000)
+    return () => clearInterval(timer)
+  }, [reload])
 
   useEffect(() => {
     document.title = `${t('worker.title')} · ${t('app.name')}`
@@ -76,7 +86,7 @@ export default function MyFaults() {
           <ul className="space-y-3">
             {shown.map((fault) => (
               <li key={fault.id}>
-                <FaultCard fault={fault} to={`/radnik/kvar/${fault.id}`} highlight={fault.id === newId} />
+                <FaultCard fault={fault} to={`/radnik/kvar/${fault.id}`} highlight={fault.id === newId} updated={fault.id !== newId && isUpdated(user?.id, fault)} />
               </li>
             ))}
           </ul>

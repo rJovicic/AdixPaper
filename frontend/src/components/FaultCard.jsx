@@ -14,7 +14,7 @@ function Cell({ label, children, wrap = false }) {
 }
 
 /** A fault as a reel label: big number, what is wrong, then ruled fields for where it stands. */
-export default function FaultCard({ fault, to, highlight = false }) {
+export default function FaultCard({ fault, to, highlight = false, updated = false }) {
   const { t, format } = useI18n()
   const resolved = fault.status === 'Riješeno'
   const late = slaInfo(fault).state === 'late'
@@ -28,7 +28,14 @@ export default function FaultCard({ fault, to, highlight = false }) {
       <div className="flex items-start gap-3 px-4 pb-3 pt-3.5">
         <FaultNumber id={fault.id} size="md" className="shrink-0 pt-0.5" />
         <div className="min-w-0 flex-1">
-          <p className="font-semibold leading-snug text-ink">{fault.naslov}</p>
+          <p className="font-semibold leading-snug text-ink">
+            {fault.naslov}
+            {updated && (
+              <span className="ml-2 inline-flex translate-y-[-1px] items-center gap-1 rounded-sm bg-brand px-1.5 py-0.5 align-middle text-label font-semibold uppercase text-stock">
+                {t('worker.updated')}
+              </span>
+            )}
+          </p>
           {place && <p className="mt-0.5 truncate text-ink-2">{place}</p>}
         </div>
         <ChevronRight size={20} aria-hidden="true" className="mt-1 shrink-0 text-ink-3 transition-transform group-hover:translate-x-0.5" />

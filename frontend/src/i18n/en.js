@@ -169,6 +169,7 @@ export default {
     analytics: 'Analytics',
     users: 'Users',
     skip: 'Skip to content',
+    main: 'Main navigation',
   },
   notify: {
     enable: 'Turn on notifications',
@@ -195,6 +196,7 @@ export default {
     badResponse: 'The server returned an unexpected response. Try again.',
   },
   worker: {
+    updated: 'Updated',
     qrHint: 'Or scan the QR label on the machine with your phone camera.',
     title: 'My faults',
     report: 'Report a fault',
@@ -208,6 +210,13 @@ export default {
     waiting: 'Waiting to be picked up',
   },
   report: {
+    knownTitle: 'Open faults already reported on this machine: {n}',
+    knownBody: 'If it is the same fault, there is no need to report it again. If it is a different fault, just carry on.',
+    photo: 'Photo',
+    photoAdd: 'Take or choose a photo',
+    photoPreview: 'Chosen photo',
+    photoRemove: 'Remove photo',
+    photoFailed: 'Fault #{id} is reported, but the photo was not sent. Add it here.',
     scanned: "Chosen by scanning the machine's QR label.",
     title: 'Report a fault',
     machine: 'Machine',

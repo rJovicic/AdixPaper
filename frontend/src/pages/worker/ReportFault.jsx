@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { ArrowLeft, Send } from 'lucide-react'
+import { ArrowLeft, Camera, Info, Send, X } from 'lucide-react'
 import { api, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
@@ -9,6 +9,8 @@ import { useToast } from '../../components/ui/Toast'
 import Field from '../../components/ui/Field'
 import RadioCards from '../../components/ui/RadioCards'
 import { ErrorState, LoadingRows } from '../../components/ui/States'
+import { StatusMark } from '../../components/ui/Marks'
+import { uploadPhoto } from '../../lib/photo'
 
 const EMPTY = { oprema_id: '', komponenta_id: '', naslov: '', opis: '', prioritet: 'Normalno' }
 
@@ -31,6 +33,33 @@ function writeDraft(userId, form) {
   } catch {
     // Storage unavailable: the form still works, it just is not kept.
   }
+}
+
+/** Open faults already reported on the chosen machine. Informs; never blocks a new report. */
+function KnownFaults({ faults }) {
+  const { t, format } = useI18n()
+  if (!faults?.length) return null
+  return (
+    <div role="status" className="rounded border border-brand/40 bg-brand-wash px-4 py-3">
+      <p className="flex items-start gap-2 font-semibold text-brand-deep">
+        <Info size={18} aria-hidden="true" className="mt-0.5 shrink-0" />
+        {t('report.knownTitle', { n: faults.length })}
+      </p>
+      <ul className="mt-2 space-y-1.5 pl-[1.625rem]">
+        {faults.slice(0, 4).map((fault) => (
+          <li key={fault.id} className="text-sm">
+            <span className="font-semibold text-ink"><span className="numeral text-ink-3">#</span>{fault.id} {fault.naslov}</span>
+            <span className="mt-0.5 flex flex-wrap items-center gap-x-3 text-ink-2">
+              <StatusMark status={fault.status} className="text-meta" />
+              {fault.komponenta && <span className="text-meta">{fault.komponenta.naziv}</span>}
+              <span className="text-meta tabular">{format.dateShort(fault.datum_prijave)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 pl-[1.625rem] text-sm text-ink-2">{t('report.knownBody')}</p>
+    </div>
+  )
 }
 
 const PRIORITY_MARKERS = {
@@ -56,6 +85,10 @@ export default function ReportFault() {
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [photo, setPhoto] = useState(null)
+  const photoInput = useRef(null)
+  const photoUrl = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo])
+  useEffect(() => () => photoUrl && URL.revokeObjectURL(photoUrl), [photoUrl])
   const refs = { oprema_id: useRef(null), komponenta_id: useRef(null), naslov: useRef(null) }
 
   useEffect(() => {
@@ -70,6 +103,11 @@ export default function ReportFault() {
   }, [form.oprema_id])
 
   const componentList = useMemo(() => components.data || [], [components.data])
+  // A failure here only hides the hint; reporting must keep working.
+  const known = useAsync(
+    () => (form.oprema_id ? api.get(`/kvarovi/na-masini/${form.oprema_id}`).then((response) => asArray(response.data)).catch(() => []) : []),
+    [form.oprema_id],
+  )
 
   useEffect(() => writeDraft(user?.id, form), [user?.id, form])
 
@@ -114,6 +152,16 @@ export default function ReportFault() {
         prioritet: form.prioritet,
       })
       writeDraft(user?.id, EMPTY)
+      if (photo) {
+        try {
+          await uploadPhoto(data.id, photo)
+        } catch (error) {
+          // The report itself is saved; say so plainly and send the worker where the photo can be added again.
+          toast.error(`${t('report.photoFailed', { id: data.id })} ${errorMessage(error, i18n)}`)
+          navigate(`/radnik/kvar/${data.id}`)
+          return
+        }
+      }
       toast.success(t('report.success', { id: data.id }))
       navigate('/radnik', { state: { newId: data.id } })
     } catch (error) {
@@ -183,6 +231,8 @@ export default function ReportFault() {
             </Field>
           )}
 
+          <KnownFaults faults={known.data} />
+
           <Field label={t('report.headline')} error={errors.naslov} required>
             {(props) => (
               <input
@@ -210,6 +260,37 @@ export default function ReportFault() {
               />
             )}
           </Field>
+
+          <div>
+            <p className="mb-1.5 text-sm font-semibold text-ink">
+              {t('report.photo')} <span className="font-normal text-ink-3">({t('common.optional')})</span>
+            </p>
+            <input
+              ref={photoInput}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/*"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden="true"
+              onChange={(event) => {
+                setPhoto(event.target.files?.[0] || null)
+                event.target.value = ''
+              }}
+            />
+            {photo ? (
+              <div className="flex items-center gap-3 rounded border border-rule bg-ground/40 p-2">
+                <img src={photoUrl} alt={t('report.photoPreview')} className="h-16 w-20 shrink-0 rounded-sm object-cover" />
+                <span className="min-w-0 flex-1 truncate text-sm text-ink-2">{photo.name}</span>
+                <button type="button" className="btn-icon" aria-label={t('report.photoRemove')} onClick={() => setPhoto(null)}>
+                  <X size={18} aria-hidden="true" />
+                </button>
+              </div>
+            ) : (
+              <button type="button" className="btn-secondary min-h-[3.25rem] w-full" onClick={() => photoInput.current?.click()}>
+                <Camera size={19} aria-hidden="true" /> {t('report.photoAdd')}
+              </button>
+            )}
+          </div>
 
           <RadioCards
             legend={t('report.priority')}

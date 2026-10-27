@@ -169,6 +169,7 @@ export default {
     analytics: 'Analize',
     users: 'Korisnici',
     skip: 'Preskoči na sadržaj',
+    main: 'Glavna navigacija',
   },
   notify: {
     enable: 'Uključi obavijesti',
@@ -195,6 +196,7 @@ export default {
     badResponse: 'Poslužitelj je vratio neočekivan odgovor. Pokušajte ponovno.',
   },
   worker: {
+    updated: 'Ažurirano',
     qrHint: 'Ili skenirajte QR oznaku na mašini kamerom mobitela.',
     title: 'Moji kvarovi',
     report: 'Prijavi kvar',
@@ -208,6 +210,13 @@ export default {
     waiting: 'Čeka preuzimanje',
   },
   report: {
+    knownTitle: 'Na ovoj mašini već je prijavljeno otvorenih kvarova: {n}',
+    knownBody: 'Ako je to isti kvar, ne trebate ga ponovno prijavljivati. Ako je drugi kvar, samo nastavite.',
+    photo: 'Fotografija',
+    photoAdd: 'Snimi ili odaberi fotografiju',
+    photoPreview: 'Odabrana fotografija',
+    photoRemove: 'Ukloni fotografiju',
+    photoFailed: 'Kvar #{id} je prijavljen, ali fotografija nije poslana. Dodajte je ovdje.',
     scanned: 'Odabrano skeniranjem QR oznake na mašini.',
     title: 'Prijava kvara',
     machine: 'Mašina',

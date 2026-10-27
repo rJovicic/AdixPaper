@@ -8,7 +8,7 @@ test('worker reports a fault on a phone and can follow it', async ({ page, reque
   await signIn(page, worker)
   await expect(page.getByRole('heading', { name: 'Moji kvarovi' })).toBeVisible()
 
-  await page.getByRole('link', { name: 'Prijavi kvar' }).click()
+  await page.getByRole('main').getByRole('link', { name: 'Prijavi kvar' }).click()
   await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
   // Validation: field-level message and focus on the first invalid field.
   await expect(page.getByLabel('Mašina', { exact: true })).toBeFocused()
