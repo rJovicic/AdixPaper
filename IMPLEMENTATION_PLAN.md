@@ -77,10 +77,10 @@ No pre-existing failures. (One e2e failure appeared only when an orphan server f
 | 3 Fault detail | Done | `61af697` | e2e: hold with reason, stale save → banner → reload → save |
 | 6 Paged list | Done | `61af697` | pytest paging/search/filters; existing list e2e |
 | 5 Worker | Done | `923024e` | e2e: duplicate warning, photo on report, updated badge, tab bar hidden on form; axe |
-| 7 Analytics | **Next** | | |
-| 8 Lead phone nav, docs, regression | Pending | | |
+| 7 Analytics | Done | `21d3977` | `tests/test_analitika.py` (hand-computed MTTR, time to take, repair, SLA, downtime, MTBF gap, recurring, waits); overflow at 360 px fixed |
+| 8 Lead phone nav, worker push, review fixes, docs | Done | `07da9e7`, `8096caa`, docs commit | pytest push-recipient test, 413 before parsing, DST period test; e2e; audits |
 
-Test totals after phase 5: pytest **72** (Postgres and SQLite), e2e **30**, lint/i18n/build clean.
+Final totals: pytest **79** (PostgreSQL 16 and SQLite), Playwright **30** (production build, Postgres, axe, overflow), ESLint 0, i18n 497 keys OK, build OK, `npm audit --omit=dev` 0, `pip-audit` 0. Worker/lead entry bundle 113.9 kB gzip (was 105.5 kB: new strings, photo and marks code).
 
 Files changed so far: `backend/app/{models,schemas,bootstrap,timeutil,images}.py`, `backend/app/routers/{kvarovi,dashboard}.py`,
 `backend/tests/test_{workflow,prilozi}.py`, `frontend/src/pages/admin/{Dashboard,Faults,FaultDetail}.jsx`,
@@ -94,5 +94,8 @@ Known limitations introduced/kept:
 
 ## 4. Next task
 
-Phase 7 — analytics endpoint with period (`od`/`do`): MTTR, time to take, SLA compliance, recorded downtime,
-cost, waiting time by reason (from status events), MTBF per machine, recurring faults; then the Analytics page.
+The agreed scope is implemented. Remaining items need the owner or a real environment:
+1. Decide on semantic status colours (kept logo-only; see `decisions.md`).
+2. Deploy the branch to a staging/preview service and check on real phones: iOS Safari photo picker, push on an installed home-screen app (iOS 16.4+), Android keyboard with the report form.
+3. Photo retention rule; Postgres backups (A2-23); data region (A2-24); privacy notice (A2-25); `PUBLIC_URL` (A2-26); alerting (A2-27).
+4. Engineering backlog: Alembic before the first non-additive change (A2-28); idempotency key for report submission; per-IP throttle behind Railway's edge (A2-36); preventive maintenance schedules (A2-35).

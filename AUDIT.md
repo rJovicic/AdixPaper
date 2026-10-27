@@ -4,6 +4,30 @@ Latest audit: **2026-10-27**, baseline commit `e968904` (the version running in 
 
 Each finding is labelled **Confirmed** (reproduced in a test, in the browser, or in production logs) or **Hypothesis** (from reading the code, not reproduced).
 
+## Command-center pass (2026-10-27, after `ab992b2`)
+
+Branch `claude/command-center-redesign`. Details, phases and verification: [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
+
+| ID | Gap | Resolution | Evidence |
+|---|---|---|---|
+| G1–G2 | Overview had 3 counts and no reasons, workload or activity | `GET /api/dashboard/pregled`; six linked figures, queue with reasons, workload, activity, period | pytest `test_overview_counts_match_the_lists_they_link_to`; e2e `workflow.spec.js` |
+| G3 | "On hold" had no reason or start | Reason required, since recorded, wait time logged | pytest `test_putting_a_fault_on_hold_requires_a_reason_and_records_it`; e2e |
+| G4 / A2-29 | Last write wins between leads | Version + row lock, 409, "Load latest" | pytest + e2e `a save based on an outdated page is refused…` |
+| G5 / A2-32 | No photos | `kvar_prilozi`, re-encoded, EXIF stripped, limits, permissions | `tests/test_prilozi.py` (8) + e2e |
+| G6 / A2-33 | No duplicate warning | Open faults on the machine, non-blocking | pytest (no people/internals leak) + e2e + axe |
+| G7 / A2-30 | Whole fault list loaded and filtered in the browser | Server-side search, filters, sort, paging (`X-Total-Count`) | pytest `test_fault_list_pages_searches_and_filters_on_the_server` |
+| G8 / A2-34 | Analytics without MTTR, SLA, waiting, MTBF, period | `GET /api/dashboard/analitika`, definitions on the page | `tests/test_analitika.py` (hand-computed values) |
+| G9 | Fault detail lacked history, photos, hold reason | Machine history, photos, waiting dialog, deadline, time open | e2e |
+| G10 / A2-31 | Workers not told about changes | "Updated" badge; push to the reporter when VAPID is set | pytest `test_reporter_is_notified_of_changes_they_can_see` |
+| G11 | Phone navigation | Tab bars for workers and leads | e2e + overflow checks at 360/768/1280 |
+| R1 | Found in review: uploads were size-checked only after Starlette spooled the body | 413 on `Content-Length` > 13 MB before parsing | pytest `test_oversized_bodies_are_refused_before_they_are_read` |
+| R2 | Found in review: 7/30-day periods started at 01:00 local after the DST change | Calendar days in plant time | pytest `test_periods_start_at_plant_midnight_across_a_dst_change` |
+| R3 | Overdue badge polled full statistics every minute per tab | One page of overdue faults, count from header | code |
+
+Verification at the end of this pass: ruff clean; **pytest 79 passed** on PostgreSQL 16 and on SQLite; ESLint 0, i18n parity OK, production build OK; `npm audit --omit=dev` 0, `pip-audit` 0; **Playwright 30 passed** against the production build served by FastAPI on Postgres (axe 0 serious/critical on every screen checked, no horizontal overflow at 360/768/1280). Not verified: Docker image build (no daemon here; CI builds it), the deployed environment, real phones (iOS Safari camera/file picker, push on iOS home-screen apps), real users.
+
+Still open (owner): backups (A2-23), data region (A2-24), privacy notice (A2-25), `PUBLIC_URL` (A2-26), alerting (A2-27), photo retention, whether to bring back semantic status colours.
+
 ## 1. Executive summary
 
 AdixPaper is live (`adixpaper-production.up.railway.app`, Railway, one app service + Postgres). The previous pass fixed the deployment, the committed JWT secret and many crashes, and introduced one coherent design system. The rendered UI was inspected at 390, 1024 and 1366 px with demo data: the hierarchy is clear, there are no console errors, and axe reports no serious or critical violations.

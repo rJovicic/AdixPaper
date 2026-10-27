@@ -191,9 +191,11 @@ Headings use `text-wrap: balance`, paragraphs `pretty`. Prose is capped at ~75 c
 - **Spacing:** Tailwind's 4 px scale; groups tight (8–12 px), sections generous (24–32 px). More space above a heading than below.
 - **Shell:** desktop (≥ 1024 px) — fixed 256 px deep-blue rail with nav, language, notifications, account. Below 1024 px — sticky top bar + drawer (native `<dialog>`). Content max width 72 rem (lead) / 42 rem (worker).
 - **Breakpoints:** `xs 420`, `sm 640`, `md 768`, `lg 1024`, `xl 1280`. Tables appear at `md`; below it, lists render as label cards.
-- **Overview (Pregled):** three figures (Open · Urgent · Overdue, each a link into the filtered list); "Needs attention" (up to 10 open faults by time left) with All / Unassigned / Mine toggles; a "My faults" panel beside it from `xl`, below it before. Nothing else: the overview is for acting today.
-- **Analytics (Analize):** one ruled "This month" summary row, faults by month, machines / machine parts with most faults, most used spare parts. Charts load only here. Durations under 10 h show hours and minutes; longer ones show whole hours.
-- **Fault detail:** main column + 18.5 rem status panel (sticky on desktop, first on phones).
+- **Overview (Pregled):** a period switch (Today · 7 days · 30 days · This month; it only affects "Resolved"); six figures in one ruled strip — Open · Urgent · Overdue · Untaken · Waiting for parts · Resolved in period — each a link to a list that returns the same count; "Needs attention" (up to 10 open faults, most pressing reason first, then time left) with a **Why** column in words, All / Untaken / Mine toggles; beside it from `xl` "My faults" and "Team workload" (open faults per lead with hairline bars, untaken first, each row opens that person's list); "Recent activity" under the queue. Phones: figures, queue, my faults, workload, activity. Refreshes every minute while visible.
+- **Analytics (Analize):** period switch (30 days · This month · 90 days · This year); one ruled strip of eight figures, each with the same figure for the preceding period ("prije: …"); "How these are calculated" lists every definition. Then machines (table ≥ md, cards below), faults by month, waiting by reason, recurring faults, reports by priority, spare parts used. Missing data shows "—", never 0.
+- Charts load only on Analytics. Durations under 10 h show hours and minutes; longer ones show whole hours.
+- **Fault detail:** main column (label block with machine · location, part, reporter, reported, taken by, response due, started, time open / resolved; description; photos) + 18.5 rem side column (status panel with actions and waiting reason, sticky on desktop and first on phones; machine history from `lg`). "Put on hold" opens a reason dialog (radio cards). A save refused as stale shows a red-ruled notice with "Load latest".
+- **Phone navigation:** workers get a bottom tab bar (My faults · Report fault), hidden on the report form so it never rides above the keyboard; leads below 640 px get Overview · Faults (overdue count) · Machines · More (opens the drawer; active on screens without a tab). Fixed bars use `.pb-safe` for the home indicator.
 
 ## Elevation & Depth
 
@@ -231,6 +233,15 @@ A disclosure with name and role, HR/EN switch, push toggle (leads, when VAPID is
 
 ### Time left
 `DueTag` (clock + time, red when overdue, deep blue when ≥ 75 % used) over a 3 px `DueBar` hairline showing the share of the response window used (logo blue, red when overdue). On overview rows and in "My faults".
+
+### Attention reasons and waiting
+`AttentionReasons` renders the server's reasons as marker + words, most pressing first: overdue and urgent in red (filled square), due soon in deep blue (half square), untaken in deep blue (hollow blue square), long wait in ink-secondary (hollow grey square). Overdue/due-soon times are recomputed from the clock. `WaitingTag` shows "Waiting: spare parts · 2 d" for faults on hold. Both follow the Shape-and-word Rule.
+
+### Segmented control
+`Segmented` for a few exclusive choices (periods): ruled white group, selected = logo-blue fill; fills the width on phones.
+
+### Photos
+`Photos`: 4:3 thumbnails in a 3–4 column grid, a secondary "Add photo" button, full view in a dialog with remove (confirmed). Fetched as blobs with the session token; never public URLs.
 
 ### Signature: the label block
 `FaultNumber` (condensed numeral, grey `#`) + `LabelFields` (ruled 2- or 4-column `dl` with uppercase field labels). Used on fault detail headers and the worker fault view. Fault cards carry the number beside the title and a ruled STATUS | PRIORITY | DUE strip; an overdue card gets an urgent border and tinted strip. Tables and dashboard rows lead with the number.

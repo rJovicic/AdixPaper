@@ -119,3 +119,40 @@
 - What: the original reel-label system (Archivo, deep-blue rail, ruled label fields) with the palette limited to the logo's blue and wordmark grey (#949597, sampled from the logo), white and ink. States are shapes: filled blue new, half-filled blue in progress, hollow grey on hold, filled grey resolved. Red stays only for urgent, overdue and errors. Amber and green are gone.
 - Kept from the press-sheet round: Ctrl/⌘ K search, All / Unassigned / Mine on the overview with a "My faults" panel, the account menu, the time-left hairline.
 - Open: adixpaper.hr could not be reached from the build environment, so the palette rests on the logo file. If the website uses no red, urgent/overdue can become bold deep blue.
+
+## 2026-10-27 · Command center: the overview gains workload and recent activity
+- Decided by: the owner's brief ("operational maintenance command center"), implemented by Claude
+- What: six figures instead of three (adds untaken, waiting for parts, resolved in period), a "why" for every fault in the queue, team workload and recent activity. Revisits "Overview shows only what needs action" (2026-10-26): workload and activity are about acting today (who is free, what just changed); totals and trends stay on Analytics.
+- Rests on: the brief; `GET /api/dashboard/pregled`.
+
+## 2026-10-27 · Status colours stay "logo colours only" (brief asked for semantic colours)
+- Decided by: Claude (default), **owner to confirm**
+- Why: the owner chose logo colours only earlier the same day, explicitly rejecting amber and green ("no crayons"). The command-center brief and its reference images use semantic colours. The newer explicit decision about colour was kept; layout, hierarchy and components follow the references.
+- How to reverse: the palette is tokens in `frontend/src/index.css :root` (`--warn`, `--ok`) plus the marks in `components/ui/Marks.jsx`; adding hues is a small, local change.
+
+## 2026-10-27 · On hold requires a reason
+- Decided by: Claude (default), following the brief
+- What: five reasons (spare parts, outside service, approval, machine availability, other). The server refuses "Na čekanju" without one, records since when, and logs how long and why on leaving. Workers see the reason.
+- Rejected: free text only (cannot be counted); a separate status per reason (multiplies states and filters).
+- Known gap: faults already on hold before this release have no reason until changed.
+
+## 2026-10-27 · Stale saves are refused (optimistic concurrency)
+- Decided by: Claude (default), AUDIT A2-29
+- What: `kvarovi.verzija`, sent with every save from the fault page; a mismatch returns 409 and the page offers "Load latest". The row is locked during the save (PostgreSQL). Saves without a version (scripts) still pass.
+
+## 2026-10-27 · Photos are stored in Postgres
+- Decided by: Claude (default), reversible
+- Why: Railway's container disk is ephemeral; a volume or S3 bucket adds infrastructure and credentials. Re-encoded photos are small (≤ 1600 px JPEG), backups cover them, and access follows the fault's permissions.
+- Trade-off: database growth (~1 GB/year at 50 photos/week). Move to object storage if volume grows; retention is an open owner decision.
+
+## 2026-10-27 · Workers see titles of open faults on a machine while reporting
+- Decided by: the owner's brief (duplicate warning), implemented by Claude
+- What: number, title, status, machine part and time only; no reporter, assignee, costs or notes. The warning never blocks a report. Resolves PRODUCT.md open question on duplicates.
+
+## 2026-10-27 · One handler per fault; no manager/technician split
+- Decided by: Claude (default)
+- Why: the brief allows it "if the application requires both roles"; it does not — leads are the technicians (PRODUCT.md). Adding a second role would invent a rule. Ownership history is in the timeline.
+
+## 2026-10-27 · Analytics MTBF is an approximation
+- Decided by: Claude (default)
+- What: "gap between faults" = mean interval between consecutive reports on a machine in the period. True MTBF needs operating hours, which are not recorded; the page says so.
