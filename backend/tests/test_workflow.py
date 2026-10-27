@@ -131,7 +131,7 @@ def test_overview_counts_match_the_lists_they_link_to(client, admin, make_user, 
     activity = overview.json()["aktivnosti"]
     assert activity and activity[0]["kvar_id"] in (a["id"], b["id"])
 
-    assert client.get("/api/dashboard/pregled?period=godina", headers=admin).status_code == 422
+    assert client.get("/api/dashboard/pregled?period=zauvijek", headers=admin).status_code == 422
 
 
 def test_overview_is_for_leads_only(client, make_user):

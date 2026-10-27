@@ -9,6 +9,7 @@ import { useI18n } from '../../i18n'
 import { useAuth } from '../../auth/AuthProvider'
 import { AttentionReasons, Due, FaultNumber, PriorityMark, StatusMark, WaitingTag } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
+import Segmented from '../../components/ui/Segmented'
 
 const get = (path) => api.get(path).then((response) => response.data)
 const ATTENTION_ROWS = 10
@@ -215,21 +216,12 @@ export default function Dashboard() {
         title={t('dashboard.title')}
         meta={format.dateLong(new Date())}
         actions={
-          <div role="group" aria-label={t('dashboard.periodLabel')} className="inline-flex rounded border border-rule-strong bg-stock p-0.5">
-            {PERIODS.map((value) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={period === value}
-                onClick={() => setPeriod(value)}
-                className={`min-h-[2.25rem] rounded-sm px-3 text-sm font-semibold transition-colors ${
-                  period === value ? 'bg-brand text-stock' : 'text-ink-2 hover:bg-ink/5 hover:text-ink'
-                }`}
-              >
-                {t(`dashboard.periods.${value}`)}
-              </button>
-            ))}
-          </div>
+          <Segmented
+            label={t('dashboard.periodLabel')}
+            value={period}
+            onChange={setPeriod}
+            options={PERIODS.map((value) => ({ value, label: t(`dashboard.periods.${value}`) }))}
+          />
         }
       />
 

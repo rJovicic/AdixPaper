@@ -30,7 +30,7 @@ for (const file of files) {
 }
 for (const key of used) if (!hrKeys.has(key)) problems.push(`used but undefined: ${key}`)
 for (const key of hrKeys) {
-  const dynamicPrefixes = ['status.', 'priority.', 'priorityHint.', 'roles.', 'roleHints.', 'machineStatus.', 'fault.events.', 'waiting.reasons.', 'waiting.hints.', 'attention.', 'dashboard.periods.', 'dashboard.periodName.']
+  const dynamicPrefixes = ['status.', 'priority.', 'priorityHint.', 'roles.', 'roleHints.', 'machineStatus.', 'fault.events.', 'waiting.reasons.', 'waiting.hints.', 'attention.', 'dashboard.periods.', 'dashboard.periodName.', 'analytics.periods.', 'analytics.defs.']
   if (!used.has(key) && !dynamicPrefixes.some((prefix) => key.startsWith(prefix))) problems.push(`unused: ${key}`)
 }
 

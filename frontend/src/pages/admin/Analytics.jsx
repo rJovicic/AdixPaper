@@ -1,39 +1,53 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
-import { ErrorState, PageHeader } from '../../components/ui/States'
+import { ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
+import Segmented from '../../components/ui/Segmented'
 
 const get = (path) => api.get(path).then((response) => response.data)
+const PERIODS = ['30d', 'mjesec', '90d', 'godina']
+const PERIOD_KEY = 'adix.analyticsPeriod'
+const RECURRING_MIN = 3 // mirrors backend dashboard.RECURRING_MIN
 
-function Panel({ title, children, action }) {
+function readPeriod() {
+  try {
+    const value = localStorage.getItem(PERIOD_KEY)
+    return PERIODS.includes(value) ? value : '30d'
+  } catch {
+    return '30d'
+  }
+}
+
+function Panel({ title, hint, children, className = '' }) {
   return (
-    <section className="surface flex flex-col" aria-label={title}>
-      <header className="flex items-center justify-between gap-3 border-b border-rule px-5 py-3.5">
+    <section className={`surface flex min-w-0 flex-col ${className}`} aria-label={title}>
+      <header className="border-b border-rule px-5 py-3.5">
         <h2 className="text-base font-semibold">{title}</h2>
-        {action}
+        {hint && <p className="text-meta text-ink-2">{hint}</p>}
       </header>
       <div className="flex-1">{children}</div>
     </section>
   )
 }
 
-function RankList({ rows, empty }) {
-  if (!rows.length) return <p className="px-5 py-6 text-ink-3">{empty}</p>
+function Empty() {
+  const { t } = useI18n()
+  return <p className="px-5 py-6 text-ink-3">{t('analytics.noData')}</p>
+}
+
+/** One headline figure with the same figure for the period before. */
+function Metric({ label, value, sub, previous }) {
+  const { t } = useI18n()
   return (
-    <ol className="divide-y divide-rule">
-      {rows.map((row, index) => (
-        <li key={`${row.title}-${index}`} className="flex items-center gap-3 px-5 py-2.5">
-          <span className="numeral w-5 shrink-0 text-ink-3">{index + 1}</span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium text-ink">{row.title}</span>
-            {row.meta && <span className="block truncate text-meta text-ink-2">{row.meta}</span>}
-          </span>
-          <span className="numeral shrink-0 text-lg text-ink">{row.value}</span>
-        </li>
-      ))}
-    </ol>
+    <div className="flex min-w-0 flex-col gap-0.5 border-b border-r border-rule px-4 py-3">
+      <dt className="field-label truncate">{label}</dt>
+      <dd className="numeral text-[1.75rem] leading-tight text-ink">{value}</dd>
+      {sub && <dd className="truncate text-meta text-ink-2">{sub}</dd>}
+      {previous !== undefined && <dd className="truncate text-meta text-ink-3">{t('analytics.previous', { value: previous })}</dd>}
+    </div>
   )
 }
 
@@ -75,73 +89,227 @@ function MonthlyChart({ rows }) {
   )
 }
 
+/** Horizontal hairline bars: the number is always printed, the bar only helps compare. */
+function BarRows({ rows }) {
+  const max = Math.max(1, ...rows.map((row) => row.value))
+  return (
+    <ul className="divide-y divide-rule">
+      {rows.map((row) => (
+        <li key={row.key} className="px-5 py-2.5">
+          <span className="flex items-baseline justify-between gap-3">
+            <span className="min-w-0 truncate font-medium text-ink">{row.label}</span>
+            <span className="shrink-0 text-meta tabular text-ink-2">{row.text}</span>
+          </span>
+          <span aria-hidden="true" className="due-bar mt-1.5"><i style={{ width: `${Math.max(row.value ? 3 : 0, Math.round((row.value / max) * 100))}%` }} /></span>
+          {row.note && <span className="mt-1 block text-meta text-ink-3">{row.note}</span>}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export default function Analytics() {
-  const { t, format } = useI18n()
-  const stats = useAsync(() => get('/dashboard/stats'), [])
+  const i18n = useI18n()
+  const { t, format, priority, waitingReason } = i18n
+  const [period, setPeriodState] = useState(readPeriod)
+  const data = useAsync(() => get(`/dashboard/analitika?period=${period}`), [period])
   const monthly = useAsync(() => get('/dashboard/kvarovi-po-mjesecu').then(asArray), [])
-  const machines = useAsync(() => get('/dashboard/top-oprema').then(asArray), [])
-  const components = useAsync(() => get('/dashboard/top-komponente').then(asArray), [])
-  const parts = useAsync(() => get('/dashboard/utrosak-dijelova').then(asArray), [])
+
+  const setPeriod = (value) => {
+    setPeriodState(value)
+    try {
+      localStorage.setItem(PERIOD_KEY, value)
+    } catch {
+      // Remembering the period is a convenience only.
+    }
+  }
 
   useEffect(() => {
     document.title = `${t('analytics.title')} · ${t('app.name')}`
   }, [t])
 
-  const s = stats.data
+  const d = data.data
+  const s = d?.sazetak
+  const p = d?.prethodno
+  const duration = (minutes) => (minutes === null || minutes === undefined ? t('analytics.none') : format.duration(minutes))
+  const percent = (value) => (value === null || value === undefined ? t('analytics.none') : `${format.number(value)} %`)
 
   return (
     <div>
-      <PageHeader title={t('analytics.title')} meta={t('analytics.meta')} />
-      {stats.error && <div className="surface mb-6"><ErrorState error={stats.error} onRetry={stats.reload} /></div>}
-      <section aria-labelledby="month-title" className="surface mb-6 flex flex-col overflow-hidden md:flex-row">
-        <h2 id="month-title" className="flex items-center border-b border-rule bg-ground/50 px-5 py-3 text-base font-semibold md:border-b-0 md:border-r">{t('dashboard.month')}</h2>
-        <dl className="grid flex-1 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-          {[
-            [t('dashboard.resolvedMonth'), s ? String(s.rijeseni_ovaj_mjesec) : '–'],
-            [t('dashboard.avgResolution'), s ? format.duration(s.prosjecno_vrijeme_rjesavanja_min) : '–'],
-            [t('dashboard.cost'), s ? format.moneyRound(s.ukupni_troskovi_ovaj_mjesec) : '–'],
-            [t('dashboard.partsCost'), s ? format.moneyRound(s.rezervni_dijelovi_ovaj_mjesec) : '–'],
-            [t('dashboard.downtime'), s ? format.duration(s.zastoj_ovaj_mjesec_min) : '–'],
-          ].map(([label, value]) => (
-            <div key={label} className="flex min-w-0 flex-col gap-0.5 border-b border-r border-rule px-4 py-2.5 lg:border-b-0">
-              <dt className="text-meta leading-snug text-ink-2">{label}</dt>
-              <dd className="whitespace-nowrap font-semibold tabular text-ink">{value}</dd>
+      <PageHeader
+        title={t('analytics.title')}
+        meta={d ? t('analytics.range', { from: format.date(d.od), to: format.date(d.do) }) : ' '}
+        actions={
+          <Segmented
+            label={t('dashboard.periodLabel')}
+            value={period}
+            onChange={setPeriod}
+            options={PERIODS.map((value) => ({ value, label: t(`analytics.periods.${value}`) }))}
+          />
+        }
+      />
+
+      {data.error && !d ? (
+        <div className="surface mb-6"><ErrorState error={data.error} onRetry={data.reload} /></div>
+      ) : !s ? (
+        <div className="surface mb-6"><LoadingRows rows={3} /></div>
+      ) : (
+        <section aria-label={t('analytics.title')} className="surface mb-3 overflow-hidden" aria-busy={data.loading}>
+          <dl className="-mb-px -mr-px grid grid-cols-2 sm:grid-cols-4">
+            <Metric label={t('analytics.reported')} value={s.prijavljeno} previous={p.prijavljeno} />
+            <Metric label={t('analytics.resolved')} value={s.rijeseno} previous={p.rijeseno} />
+            <Metric label={t('analytics.toTake')} value={duration(s.vrijeme_do_preuzimanja_min)} previous={duration(p.vrijeme_do_preuzimanja_min)} />
+            <Metric label={t('analytics.toResolve')} value={duration(s.vrijeme_do_rjesenja_min)} previous={duration(p.vrijeme_do_rjesenja_min)} />
+            <Metric label={t('analytics.repair')} value={duration(s.vrijeme_popravka_min)} previous={duration(p.vrijeme_popravka_min)} />
+            <Metric
+              label={t('analytics.onTime')}
+              value={percent(s.sla_postotak)}
+              sub={s.rijeseno ? t('analytics.onTimeOf', { n: s.sla_u_roku, total: s.rijeseno }) : undefined}
+              previous={percent(p.sla_postotak)}
+            />
+            <Metric
+              label={t('analytics.downtime')}
+              value={s.zastoj_evidentiran ? format.duration(s.zastoj_min) : t('analytics.none')}
+              sub={s.rijeseno ? t('analytics.downtimeOf', { n: s.zastoj_evidentiran, total: s.rijeseno }) : undefined}
+              previous={p.zastoj_evidentiran ? format.duration(p.zastoj_min) : t('analytics.none')}
+            />
+            <Metric
+              label={t('analytics.cost')}
+              value={format.moneyRound(s.trosak_rada + s.trosak_dijelova)}
+              sub={t('analytics.costSplit', { work: format.moneyRound(s.trosak_rada), parts: format.moneyRound(s.trosak_dijelova) })}
+              previous={format.moneyRound(p.trosak_rada + p.trosak_dijelova)}
+            />
+          </dl>
+        </section>
+      )}
+
+      <details className="mb-6 text-sm text-ink-2">
+        <summary className="inline-flex min-h-[2.75rem] cursor-pointer items-center font-semibold text-brand">{t('analytics.defsTitle')}</summary>
+        <dl className="surface mt-1 grid gap-x-6 gap-y-2 px-5 py-4 md:grid-cols-2">
+          {['reported', 'resolved', 'toTake', 'toResolve', 'repair', 'onTime', 'downtime', 'cost'].map((key) => (
+            <div key={key}>
+              <dt className="font-semibold text-ink">{t(`analytics.${key}`)}</dt>
+              <dd>{t(`analytics.defs.${key}`)}</dd>
             </div>
           ))}
+          <div>
+            <dt className="font-semibold text-ink">{t('analytics.colMtbf')}</dt>
+            <dd>{t('analytics.defs.mtbf')}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-ink">{t('analytics.previous', { value: '…' })}</dt>
+            <dd>{t('analytics.defs.previous')}</dd>
+          </div>
         </dl>
-      </section>
+      </details>
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <div className="min-w-0 lg:col-span-3">
-          <Panel title={`${t('dashboard.byMonth')} · ${new Date().getFullYear()}`}>
-            {monthly.error ? <ErrorState error={monthly.error} onRetry={monthly.reload} /> : <MonthlyChart rows={monthly.data || []} />}
-          </Panel>
-        </div>
-        <div className="min-w-0 lg:col-span-2">
-          <Panel title={t('dashboard.topMachines')}>
-            {machines.error ? <ErrorState error={machines.error} onRetry={machines.reload} /> : (
-              <RankList
-                empty={t('dashboard.noData')}
-                rows={(machines.data || []).slice(0, 6).map((row) => ({ title: row.naziv, meta: [row.lokacija, row.ukupni_troskovi > 0 ? format.money(row.ukupni_troskovi) : null].filter(Boolean).join(' · '), value: row.broj_kvarova }))}
-              />
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-5">
+        <Panel title={t('analytics.machines')} hint={t('analytics.machinesHint')} className="lg:col-span-5">
+          {!d ? <LoadingRows rows={3} /> : d.masine.length === 0 ? <Empty /> : (
+            <>
+              <ul className="divide-y divide-rule md:hidden">
+                {d.masine.map((row) => (
+                  <li key={row.oprema_id}>
+                    <Link to={`/admin/kvarovi?oprema=${row.oprema_id}`} className="block px-5 py-3 hover:bg-brand-wash/50">
+                      <span className="flex items-baseline justify-between gap-3">
+                        <span className="min-w-0 truncate font-semibold">{row.naziv}</span>
+                        <span className="numeral text-lg">{row.kvarovi}</span>
+                      </span>
+                      <span className="mt-0.5 flex flex-wrap gap-x-3 text-meta text-ink-2">
+                        <span>{t('analytics.colDowntime')}: {row.zastoj_min ? format.duration(row.zastoj_min) : '—'}</span>
+                        <span>{t('analytics.colToResolve')}: {duration(row.vrijeme_do_rjesenja_min)}</span>
+                        <span>{t('analytics.colMtbf')}: {row.mtbf_sati === null ? '—' : format.duration(row.mtbf_sati * 60)}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <table className="hidden w-full text-[0.9375rem] md:table">
+                <thead className="table-head">
+                  <tr>
+                    <th scope="col" className="w-[34%] px-5 py-2.5 font-semibold">{t('analytics.colMachine')}</th>
+                    <th scope="col" className="px-4 py-2.5 text-right font-semibold">{t('analytics.colFaults')}</th>
+                    <th scope="col" className="px-4 py-2.5 text-right font-semibold">{t('analytics.colDowntime')}</th>
+                    <th scope="col" className="px-4 py-2.5 text-right font-semibold">{t('analytics.colToResolve')}</th>
+                    <th scope="col" className="px-4 py-2.5 text-right font-semibold">{t('analytics.colMtbf')}</th>
+                    <th scope="col" className="px-5 py-2.5 text-right font-semibold">{t('analytics.colCost')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-rule tabular">
+                  {d.masine.map((row) => (
+                    <tr key={row.oprema_id} className="hover:bg-brand-wash/50">
+                      <td className="max-w-0 px-5 py-2.5">
+                        <Link to={`/admin/kvarovi?oprema=${row.oprema_id}`} className="block truncate font-semibold text-ink hover:underline">{row.naziv}</Link>
+                        {row.lokacija && <span className="block truncate text-meta text-ink-2">{row.lokacija}</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold">{row.kvarovi}</td>
+                      <td className="px-4 py-2.5 text-right">{row.zastoj_min ? format.duration(row.zastoj_min) : '—'}</td>
+                      <td className="px-4 py-2.5 text-right">{duration(row.vrijeme_do_rjesenja_min)}</td>
+                      <td className="px-4 py-2.5 text-right">{row.mtbf_sati === null ? '—' : format.duration(row.mtbf_sati * 60)}</td>
+                      <td className="px-5 py-2.5 text-right">{row.trosak ? format.moneyRound(row.trosak) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </Panel>
+
+        <Panel title={`${t('dashboard.byMonth')} · ${new Date().getFullYear()}`} className="lg:col-span-3">
+          {monthly.error ? <ErrorState error={monthly.error} onRetry={monthly.reload} /> : <MonthlyChart rows={monthly.data || []} />}
+        </Panel>
+
+        <Panel title={t('analytics.waiting')} hint={t('analytics.waitingHint')} className="lg:col-span-2">
+          {!d ? <LoadingRows rows={2} /> : d.cekanje.length === 0 ? <Empty /> : (
+            <BarRows
+              rows={d.cekanje.map((row) => ({
+                key: row.razlog,
+                label: waitingReason(row.razlog),
+                value: row.ukupno_min,
+                text: row.broj ? t('analytics.waitingRow', { n: row.broj, time: format.duration(row.ukupno_min) }) : '—',
+                note: row.trenutno ? t('analytics.waitingNow', { n: row.trenutno }) : null,
+              }))}
+            />
+          )}
+        </Panel>
+
+        <Panel title={t('analytics.recurring')} hint={t('analytics.recurringHint', { n: RECURRING_MIN })} className="lg:col-span-3">
+          {!d ? <LoadingRows rows={2} /> : d.ponavljanja.length === 0 ? <Empty /> : (
+            <ol className="divide-y divide-rule">
+              {d.ponavljanja.map((row) => (
+                <li key={`${row.oprema_id}-${row.komponenta}`}>
+                  <Link to={`/admin/kvarovi?oprema=${row.oprema_id}&q=${encodeURIComponent(row.komponenta || '')}`} className="flex items-center gap-3 px-5 py-2.5 hover:bg-brand-wash/50">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-ink">{row.komponenta} · {row.oprema}</span>
+                      <span className="block text-meta text-ink-2">{t('analytics.recurringRow', { date: format.date(row.zadnji) })}</span>
+                    </span>
+                    <span className="numeral shrink-0 text-lg text-urgent">{row.kvarovi}</span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Panel>
+
+        <div className="space-y-6 lg:col-span-2">
+          <Panel title={t('analytics.byPriority')}>
+            {!d ? <LoadingRows rows={2} /> : (
+              <BarRows rows={d.po_prioritetu.map((row) => ({ key: row.prioritet, label: priority(row.prioritet), value: row.broj, text: String(row.broj) }))} />
             )}
-            {s && <p className="border-t border-rule px-5 py-2.5 text-meta text-ink-2">{t('dashboard.machinesLine', { n: s.ukupno_opreme, broken: s.neispravna_oprema })}</p>}
           </Panel>
-        </div>
-        <div className="min-w-0 lg:col-span-3">
-          <Panel title={t('dashboard.topComponents')}>
-            {components.error ? <ErrorState error={components.error} onRetry={components.reload} /> : (
-              <RankList empty={t('dashboard.noData')} rows={(components.data || []).slice(0, 6).map((row) => ({ title: row.naziv, meta: row.oprema, value: row.broj_kvarova }))} />
-            )}
-          </Panel>
-        </div>
-        <div className="min-w-0 lg:col-span-2">
-          <Panel title={t('dashboard.partsUsage')}>
-            {parts.error ? <ErrorState error={parts.error} onRetry={parts.reload} /> : (
-              <RankList
-                empty={t('dashboard.noData')}
-                rows={(parts.data || []).slice(0, 6).map((row) => ({ title: row.naziv, meta: row.sifra, value: format.number(row.kolicina) }))}
-              />
+          <Panel title={t('analytics.parts')} hint={t('analytics.partsHint')}>
+            {!d ? <LoadingRows rows={2} /> : d.dijelovi.length === 0 ? <Empty /> : (
+              <ol className="divide-y divide-rule">
+                {d.dijelovi.slice(0, 6).map((row) => (
+                  <li key={`${row.naziv}-${row.sifra}`} className="flex items-center gap-3 px-5 py-2.5">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-ink">{row.naziv}</span>
+                      <span className="block truncate text-meta text-ink-2">{[row.sifra, row.trosak ? format.money(row.trosak) : null].filter(Boolean).join(' · ')}</span>
+                    </span>
+                    <span className="numeral shrink-0 text-lg">{format.number(row.kolicina)}</span>
+                  </li>
+                ))}
+              </ol>
             )}
           </Panel>
         </div>

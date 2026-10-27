@@ -45,7 +45,7 @@ def local_naive(value: datetime | None) -> datetime | None:
     return as_utc(value).astimezone(PLANT_TZ).replace(tzinfo=None)
 
 
-PERIODS = ("danas", "7d", "30d", "mjesec")
+PERIODS = ("danas", "7d", "30d", "mjesec", "90d", "godina")
 
 
 def period_start(period: str, now: datetime | None = None) -> datetime | None:
@@ -56,6 +56,8 @@ def period_start(period: str, now: datetime | None = None) -> datetime | None:
         return local_day_start(now)
     if period == "mjesec":
         return local_month_start(now)
-    if period in ("7d", "30d"):
+    if period == "godina":
+        return local_year_start(now)
+    if period in ("7d", "30d", "90d"):
         return local_day_start(now) - timedelta(days=int(period[:-1]) - 1)
     return None

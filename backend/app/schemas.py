@@ -544,3 +544,69 @@ class Pregled(BaseModel):
     kpi: PregledKpi
     opterecenje: List[PregledOpterecenje]
     aktivnosti: List[PregledAktivnost]
+
+
+# --- ANALITIKA ---
+class AnalitikaSazetak(BaseModel):
+    """Headline figures for one period. Durations in minutes; None when there is nothing to average."""
+    prijavljeno: int
+    rijeseno: int
+    vrijeme_do_rjesenja_min: Optional[float] = None
+    vrijeme_do_preuzimanja_min: Optional[float] = None
+    vrijeme_popravka_min: Optional[float] = None
+    sla_u_roku: int
+    sla_postotak: Optional[float] = None
+    zastoj_min: int
+    zastoj_evidentiran: int
+    trosak_rada: float
+    trosak_dijelova: float
+
+
+class AnalitikaMasina(BaseModel):
+    oprema_id: int
+    naziv: str
+    lokacija: Optional[str] = None
+    kvarovi: int
+    zastoj_min: int
+    trosak: float
+    vrijeme_do_rjesenja_min: Optional[float] = None
+    mtbf_sati: Optional[float] = None
+
+
+class AnalitikaCekanje(BaseModel):
+    razlog: str
+    broj: int
+    ukupno_min: int
+    trenutno: int
+
+
+class AnalitikaPonavljanje(BaseModel):
+    oprema_id: int
+    oprema: str
+    komponenta: Optional[str] = None
+    kvarovi: int
+    zadnji: datetime
+
+
+class AnalitikaDio(BaseModel):
+    naziv: str
+    sifra: Optional[str] = None
+    kolicina: float
+    trosak: float
+
+
+class AnalitikaPrioritet(BaseModel):
+    prioritet: str
+    broj: int
+
+
+class Analitika(BaseModel):
+    od: datetime
+    do: datetime
+    sazetak: AnalitikaSazetak
+    prethodno: AnalitikaSazetak
+    masine: List[AnalitikaMasina]
+    cekanje: List[AnalitikaCekanje]
+    ponavljanja: List[AnalitikaPonavljanje]
+    dijelovi: List[AnalitikaDio]
+    po_prioritetu: List[AnalitikaPrioritet]

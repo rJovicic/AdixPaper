@@ -69,8 +69,30 @@ No pre-existing failures. (One e2e failure appeared only when an orphan server f
 
 ## 3. Progress log
 
-_(updated as work lands)_
+| Phase | Status | Commit | Verified by |
+|---|---|---|---|
+| 1 Backend workflow | Done | `0be4d5b` | `tests/test_workflow.py` (8); migration run against a DB created by the old code |
+| 4 Photos (backend) | Done | `77310f2` | `tests/test_prilozi.py` (7): formats, EXIF/GPS stripped, limits, isolation, delete rules |
+| 2 Overview | Done | `61af697` | e2e `workflow.spec.js` (reasons, drill-down, figure → list); axe on phone overview; screenshots 390/1366 |
+| 3 Fault detail | Done | `61af697` | e2e: hold with reason, stale save → banner → reload → save |
+| 6 Paged list | Done | `61af697` | pytest paging/search/filters; existing list e2e |
+| 5 Worker | Done | `923024e` | e2e: duplicate warning, photo on report, updated badge, tab bar hidden on form; axe |
+| 7 Analytics | **Next** | | |
+| 8 Lead phone nav, docs, regression | Pending | | |
+
+Test totals after phase 5: pytest **72** (Postgres and SQLite), e2e **30**, lint/i18n/build clean.
+
+Files changed so far: `backend/app/{models,schemas,bootstrap,timeutil,images}.py`, `backend/app/routers/{kvarovi,dashboard}.py`,
+`backend/tests/test_{workflow,prilozi}.py`, `frontend/src/pages/admin/{Dashboard,Faults,FaultDetail}.jsx`,
+`frontend/src/pages/worker/*`, `frontend/src/components/{Photos,FaultCard,Timeline,WorkerShell}.jsx`, `components/ui/Marks.jsx`,
+`frontend/src/lib/{events,photo,seen}.js`, `i18n/*`, `e2e/tests/{workflow,quality,worker}.spec.js`, `e2e/seed-demo.py`.
+
+Known limitations introduced/kept:
+- Faults put on hold *before* this release have no reason or start time; they show as on hold without a reason until changed.
+- A report retried after a network failure that actually reached the server can create a duplicate; the duplicate warning shows the first one. No idempotency key (would need a column and client key).
+- The "updated" badge is per device (localStorage).
 
 ## 4. Next task
 
-Phase 1 — backend model changes.
+Phase 7 — analytics endpoint with period (`od`/`do`): MTTR, time to take, SLA compliance, recorded downtime,
+cost, waiting time by reason (from status events), MTBF per machine, recurring faults; then the Analytics page.

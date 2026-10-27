@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import datetime
+from collections import defaultdict
 from typing import List, Optional
 
 from ..database import get_db
 from ..models import Oprema, Kvar, Korisnik, KvarDogadjaj, RolaEnum, StatusKvaraEnum, PrioritetEnum, SLA_SATI, KomponentaOpreme, KvarRezervniDio, RezervniDio, Dobavljac
-from ..schemas import Pregled, PregledAktivnost, PregledKpi, PregledOpterecenje, KorisnikMini, DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
+from ..schemas import Analitika, AnalitikaCekanje, AnalitikaDio, AnalitikaMasina, AnalitikaPonavljanje, AnalitikaPrioritet, AnalitikaSazetak, Pregled, PregledAktivnost, PregledKpi, PregledOpterecenje, KorisnikMini, DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
 from ..auth import require_voditelj_or_admin
 from ..timeutil import utcnow, as_utc, local_day_start, local_month_start, local_year_start, local_month_number, period_start
 
@@ -111,6 +112,147 @@ def get_pregled(
         for e in events
     ]
     return Pregled(od=od, do=now, kpi=kpi, opterecenje=opterecenje, aktivnosti=aktivnosti)
+
+
+RECURRING_MIN = 3  # faults on the same machine part within the period that count as "recurring"
+
+
+def _minutes(start, end) -> float:
+    return (as_utc(end) - as_utc(start)).total_seconds() / 60
+
+
+def _mean(values):
+    values = list(values)
+    return round(sum(values) / len(values), 1) if values else None
+
+
+def _summary(db: Session, od: datetime, do: datetime) -> AnalitikaSazetak:
+    """Headline figures for [od, do). Definitions are shown on the Analytics page (analytics.defs)."""
+    reported = db.query(func.count(Kvar.id)).filter(Kvar.datum_prijave >= od, Kvar.datum_prijave < do).scalar() or 0
+    resolved = db.query(Kvar).filter(
+        Kvar.status == StatusKvaraEnum.rijeseno, Kvar.datum_rjesavanja >= od, Kvar.datum_rjesavanja < do
+    ).all()
+    taken = db.query(Kvar.datum_prijave, Kvar.datum_pocetka).filter(
+        Kvar.datum_pocetka >= od, Kvar.datum_pocetka < do, Kvar.datum_prijave.isnot(None)
+    ).all()
+    on_time = sum(1 for k in resolved if k.rok is not None and as_utc(k.datum_rjesavanja) <= k.rok)
+    parts_cost = 0.0
+    if resolved:
+        parts_cost = db.query(
+            func.coalesce(func.sum(KvarRezervniDio.kolicina * func.coalesce(RezervniDio.cijena, 0)), 0)
+        ).join(RezervniDio, KvarRezervniDio.rezervni_dio_id == RezervniDio.id).filter(
+            KvarRezervniDio.kvar_id.in_([k.id for k in resolved])
+        ).scalar() or 0
+    return AnalitikaSazetak(
+        prijavljeno=reported,
+        rijeseno=len(resolved),
+        vrijeme_do_rjesenja_min=_mean(_minutes(k.datum_prijave, k.datum_rjesavanja) for k in resolved if k.datum_prijave),
+        vrijeme_do_preuzimanja_min=_mean(_minutes(prijava, pocetak) for prijava, pocetak in taken),
+        vrijeme_popravka_min=_mean(_minutes(k.datum_pocetka, k.datum_rjesavanja) for k in resolved if k.datum_pocetka),
+        sla_u_roku=on_time,
+        sla_postotak=round(100 * on_time / len(resolved), 1) if resolved else None,
+        zastoj_min=sum(k.trajanje_min or 0 for k in resolved),
+        zastoj_evidentiran=sum(1 for k in resolved if (k.trajanje_min or 0) > 0),
+        trosak_rada=float(sum(k.troskovi or 0 for k in resolved)),
+        trosak_dijelova=float(parts_cost),
+    )
+
+
+@router.get("/analitika", response_model=Analitika)
+def get_analitika(
+    period: str = "30d",
+    db: Session = Depends(get_db),
+    _: Korisnik = Depends(require_voditelj_or_admin),
+):
+    """Maintenance performance for a period, with the same figures for the period before it."""
+    now = utcnow()
+    od = period_start(period, now)
+    if od is None:
+        raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
+    before = od - (now - od)
+
+    reported = db.query(Kvar).options(joinedload(Kvar.oprema), joinedload(Kvar.komponenta)).filter(Kvar.datum_prijave >= od).all()
+
+    by_machine = defaultdict(list)
+    for k in reported:
+        by_machine[k.oprema_id].append(k)
+    masine = []
+    for faults in by_machine.values():
+        machine = faults[0].oprema
+        times = sorted(as_utc(k.datum_prijave) for k in faults)
+        masine.append(AnalitikaMasina(
+            oprema_id=machine.id,
+            naziv=machine.naziv,
+            lokacija=machine.lokacija,
+            kvarovi=len(faults),
+            zastoj_min=sum(k.trajanje_min or 0 for k in faults),
+            trosak=float(sum(k.troskovi or 0 for k in faults)),
+            vrijeme_do_rjesenja_min=_mean(_minutes(k.datum_prijave, k.datum_rjesavanja) for k in faults if k.datum_rjesavanja),
+            # Mean gap between consecutive reports in the period: a proxy for MTBF (operating hours are not recorded).
+            mtbf_sati=round((times[-1] - times[0]).total_seconds() / 3600 / (len(times) - 1), 1) if len(times) > 1 else None,
+        ))
+    masine.sort(key=lambda row: (-row.kvarovi, -row.zastoj_min, row.naziv))
+
+    recurring = defaultdict(list)
+    for k in reported:
+        if k.komponenta_id:
+            recurring[(k.oprema_id, k.komponenta_id)].append(k)
+    ponavljanja = sorted(
+        (
+            AnalitikaPonavljanje(
+                oprema_id=faults[0].oprema_id,
+                oprema=faults[0].oprema.naziv,
+                komponenta=faults[0].komponenta.naziv if faults[0].komponenta else None,
+                kvarovi=len(faults),
+                zadnji=max(k.datum_prijave for k in faults),
+            )
+            for faults in recurring.values() if len(faults) >= RECURRING_MIN
+        ),
+        key=lambda row: (-row.kvarovi, row.oprema),
+    )
+
+    # Completed waits: logged on the status change that ended them (podaci.cekanje_min / cekanje_razlog).
+    waits = defaultdict(lambda: {"broj": 0, "ukupno_min": 0, "trenutno": 0})
+    for (podaci,) in db.query(KvarDogadjaj.podaci).filter(KvarDogadjaj.tip == "status", KvarDogadjaj.kreiran >= od).all():
+        if podaci and podaci.get("cekanje_razlog") and podaci.get("cekanje_min") is not None:
+            row = waits[podaci["cekanje_razlog"]]
+            row["broj"] += 1
+            row["ukupno_min"] += int(podaci["cekanje_min"])
+    for (reason,) in db.query(Kvar.razlog_cekanja).filter(Kvar.status == StatusKvaraEnum.na_cekanju, Kvar.razlog_cekanja.isnot(None)).all():
+        waits[reason]["trenutno"] += 1
+    cekanje = sorted(
+        (AnalitikaCekanje(razlog=reason, **row) for reason, row in waits.items()),
+        key=lambda row: (-row.ukupno_min, -row.trenutno),
+    )
+
+    parts = db.query(
+        RezervniDio.naziv,
+        RezervniDio.sifra,
+        func.sum(KvarRezervniDio.kolicina).label("kolicina"),
+        func.sum(KvarRezervniDio.kolicina * func.coalesce(RezervniDio.cijena, 0)).label("trosak"),
+    ).join(KvarRezervniDio, RezervniDio.id == KvarRezervniDio.rezervni_dio_id).join(
+        Kvar, KvarRezervniDio.kvar_id == Kvar.id
+    ).filter(
+        Kvar.status == StatusKvaraEnum.rijeseno, Kvar.datum_rjesavanja >= od
+    ).group_by(RezervniDio.id, RezervniDio.naziv, RezervniDio.sifra).order_by(
+        func.sum(KvarRezervniDio.kolicina).desc()
+    ).limit(10).all()
+
+    priorities = defaultdict(int)
+    for k in reported:
+        priorities[_enum_value(k.prioritet)] += 1
+
+    return Analitika(
+        od=od,
+        do=now,
+        sazetak=_summary(db, od, now),
+        prethodno=_summary(db, before, od),
+        masine=masine[:10],
+        cekanje=cekanje,
+        ponavljanja=ponavljanja[:10],
+        dijelovi=[AnalitikaDio(naziv=r.naziv, sifra=r.sifra, kolicina=float(r.kolicina or 0), trosak=float(r.trosak or 0)) for r in parts],
+        po_prioritetu=[AnalitikaPrioritet(prioritet=p, broj=priorities[p]) for p in ("Hitno", "Normalno", "Nisko")],
+    )
 
 
 @router.get("/stats", response_model=DashboardStats)
