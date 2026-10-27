@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router'
-import { CheckCircle2, ClipboardList, Plus } from 'lucide-react'
+import { CheckCircle2, ClipboardList, Plus, QrCode } from 'lucide-react'
 import { api } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
@@ -36,6 +36,10 @@ export default function MyFaults() {
         <Plus size={22} strokeWidth={2.5} aria-hidden="true" />
         {t('worker.report')}
       </Link>
+      <p className="mt-2 flex items-center gap-1.5 text-meta text-ink-2">
+        <QrCode size={15} aria-hidden="true" className="shrink-0" />
+        {t('worker.qrHint')}
+      </p>
 
       <div role="tablist" aria-label={t('worker.title')} className="mt-6 flex border-b border-rule">
         {tabs.map((item) => (
@@ -48,11 +52,11 @@ export default function MyFaults() {
             aria-controls="worker-panel"
             onClick={() => setTab(item.id)}
             className={`-mb-px flex min-h-[2.75rem] items-center gap-2 border-b-2 px-4 font-semibold transition-colors ${
-              tab === item.id ? 'border-brand text-ink' : 'border-transparent text-ink-2 hover:text-ink'
+              tab === item.id ? 'border-key text-ink' : 'border-transparent text-ink-2 hover:text-ink'
             }`}
           >
             {item.label}
-            <span className="numeral rounded-sm bg-ground px-1.5 text-sm text-ink-2">{faults.loading ? '·' : item.count}</span>
+            <span className="rounded-sm bg-[#E8EAED] px-1.5 py-0.5 font-mono text-xs font-medium text-ink-2">{faults.loading ? '·' : item.count}</span>
           </button>
         ))}
       </div>

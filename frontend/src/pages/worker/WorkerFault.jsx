@@ -5,7 +5,7 @@ import { api, errorKind } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
 import Timeline from '../../components/Timeline'
-import { DueTag, FaultNumber, LabelFields, PriorityMark, StatusMark } from '../../components/ui/Marks'
+import { DueStrip, DueTag, FaultNumber, LabelFields, PriorityMark, StatusMark } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 
 export default function WorkerFault() {
@@ -55,6 +55,7 @@ export default function WorkerFault() {
               <PriorityMark priority={item.prioritet} />
               <DueTag fault={item} />
             </div>
+            <DueStrip fault={item} className="mt-3 max-w-md" />
           </header>
           <LabelFields
             columns="sm:grid-cols-2"

@@ -36,3 +36,12 @@ export async function signIn(page, { username, password }) {
   await page.getByRole('button', { name: /Prijavi se|Sign in/ }).click()
   await page.waitForURL(/\/(admin|radnik)/)
 }
+
+/** Matches a fault number as rendered ("#" for screen readers, zero-padded digits: #047). */
+export const faultNumber = (id) => new RegExp(`#0*${id}(?!\\d)`)
+
+/** Opens the signed-in person's account menu (language, password, sign out). */
+export async function openAccountMenu(page) {
+  // The account button is the one control that always names the panel it opens.
+  await page.locator('button[aria-expanded][aria-controls]:visible').first().click()
+}

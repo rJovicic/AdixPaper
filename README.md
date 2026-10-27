@@ -21,7 +21,7 @@ Interface in Croatian (default) and English. Production: <https://adixpaper-prod
 ## Stack
 
 - **Backend:** Python 3.12, FastAPI, SQLAlchemy 2, PostgreSQL (psycopg 3), PyJWT, bcrypt; Excel/PDF via openpyxl/reportlab; optional Web Push.
-- **Frontend:** React 18, React Router 7, Vite 7, Tailwind CSS 3, recharts, lucide icons, Archivo (self-hosted).
+- **Frontend:** React 18, React Router 7, Vite 7, Tailwind CSS 3, recharts, lucide icons, Geist + Geist Mono (self-hosted).
 - **Deployment:** one Docker image (FastAPI serves the API and the built SPA) + Railway Postgres.
 
 ```
@@ -68,7 +68,7 @@ cd backend && ruff check app tests && python -m pytest -q
 # Frontend
 cd frontend && npm run lint && npm run check:i18n && npm run build
 
-# End-to-end + accessibility (21 tests; the new-version banner test runs only against a production build) (needs the app running and seed-demo data)
+# End-to-end + accessibility (25 tests; the new-version banner test runs only against a production build) (needs the app running and seed-demo data)
 cd e2e && npm ci && npx playwright test                      # against Vite on :3000
 E2E_BASE_URL=http://localhost:8000 npx playwright test       # against the Docker image
 ```

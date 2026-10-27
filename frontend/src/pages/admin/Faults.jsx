@@ -9,7 +9,7 @@ import { useAuth } from '../../auth/AuthProvider'
 import { useToast } from '../../components/ui/Toast'
 import Menu from '../../components/ui/Menu'
 import FaultCard from '../../components/FaultCard'
-import { DueTag, FaultNumber, PriorityMark, StatusMark } from '../../components/ui/Marks'
+import { Due, FaultNumber, PriorityMark, StatusMark } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
 
 const PAGE = 50
@@ -188,13 +188,13 @@ export default function Faults() {
             <table className="w-full text-[0.9375rem]">
               <thead className="table-head">
                 <tr>
-                  <th scope="col" className="w-20 px-4 py-2.5 font-semibold">#</th>
-                  <th scope="col" className="w-[38%] px-4 py-2.5 font-semibold">{t('faults.colFault')}</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('fault.priority')}</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('fault.status')}</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('fault.due')}</th>
-                  <th scope="col" className="hidden px-4 py-2.5 font-semibold lg:table-cell">{t('fault.assignee')}</th>
-                  <th scope="col" className="hidden px-4 py-2.5 font-semibold xl:table-cell">{t('fault.reportedAt')}</th>
+                  <th scope="col" className="w-20 px-4 py-2.5 font-medium">№</th>
+                  <th scope="col" className="w-[38%] px-4 py-2.5 font-medium">{t('faults.colFault')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('fault.priority')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('fault.status')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('fault.due')}</th>
+                  <th scope="col" className="hidden px-4 py-2.5 font-medium lg:table-cell">{t('fault.assignee')}</th>
+                  <th scope="col" className="hidden px-4 py-2.5 font-medium xl:table-cell">{t('fault.reportedAt')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
@@ -214,7 +214,7 @@ export default function Faults() {
                     </td>
                     <td className="px-4 py-3"><PriorityMark priority={fault.prioritet} /></td>
                     <td className="px-4 py-3"><StatusMark status={fault.status} /></td>
-                    <td className="px-4 py-3">{fault.status === 'Riješeno' ? <span className="text-ink-3">—</span> : <DueTag fault={fault} />}</td>
+                    <td className="px-4 py-3">{fault.status === 'Riješeno' ? <span className="text-ink-3">—</span> : <Due fault={fault} />}</td>
                     <td className="hidden max-w-[11rem] truncate px-4 py-3 text-ink-2 lg:table-cell">
                       {fault.voditelj ? `${fault.voditelj.ime} ${fault.voditelj.prezime}` : '—'}
                     </td>

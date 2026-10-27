@@ -101,3 +101,15 @@
 ## 2026-10-27 · PDFs embed Liberation Sans
 - Decided by: Claude (default)
 - Why: reportlab's built-in Helvetica cannot encode č, ć, đ. Liberation Sans (SIL OFL 1.1, licence in `backend/app/fonts/`) is metric-compatible with Helvetica/Arial, so layouts did not change. Archivo, the UI font, is only available as WOFF2 in the repository.
+
+## 2026-10-27 · Visual direction: press sheet (replaces reel label)
+- Decided by: the owner, choosing between mockups of a refresh (same identity) and a new direction
+- Why: the owner asked for a more modern app. The new world comes from the plant's own printing: process inks carry state (cyan new / on time, yellow in progress / due soon, magenta urgent / overdue, green resolved), the logo blue carries action, a key-black shell frames white sheets, Geist + Geist Mono replace Archivo. Signature: each fault's response window as a 12-step density strip; the overview counts as a press colour bar.
+- Also chosen with it: Ctrl/⌘ K search, a "My faults" panel with All / Unassigned / Mine toggles on the overview, an account menu for workers (language, password, sign out).
+- Declined: count context lines under the overview figures.
+- Rejected: the refresh within the reel-label identity; the carbonless work-order direction; a category-standard look.
+- Rests on: Impeccable concept roll `seed:51fd582c1ecfd074` (degraded: the roll service is blocked from the cloud sandbox, so no catalog challengers); mockups shown to the owner; `.impeccable/surfaces/frontend-src-app-jsx.md` (direction contract).
+
+## 2026-10-27 · Search lives in the rail, not the overview header
+- Decided by: Claude (default), at the finish review
+- Why: the mockup put search in the overview header; in the rail it is on every screen with the same Ctrl/⌘ K shortcut, and export stays on the fault list where its filters are.

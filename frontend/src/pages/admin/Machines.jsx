@@ -14,14 +14,14 @@ import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../component
 
 const COMPANIES = ['Cupup d.o.o', 'Delt papir d.o.o']
 const STATUSES = ['Aktivno', 'Neispravno', 'Na servisu', 'Raspisano']
-const STATUS_MARK = { Aktivno: 'bg-ok', Neispravno: 'bg-urgent', 'Na servisu': 'bg-warn-mark', Raspisano: 'border-[1.5px] border-ink-3' }
+const STATUS_MARK = { Aktivno: 'bg-ok-mark', Neispravno: 'bg-urgent-mark', 'Na servisu': 'chip-yellow', Raspisano: 'chip-hollow' }
 const EMPTY = { naziv: '', tip: '', tvrtka: '', proizvodac: '', model: '', serijski_broj: '', lokacija: '', datum_kupnje: '', status: 'Aktivno', napomene: '' }
 
 function MachineStatus({ status }) {
   const { machineStatus } = useI18n()
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm">
-      <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-[2px] ${STATUS_MARK[status] || 'bg-ink-3'}`} />
+      <i aria-hidden="true" className={`chip ${STATUS_MARK[status] || 'bg-ink-3'}`} />
       {machineStatus(status)}
     </span>
   )
@@ -325,12 +325,12 @@ export default function Machines() {
             <table className="w-full text-[0.9375rem]">
               <thead className="table-head">
                 <tr>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('machines.name')}</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('machines.location')}</th>
-                  <th scope="col" className="hidden px-4 py-2.5 font-semibold lg:table-cell">{t('machines.company')}</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('machines.status')}</th>
-                  <th scope="col" className="px-4 py-2.5 text-right font-semibold">{t('machines.faults')}</th>
-                  <th scope="col" className="hidden px-4 py-2.5 text-right font-semibold lg:table-cell">{t('machines.cost')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('machines.name')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('machines.location')}</th>
+                  <th scope="col" className="hidden px-4 py-2.5 font-medium lg:table-cell">{t('machines.company')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('machines.status')}</th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-medium">{t('machines.faults')}</th>
+                  <th scope="col" className="hidden px-4 py-2.5 text-right font-medium lg:table-cell">{t('machines.cost')}</th>
                   <th scope="col" className="w-24 px-4 py-2.5"><span className="sr-only">{t('common.edit')}</span></th>
                 </tr>
               </thead>

@@ -68,11 +68,11 @@ export default function Login() {
       <main className="flex flex-1 items-start justify-center px-4 pb-10 pt-6 sm:items-center sm:pt-0">
         <div className="enter-rise w-full max-w-[25rem]">
           <section aria-labelledby="login-title" className="surface overflow-hidden">
-            <header className="flex items-center gap-4 border-b border-rule px-6 py-5">
+            <header className="flex items-center gap-4 bg-key px-6 py-5">
               <BrandLogo size="lg" />
               <div className="min-w-0">
-                <p className="text-xl font-semibold leading-tight text-ink">{t('app.name')}</p>
-                <p className="mt-0.5 text-ink-2">{t('app.tagline')}</p>
+                <p className="text-xl font-semibold leading-tight text-stock">{t('app.name')}</p>
+                <p className="mt-0.5 text-brand-on-deep">{t('app.tagline')}</p>
               </div>
             </header>
 

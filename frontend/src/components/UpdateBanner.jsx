@@ -41,7 +41,7 @@ export default function UpdateBanner() {
     <div role="status" className="fixed inset-x-0 bottom-0 z-[75] flex justify-center p-3 sm:bottom-4">
       <div className="enter-rise flex w-full max-w-md items-center gap-3 rounded-lg bg-brand-deep px-4 py-3 text-stock shadow-dialog">
         <p className="flex-1 text-[0.9375rem]">{t('update.available')}</p>
-        <button type="button" onClick={() => window.location.reload()} className="btn btn-sm bg-stock text-brand-deep hover:bg-brand-wash">
+        <button type="button" onClick={() => window.location.reload()} className="btn btn-sm bg-stock text-key hover:bg-brand-wash">
           <RotateCw size={16} aria-hidden="true" /> {t('update.reload')}
         </button>
       </div>

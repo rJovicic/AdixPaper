@@ -190,7 +190,7 @@ export default function Users() {
 
   const statusCell = (user) => (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm">
-      <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-[2px] ${user.aktivan ? 'bg-ok' : 'border-[1.5px] border-ink-3'}`} />
+      <i aria-hidden="true" className={`chip ${user.aktivan ? 'bg-ok-mark' : 'chip-hollow'}`} />
       {user.aktivan ? t('common.active') : t('common.inactive')}
     </span>
   )
@@ -229,10 +229,10 @@ export default function Users() {
             <table className="w-full text-[0.9375rem]">
               <thead className="table-head">
                 <tr>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('users.firstName')} / {t('users.lastName')}</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('users.role')}</th>
-                  <th scope="col" className="hidden px-4 py-2.5 font-semibold lg:table-cell">{t('users.lastLogin')}</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('fault.status')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('users.firstName')} / {t('users.lastName')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('users.role')}</th>
+                  <th scope="col" className="hidden px-4 py-2.5 font-medium lg:table-cell">{t('users.lastLogin')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('fault.status')}</th>
                   <th scope="col" className="w-24 px-4 py-2.5"><span className="sr-only">{t('common.edit')}</span></th>
                 </tr>
               </thead>
