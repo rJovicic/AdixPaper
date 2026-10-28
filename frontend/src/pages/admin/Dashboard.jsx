@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router'
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, History, Pause, Plus, WifiOff, Wrench } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, History, Pause, WifiOff, Wrench } from 'lucide-react'
 import { api } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useLiveRefresh, useLiveStatus } from '../../lib/live'
@@ -185,9 +185,6 @@ export default function Dashboard() {
           </h1>
           <p className="mt-1 text-ink-2">{t('dashboard.subtitle')}</p>
         </div>
-        <Link to="/admin/prijava" className="btn-primary btn-lg w-full sm:w-auto">
-          <Plus size={19} aria-hidden="true" /> {t('dashboard.report')}
-        </Link>
       </div>
 
       {overview.error && !data ? (

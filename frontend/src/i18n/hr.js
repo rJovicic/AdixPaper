@@ -50,7 +50,7 @@ export default {
     changed: 'Lozinka je promijenjena.',
     mismatch: 'Lozinke se ne podudaraju.',
     samePassword: 'Nova lozinka mora se razlikovati od trenutne.',
-    profileOf: 'Profil i postavke: {name}',
+
   },
   time: {
     justNow: 'upravo',
@@ -123,7 +123,7 @@ export default {
     deniedBody: 'Dopustite kameru (iPhone: Postavke → Adix Paper ili Safari → Kamera) ili odaberite mašinu ručno.',
     cameraTitle: 'Kamera nije dostupna',
     cameraBody: 'Kameru možda koristi druga aplikacija. Odaberite mašinu ručno.',
-    tab: 'Skeniraj',
+
   },
   roles: {
     admin: 'Administrator',
@@ -192,7 +192,8 @@ export default {
     main: 'Glavna navigacija',
     settings: 'Postavke',
     profile: 'Profil',
-    report: 'Prijavi kvar',
+    more: 'Više',
+    reportShort: 'Prijavi',
   },
   notify: {
     onTest: 'Obavijesti su uključene. Pošaljite probnu obavijest iz istog izbornika.',
@@ -277,18 +278,17 @@ export default {
     homeSubtitle: 'Evo stanja vaših prijava.',
     kpiOpen: 'Otvoreni',
     kpiInProgress: 'U rješavanju',
-    kpiWaiting: 'Na čekanju',
     kpiResolved: 'Riješeno, 7 dana',
     kpiOpenSub: '{n} čeka preuzimanje',
     kpiInProgressSub: 'Netko radi na njima',
-    kpiWaitingSub: 'Čekaju dijelove ili drugo',
     kpiResolvedSub: 'Popravljeno za vas',
     activeTitle: 'Moji kvarovi',
     viewAll: 'Pogledaj sve',
     kpiNav: 'Moje prijave u brojkama',
+    scanCta: 'Skeniraj QR kod mašine',
+    reportManual: 'Ili odaberite mašinu ručno',
   },
   report: {
-    backToOverview: 'Pregled',
     knownTitle: 'Na ovoj mašini već je prijavljeno otvorenih kvarova: {n}',
     knownBody: 'Ako je to isti kvar, ne trebate ga ponovno prijavljivati. Ako je drugi kvar, samo nastavite.',
     photoPreview: 'Odabrana fotografija {n}',
@@ -333,6 +333,7 @@ export default {
     doneNumber: 'Broj kvara',
     doneOpen: 'Pogledaj kvar',
     doneNew: 'Novi kvar',
+    orScan: 'Ili skenirajte QR kod',
   },
   fault: {
     progress: 'Tijek kvara',
@@ -433,7 +434,6 @@ export default {
     tabWork: 'Radovi',
   },
   dashboard: {
-    report: 'Prijavi kvar',
     waiting: 'Na čekanju',
     periodLabel: 'Razdoblje',
     periods: { danas: 'Danas', '7d': '7 dana', '30d': '30 dana', mjesec: 'Ovaj mjesec' },

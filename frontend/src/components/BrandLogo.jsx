@@ -1,22 +1,43 @@
-/** Logo on its white chip, for light surfaces. Decorative by default: the product name is always printed beside it. */
+/** The app icon: the white mark on its navy tile, as installed on a phone. Decorative by default (the name is printed beside it). */
 export default function BrandLogo({ size = 'md', alt = '' }) {
-  const sizes = { sm: 'h-9 w-9 p-1', md: 'h-10 w-10 p-1', lg: 'h-20 w-20 p-2' }
+  const sizes = { sm: 'h-9 w-9 rounded-[0.55rem]', md: 'h-10 w-10 rounded-[0.6rem]', lg: 'h-[4.5rem] w-[4.5rem] rounded-[1.05rem]' }
   return (
-    <span className={`inline-flex shrink-0 items-center justify-center rounded bg-stock shadow-label ${sizes[size]}`}>
-      <img src="/adix-paper-logo.png" alt={alt} className="h-full w-full object-contain" width="250" height="250" />
+    <span
+      role={alt ? 'img' : undefined}
+      aria-label={alt || undefined}
+      aria-hidden={alt ? undefined : 'true'}
+      className={`inline-flex shrink-0 items-center justify-center bg-gradient-to-b from-[#163270] to-[#0E2150] text-stock shadow-label ${sizes[size]}`}
+    >
+      <BrandMark className="h-[52%] w-auto" />
     </span>
   )
 }
 
-/** The white logo for the navy shell: the full lockup (rail) or the mark beside the wordmark (phone header). */
+// The Adix Paper mark as a vector (traced from the logo), so it stays sharp at every density.
+const MARK_POINTS = '92,0 145.7,94.5 172,88 151.9,105.5 184,162.5 134,162.5 117,134 82,162.5 0,162.5 12,141 103,110 67,45'
+
+export function BrandMark({ className = '', title }) {
+  return (
+    <svg viewBox="0 0 184 162.5" className={className} role={title ? 'img' : undefined} aria-hidden={title ? undefined : 'true'} aria-label={title}>
+      <polygon points={MARK_POINTS} fill="currentColor" />
+    </svg>
+  )
+}
+
+/** The white logo for the navy shell: the stacked lockup (rail) or the mark beside the wordmark (phone header). */
 export function BrandOnNavy({ variant = 'bar', label }) {
   if (variant === 'rail') {
-    return <img src="/adix-paper-logo-white.png" alt={label} width="222" height="198" className="h-[4.25rem] w-auto" />
+    return (
+      <span className="flex flex-col items-center gap-2 text-stock">
+        <BrandMark className="h-11 w-auto" />
+        <span className="text-[0.6875rem] font-bold uppercase leading-none tracking-[0.2em]">{label}</span>
+      </span>
+    )
   }
   return (
-    <span className="inline-flex items-center gap-2.5">
-      <img src="/adix-paper-mark-white.png" alt="" width="187" height="166" className="h-7 w-auto" />
-      <span className="text-[0.8125rem] font-bold uppercase leading-none tracking-[0.12em] text-stock">{label}</span>
+    <span className="inline-flex items-center gap-2.5 text-stock">
+      <BrandMark className="h-6 w-auto" />
+      <span className="text-[0.8125rem] font-bold uppercase leading-none tracking-[0.12em]">{label}</span>
     </span>
   )
 }

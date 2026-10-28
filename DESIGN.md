@@ -110,11 +110,6 @@ components:
     textColor: "{colors.card}"
     rounded: "{rounded.md}"
     height: "46px"
-  fab:
-    backgroundColor: "{colors.action-blue}"
-    textColor: "{colors.card}"
-    rounded: "{rounded.pill}"
-    size: "56px"
 ---
 
 # Design System: Adix Paper
@@ -130,9 +125,10 @@ Light theme only. Workers use phones on a brightly lit production floor, and lea
 **Key characteristics**
 - The navy frame is the only dark surface. Everything inside it is light.
 - One action colour (`action-blue`). A solid blue button is always the next step.
-- KPI cards lead with a solid icon tile in their state colour, a bold figure, and an honest change against a stated reference.
+- KPI cards lead with a small pale icon tile (the state's wash, its ink for the icon), a bold figure, and an honest change against a stated reference.
 - Fault rows lead with a round priority marker, then the machine and number, what is wrong, the pills and when it was reported.
-- Phones get a bottom tab bar with a raised round "+" in the centre: reporting a fault is always one thumb away.
+- Phones get a bottom tab bar of four equal tabs. Workers: Početna · Kvarovi · Prijavi · Profil, and the home screen's main action is scanning a machine label. Leads and admins: Početna · Kvarovi · Mašine · Više.
+- **Roles:** workers report faults; administrators and maintenance leads manage them. The lead/admin interface has no report action and no report screen (`/admin/prijava` redirects home), and the API refuses fault creation by administrators (403).
 
 ## Colors
 
@@ -140,7 +136,7 @@ All tokens live in `frontend/src/index.css :root` as RGB channels and reach Tail
 
 ### Frame and action
 - **Navy `#10265A`** (`brand-deep`): the rail, the phone header, the theme colour and the iOS status bar (`black-translucent`, so headers pad by `env(safe-area-inset-top)` through `.pt-safe`). Quiet text on it is `#B9C7E6`, at 8.6:1.
-- **Action blue `#1F56D0`** (`brand`): primary buttons, the active rail item, the FAB, selected pill tabs and chips, links, focus rings, the "in progress" state. White on it is 6.4:1, and on blue wash it is 5.5:1.
+- **Action blue `#1F56D0`** (`brand`): primary buttons, the active rail item, selected pill tabs and chips, links, focus rings, the "in progress" state. White on it is 6.4:1, and on blue wash it is 5.5:1.
 - **Blue wash `#E8EFFC`**: hovered rows, selected list rows and menu focus.
 
 ### Neutral
@@ -182,20 +178,23 @@ There is one family: **Archivo Variable**, self-hosted, at normal width. Figures
 
 - **Shell, desktop (≥ 1024 px):** a 248 px navy rail with the white lockup, nav items (Početna, Kvarovi with a red count of overdue faults, Mašine, Rezervni dijelovi, Korisnici [admin only], Analize, Postavke) and the account row at the foot. A 68 px white top bar holds search (opens the Ctrl/⌘ K palette), the bell, the HR/EN switch and the avatar, which opens Profile. Content is at most 80 rem wide, with 32 px gutters.
 - **Shell, phones and tablets (< 1024 px):** a navy header with the white mark and "ADIX PAPER", then QR scan (where a camera exists), search, the bell and the avatar. A white bottom bar holds Početna · Kvarovi · (+) · Mašine · Profil for leads, and Početna · Kvarovi · (+) · Skeniraj · Profil for workers. The "+" is a 56 px raised blue circle that opens the report flow. The bar hides on the report form and the scanner, so it never rides above the keyboard or the camera. The worker app uses the same bar at every width.
-- **Dashboard (lead home):** the greeting and "Evo pregleda trenutnog stanja na lokaciji.", with "Prijavi kvar" at the right (full width on phones). Four KPI cards come next: Otvoreni kvarovi (blue wrench), Hitni (red warning), Na čekanju (amber pause), Riješeno danas (green check). They sit in a 2 × 2 grid on phones and a single row from 1024 px, and each opens the list behind its number. Below them, "Prioritetni kvarovi" shows the five most pressing open faults. From 768 px it is a table (machine with #number and title, priority, status, reported "Danas 08:42", owner, chevron); on phones it is a list of fault rows. Beside it from 1280 px, or under it on narrower screens, sits "Aktivnost uživo": time, a dot in the event's state colour, the event, machine · #number, and the person. It is marked "U stvarnom vremenu" while the live connection is up.
-- **Worker home:** the greeting, a full-width "Prijavi kvar", and four figures (open, in progress, on hold, resolved in 7 days) computed from the worker's own faults. "Moji kvarovi" shows the five newest active ones, with "Pogledaj sve".
+- **Dashboard (lead home):** the greeting and "Evo pregleda trenutnog stanja na lokaciji." (no report button: leads and admins manage, workers report). Four KPI cards come next: Otvoreni kvarovi, Hitni, Na čekanju, Riješeno danas, each with a pale icon tile. They sit in a 2 × 2 grid up to 1280 px and a single row from there, and each opens the list behind its number. Below them, "Prioritetni kvarovi" shows the five most pressing open faults. From 768 px it is a table (machine with #number and title, priority, status, reported "Danas 08:42", owner, chevron); on phones it is a list of fault rows. Beside it from 1280 px, or under it on narrower screens, sits "Aktivnost uživo": time, a dot in the event's state colour, the event, machine · #number, and the person. It is marked "U stvarnom vremenu" while the live connection is up.
+- **Worker home:** the greeting; a full-width "Skeniraj QR kod mašine" with "Ili odaberite mašinu ručno" under it (only "Prijavi kvar" where the browser has no camera access); three figures (open, in progress, and resolved in 7 days, full width) computed from the worker's own faults. "Moji kvarovi" shows the five newest active ones, with "Pogledaj sve".
 - **Fault lists (lead Kvarovi, worker Kvarovi):** pill tabs Aktivni (n) / Riješeni (n). On phones they are followed by search, a Filters sheet, and priority chips (Svi · Hitno · Normalno · Nisko). Lists use fault rows on phones and a table from 768 px.
 - **Report flow (three steps and a confirmation):** a stepper (1 Mašina · 2 Opis · 3 Prioritet). Step 1 is a searchable list of large machine rows (radios), the part when the machine has parts, and the "already reported" notice. Step 2 is what is wrong, details, and up to five photos. Step 3 is the priority, as radio cards with a sentence each. A sticky "Dalje" or "Pošalji prijavu" bar sits at the foot. The confirmation shows a green check, the number, machine and priority, then "Pogledaj kvar", "Novi kvar" and the push card. A scanned machine with no parts starts on step 2. The draft and its step survive a reload, and the idempotency key prevents duplicates.
 - **Fault detail:** an identity card (priority marker, machine and #number, title, pills, time left, "Prijavljeno: Danas 14:40", attention reasons). On phones, tabs follow it: Detalji (fields, description, status panel with actions) · Aktivnost (timeline) · Fotografije · Radovi (the resolution form). From 1024 px every section is shown, with the status panel and machine history in an 18.5 rem side column.
 - **Profile (Postavke):** who is signed in, then this device (language, notifications, install), then More (lead screens not on the tab bar), then account (change password, sign out).
 - **Breakpoints:** `xs 420`, `sm 640`, `md 768`, `lg 1024`, `xl 1280`. Verified without horizontal scrolling at 360, 390, 430, 768, 1024 and 1440 px.
 
+## App icon
+
+One family, generated from the traced vector mark (never the 250 px raster): a navy tile with a quiet top-to-bottom shade, the white mark and "ADIX PAPER" set in Inter SemiBold with open tracking, the group a touch above centre. `icon-192/512.png` are rounded tiles with transparent corners (desktop launchers); `icon-maskable-192/512.png` are full bleed with the group inside the central 80 % safe circle (Android); `apple-touch-icon.png` is full bleed RGB without transparency (iOS rounds it and would show black through alpha); `favicon.svg` / `favicon.png` carry the mark alone. The manifest has no shortcuts, because one manifest serves every role.
+
 ## Elevation and depth
 
 - `shadow-label` — every card: a 1 px contact shadow plus a soft 14 px navy-tinted shadow.
 - `shadow-lift` — hovered cards, menus, toasts.
 - `shadow-dialog` — dialogs and the bell panel.
-- `shadow-fab` — the raised "+", tinted with the action blue.
 
 ## Shapes
 
@@ -208,7 +207,8 @@ Cards 14 px, icon tiles 10 px, buttons and inputs 8 px, chips and pills fully ro
 - **Chips** (`.chip`): pale and round. When pressed they turn blue (`aria-pressed`).
 - **Kpi** (`components/ui/Kpi.jsx`): icon tile, label, figure, `Delta` and reference. On phones the icon and label share the top line and the figure sits under them.
 - **FaultRow** (`components/FaultRow.jsx`): the one fault row, used on dashboard phones, both fault lists and worker home.
-- **BottomNav** (`components/BottomNav.jsx`): four tabs and the FAB, with an optional count badge (red, 4.8:1).
+- **BottomNav** (`components/BottomNav.jsx`): up to four equal tabs, with an optional count badge (red, 4.8:1).
+- **BrandMark / BrandLogo** (`components/BrandLogo.jsx`): the mark as an SVG polygon (traced from the logo). `BrandLogo` is the app icon in the page (navy tile, white mark); the rail and phone header use the white mark with the wordmark set in type.
 - **Avatar** (`components/ui/Avatar.jsx`): initials. Navy on light surfaces, outlined white on navy.
 - **Badge / StatusMark / PriorityMark / PriorityTile** (`components/ui/Marks.jsx`): see the state table above.
 - **Fields, dialogs, toasts, empty and error states, search palette, account menu, photos, timeline:** unchanged in behaviour and restyled through the tokens. Dialogs become full-screen sheets on phones.

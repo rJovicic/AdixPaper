@@ -80,19 +80,22 @@ test('a save based on an outdated page is refused with a way to load the latest'
 
   await banner.getByRole('button', { name: 'Učitaj najnovije' }).click()
   await expect(banner).toBeHidden()
-  await expect(page.getByLabel('Prioritet')).toHaveValue('Hitno')
+  await expect(page.getByLabel('Prioritet', { exact: true })).toHaveValue('Hitno')
   await page.getByLabel('Što je napravljeno').fill('Zategnut remen.')
   await page.getByRole('button', { name: 'Spremi promjene' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Spremljeno' })).toBeVisible()
 })
 
 test('worker is told about open faults on the machine, can still report, and attaches a photo', async ({ page, request }) => {
-  const { machine, worker } = await setupFixture(request)
-  await reportAs(request, { username: ADMIN.username, password: ADMIN.password }, machine, { naslov: 'Već poznat kvar' })
+  const { machine, worker, headers } = await setupFixture(request)
+  // Someone else on the floor reported it first.
+  const colleague = { username: `kolega.${machine.id}`, password: 'e2e-pass-123' }
+  await request.post('/api/korisnici', { headers, data: { ...colleague, ime: 'Ana', prezime: 'Kolega', rola: 'radnik' } })
+  await reportAs(request, colleague, machine, { naslov: 'Već poznat kvar' })
 
   await page.setViewportSize(PHONE)
   await signIn(page, worker)
-  await page.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Prijavi kvar' }).click()
+  await page.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Prijavi', exact: true }).click()
   await expect(page.getByRole('navigation', { name: 'Glavna navigacija' })).toBeHidden()
   await chooseMachine(page, machine.naziv)
   await expect(page.getByText('Na ovoj mašini već je prijavljeno otvorenih kvarova: 1')).toBeVisible()
@@ -163,7 +166,7 @@ test('iPhone: a worker scans a machine label inside the app and lands on the rep
   const page = await (await browser.newContext({ viewport: PHONE, isMobile: true, hasTouch: true, userAgent: IPHONE_UA })).newPage()
   await fakeCamera(page, 'qr-machine-4242.png')
   await signIn(page, worker)
-  await page.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Skeniraj' }).click()
+  await page.getByRole('main').getByRole('link', { name: 'Skeniraj QR kod mašine' }).click()
   await expect(page).toHaveURL(/\/radnik\/prijava\?oprema=4242$/, { timeout: 10_000 })
 })
 

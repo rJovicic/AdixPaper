@@ -76,7 +76,7 @@ test('dashboard figures link to filtered fault lists', async ({ page }) => {
   await signIn(page, ADMIN)
   await page.getByRole('navigation', { name: 'Ključni pokazatelji' }).getByRole('link', { name: /Hitni/ }).click()
   await expect(page).toHaveURL(/prioritet=Hitno/)
-  await expect(page.getByLabel('Prioritet')).toHaveValue('Hitno')
+  await expect(page.getByLabel('Prioritet', { exact: true })).toHaveValue('Hitno')
   await expect(page.getByRole('tab', { name: /Aktivni/ })).toHaveAttribute('aria-selected', 'true')
 })
 

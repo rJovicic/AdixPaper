@@ -18,6 +18,11 @@ const HELLO_TIMEOUT_MS = 15000
 // the stream, a firewall), screens fall back to re-reading every 30 s so they never go stale.
 const TICK_MS = 30000
 const LIVE_RESYNC_TICKS = 4
+// The server sends a ping every 20 s. A stream silent for longer is dead even if the socket looks
+// open (a phone that slept, a proxy that dropped it): reconnect instead of trusting it.
+const STALL_MS = 45000
+// Back from the background after this long: iOS has usually closed the socket, so reconnect.
+const HIDDEN_RECONNECT_MS = 15000
 
 function parseBlock(block) {
   let event = 'message'
@@ -111,9 +116,12 @@ export function LiveProvider({ userId, children }) {
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ''
+        let stall = window.setTimeout(() => current.abort(), STALL_MS)
         for (;;) {
           const { value, done } = await reader.read()
+          window.clearTimeout(stall)
           if (done) break
+          stall = window.setTimeout(() => current.abort(), STALL_MS)
           buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
           let split
           while ((split = buffer.indexOf('\n\n')) >= 0) {
@@ -140,11 +148,21 @@ export function LiveProvider({ userId, children }) {
       window.clearTimeout(retryTimer)
       connect()
     }
+    let hiddenAt = 0
     const onVisible = () => {
-      if (document.visibilityState !== 'visible' || stopped) return
-      // Phones suspend background tabs; whatever happened meanwhile is re-read now.
-      if (live) emit({ type: 'resync' })
-      else reconnectNow()
+      if (stopped) return
+      if (document.visibilityState !== 'visible') {
+        hiddenAt = Date.now()
+        return
+      }
+      // Phones suspend background apps and drop their sockets: after a real absence, reconnect
+      // (the greeting then re-reads every screen); after a glance away, just re-read.
+      if (!live || (hiddenAt && Date.now() - hiddenAt > HIDDEN_RECONNECT_MS)) reconnectNow()
+      else emit({ type: 'resync' })
+      hiddenAt = 0
+    }
+    const onPageShow = (event) => {
+      if (event.persisted) reconnectNow() // restored from the back-forward cache
     }
     const onOffline = () => setStatus('offline')
     let ticks = 0
@@ -158,6 +176,7 @@ export function LiveProvider({ userId, children }) {
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('online', reconnectNow)
     window.addEventListener('offline', onOffline)
+    window.addEventListener('pageshow', onPageShow)
     return () => {
       stopped = true
       controller?.abort()
@@ -166,6 +185,7 @@ export function LiveProvider({ userId, children }) {
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('online', reconnectNow)
       window.removeEventListener('offline', onOffline)
+      window.removeEventListener('pageshow', onPageShow)
     }
   }, [userId, emit])
 

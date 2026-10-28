@@ -64,7 +64,7 @@ test('no serious accessibility violations on the machine-filtered fault list', a
 
 test('no serious accessibility violations on lead screens', async ({ page }) => {
   await signIn(page, ADMIN)
-  for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici', '/admin/profil', '/admin/prijava']) {
+  for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici', '/admin/profil']) {
     await page.goto(path)
     await settle(page)
     expect(await axe(page), path).toEqual([])
@@ -79,7 +79,7 @@ test('no horizontal scrolling at phone, tablet and desktop widths', async ({ pag
   await signIn(page, ADMIN)
   for (const width of [360, 390, 430, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 })
-    for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici', '/admin/profil', '/admin/prijava']) {
+    for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici', '/admin/profil']) {
       await page.goto(path)
       await settle(page)
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
@@ -206,7 +206,7 @@ test('phone: fault filters live in a sheet; the count shows how many apply', asy
   await page.goto('/admin/kvarovi')
   await page.getByRole('button', { name: /^Filteri/ }).click()
   const sheet = page.getByRole('dialog', { name: 'Filteri' })
-  await sheet.getByLabel('Prioritet').selectOption('Hitno')
+  await sheet.getByLabel('Prioritet', { exact: true }).selectOption('Hitno')
   await sheet.getByRole('button', { name: /Prikaži rezultate/ }).click()
   await expect(sheet).toBeHidden()
   await expect(page).toHaveURL(/prioritet=Hitno/)
