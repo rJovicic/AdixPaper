@@ -132,14 +132,15 @@ function TabBar({ overdue, onMenu, menuOpen }) {
   )
 }
 
-function Brand() {
+function Brand({ compact = false }) {
   const { t } = useI18n()
   return (
     <div className="flex items-center gap-3">
       <BrandLogo size="sm" />
       <div className="min-w-0">
-        <p className="font-semibold leading-tight text-stock">{t('app.name')}</p>
-        <p className="text-meta leading-snug text-brand-on-deep">{t('app.tagline')}</p>
+        <p className="truncate font-semibold leading-tight text-stock">{t('app.name')}</p>
+        {/* Phones: the app name alone; every pixel of height goes to the content. */}
+        <p className={`text-meta leading-snug text-brand-on-deep ${compact ? 'hidden sm:block' : ''}`}>{t('app.tagline')}</p>
       </div>
     </div>
   )
@@ -221,7 +222,7 @@ export default function AdminShell() {
           <MenuIcon size={22} aria-hidden="true" />
           {overdue > 0 && <span aria-hidden="true" className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-urgent ring-2 ring-brand-deep" />}
         </button>
-        <div className="min-w-0 flex-1 pl-2 sm:pl-0"><Brand /></div>
+        <div className="min-w-0 flex-1 pl-2 sm:pl-0"><Brand compact /></div>
         <button type="button" onClick={openSearch} className="btn-icon h-11 w-11 text-stock hover:bg-white/10 hover:text-stock" aria-label={t('search.title')}>
           <Search size={20} aria-hidden="true" />
         </button>

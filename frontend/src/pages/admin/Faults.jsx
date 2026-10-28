@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { CalendarCheck, CheckCircle2, ClipboardList, Download, FileSpreadsheet, FileText, Factory, Search, SearchX, X } from 'lucide-react'
-import { api, downloadFile, errorMessage } from '../../api/client'
+import { CalendarCheck, CheckCircle2, ClipboardList, Download, FileSpreadsheet, FileText, Factory, Search, SearchX, SlidersHorizontal, X } from 'lucide-react'
+import Dialog from '../../components/ui/Dialog'
+import { api, errorMessage } from '../../api/client'
+import { useFileExport } from '../../components/FileExport'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useLiveRefresh } from '../../lib/live'
 import { useI18n } from '../../i18n'
@@ -97,6 +99,7 @@ export default function Faults() {
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const view = viewFromParams(params)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const filters = {
     q: params.get('q') || '',
     status: OPEN_STATUSES.includes(params.get('status')) && view === 'active' ? params.get('status') : '',
@@ -201,76 +204,12 @@ export default function Faults() {
   const hasFilters = Boolean(filters.q || filters.status || filters.prioritet || filters.sla || filters.assignee || filters.machine || filters.waiting || filters.resolved)
   const clearFilters = () => setParams(view === 'resolved' ? { pregled: 'rijeseni' } : {}, { replace: true })
 
-  const exportFile = async (path, filename) => {
-    try {
-      await downloadFile(`${path}${serverQuery ? `?${serverQuery}` : ''}`, filename)
-    } catch (error) {
-      toast.error(`${t('faults.exportFailed')} ${errorMessage(error, i18n)}`)
-    }
-  }
+  const exporter = useFileExport('faults.exportFailed')
+  const exportFile = (path, filename) => exporter.run(`${path}${serverQuery ? `?${serverQuery}` : ''}`, filename)
 
-  const loading = firstPage.loading
-  return (
-    <div>
-      <PageHeader
-        title={t('faults.title')}
-        meta={firstPage.data ? t('common.results', { n: total }) : ' '}
-        actions={
-          <>
-            <Menu
-              label={t('faults.export')}
-              icon={Download}
-              note={t('faults.exportHint')}
-              items={[
-                { label: t('faults.exportXlsx'), icon: FileSpreadsheet, onSelect: () => exportFile('/kvarovi/export.xlsx', 'adix-paper-kvarovi.xlsx') },
-                { label: t('faults.exportParts'), icon: FileSpreadsheet, onSelect: () => exportFile('/kvarovi/export-dijelovi.xlsx', 'adix-paper-utroseni-dijelovi.xlsx') },
-                { label: t('faults.exportPdf'), icon: FileText, onSelect: () => exportFile('/kvarovi/export.pdf', 'adix-paper-kvarovi.pdf') },
-              ]}
-            />
-          </>
-        }
-      />
-
-      <ViewTabs view={view} counts={counts.data} onChange={changeView} />
-
-      {(filters.machine || filters.resolved) && (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {filters.machine && (
-            <FilterChip
-              icon={Factory}
-              label={t('faults.machineFilter')}
-              value={machine.data?.naziv || `#${filters.machine}`}
-              clearLabel={t('faults.clearMachine')}
-              onClear={() => setFilter('oprema', '')}
-            />
-          )}
-          {filters.resolved && (
-            <FilterChip
-              icon={CalendarCheck}
-              label={t('faults.resolvedFilter')}
-              value={t(`dashboard.periodName.${filters.resolved}`)}
-              clearLabel={t('faults.clearResolved')}
-              onClear={() => setFilter('rijeseno', '')}
-            />
-          )}
-        </div>
-      )}
-
-      <div className={`surface mb-4 grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:gap-3 ${
-        view === 'active' ? 'xl:grid-cols-[minmax(0,1.6fr)_repeat(6,minmax(0,1fr))]' : 'lg:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,1fr))]'
-      }`}>
-        <div className={`relative col-span-2 sm:col-span-3 ${view === 'active' ? 'xl:col-span-1' : 'lg:col-span-1'}`}>
-          <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
-          <input
-            type="search"
-            className="control pl-9"
-            aria-label={t('common.search')}
-            placeholder={t('faults.searchPlaceholder')}
-            maxLength={200}
-            value={filters.q}
-            onChange={(event) => setFilter('q', event.target.value)}
-          />
-        </div>
+  // The same controls serve the desktop row and the phone sheet.
+  const filterSelects = (
+    <>
         {view === 'active' ? (
           <select className="control" aria-label={t('faults.status')} value={filters.status} onChange={(event) => setFilter('status', event.target.value)}>
             <option value="">{t('faults.openStatuses')}</option>
@@ -316,6 +255,111 @@ export default function Faults() {
           <option value="staro">{t('faults.sortOldest')}</option>
           {view === 'active' && <option value="rizik">{t('faults.sortRisk')}</option>}
         </select>
+    </>
+  )
+  const activeFilters = [filters.status, filters.prioritet, filters.sla, filters.waiting, filters.assignee, filters.resolved, filters.machine].filter(Boolean).length
+
+  const loading = firstPage.loading
+  return (
+    <div>
+      {exporter.dialog}
+      <PageHeader
+        title={t('faults.title')}
+        meta={firstPage.data ? t('common.results', { n: total }) : ' '}
+        actions={
+          <>
+            <Menu
+              label={t('faults.export')}
+              icon={Download}
+              note={t('faults.exportHint')}
+              items={[
+                { label: t('faults.exportXlsx'), icon: FileSpreadsheet, onSelect: () => exportFile('/kvarovi/export.xlsx', 'adix-paper-kvarovi.xlsx') },
+                { label: t('faults.exportParts'), icon: FileSpreadsheet, onSelect: () => exportFile('/kvarovi/export-dijelovi.xlsx', 'adix-paper-utroseni-dijelovi.xlsx') },
+                { label: t('faults.exportPdf'), icon: FileText, onSelect: () => exportFile('/kvarovi/export.pdf', 'adix-paper-kvarovi.pdf') },
+              ]}
+            />
+          </>
+        }
+      />
+
+      <ViewTabs view={view} counts={counts.data} onChange={changeView} />
+
+      {(filters.machine || filters.resolved) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {filters.machine && (
+            <FilterChip
+              icon={Factory}
+              label={t('faults.machineFilter')}
+              value={machine.data?.naziv || `#${filters.machine}`}
+              clearLabel={t('faults.clearMachine')}
+              onClear={() => setFilter('oprema', '')}
+            />
+          )}
+          {filters.resolved && (
+            <FilterChip
+              icon={CalendarCheck}
+              label={t('faults.resolvedFilter')}
+              value={t(`dashboard.periodName.${filters.resolved}`)}
+              clearLabel={t('faults.clearResolved')}
+              onClear={() => setFilter('rijeseno', '')}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Phones: search and one Filters button; the controls open in a sheet. Wider screens: one row. */}
+      <div className="mb-4 flex gap-2 sm:hidden">
+        <div className="relative min-w-0 flex-1">
+          <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
+          <input
+            type="search"
+            className="control pl-9"
+            aria-label={t('common.search')}
+            placeholder={t('faults.searchPlaceholder')}
+            maxLength={200}
+            value={filters.q}
+            onChange={(event) => setFilter('q', event.target.value)}
+          />
+        </div>
+        <button type="button" className="btn-secondary shrink-0" onClick={() => setFiltersOpen(true)} aria-haspopup="dialog">
+          <SlidersHorizontal size={17} aria-hidden="true" />
+          {t('faults.filters')}
+          {activeFilters > 0 && <span className="rounded-sm bg-brand px-1.5 py-0.5 numeral text-xs text-stock">{activeFilters}</span>}
+        </button>
+      </div>
+      {filtersOpen && (
+        <Dialog
+          title={t('faults.filters')}
+          onClose={() => setFiltersOpen(false)}
+          footer={
+            <>
+              <button type="button" className="btn-secondary" onClick={() => { clearFilters(); setFiltersOpen(false) }}>{t('common.clearFilters')}</button>
+              <button type="button" className="btn-primary" onClick={() => setFiltersOpen(false)}>
+                {firstPage.data ? t('faults.showResults', { n: total }) : t('common.close')}
+              </button>
+            </>
+          }
+        >
+          <div className="grid gap-3">{filterSelects}</div>
+        </Dialog>
+      )}
+
+      <div className={`surface mb-4 hidden gap-3 p-3 sm:grid sm:grid-cols-3 ${
+        view === 'active' ? 'xl:grid-cols-[minmax(0,1.6fr)_repeat(6,minmax(0,1fr))]' : 'lg:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,1fr))]'
+      }`}>
+        <div className={`relative col-span-2 sm:col-span-3 ${view === 'active' ? 'xl:col-span-1' : 'lg:col-span-1'}`}>
+          <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
+          <input
+            type="search"
+            className="control pl-9"
+            aria-label={t('common.search')}
+            placeholder={t('faults.searchPlaceholder')}
+            maxLength={200}
+            value={filters.q}
+            onChange={(event) => setFilter('q', event.target.value)}
+          />
+        </div>
+        {filterSelects}
       </div>
 
       {loading && !firstPage.data ? (

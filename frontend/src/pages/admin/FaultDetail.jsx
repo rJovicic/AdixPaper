@@ -319,6 +319,11 @@ export default function FaultDetail() {
   return (
     <div>
       {back}
+      {/* Phones show the actions first; this line says which fault they act on (the h1 follows in the card). */}
+      <p aria-hidden="true" className="-mt-1 mb-3 flex min-w-0 items-baseline gap-2 lg:hidden">
+        <FaultNumber id={item.id} size="sm" />
+        <span className="truncate text-lg font-semibold leading-snug">{item.naslov}</span>
+      </p>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem]">
         <div className="min-w-0 space-y-6">
           <article className="surface overflow-hidden">

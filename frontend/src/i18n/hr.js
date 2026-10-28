@@ -202,6 +202,11 @@ export default {
     newFault: 'Novi kvar #{id}',
     open: 'Otvori',
   },
+  export: {
+    readyTitle: 'Datoteka je spremna',
+    readyBody: 'Dodirnite za ispis, spremanje u Datoteke ili slanje.',
+    share: 'Podijeli ili spremi',
+  },
   live: {
     on: 'Uživo',
     reconnecting: 'Ponovno povezivanje… podaci možda kasne',
@@ -494,6 +499,8 @@ export default {
     openStatuses: 'Svi otvoreni',
     views: 'Prikaz kvarova',
     tabActive: 'Aktivni',
+    filters: 'Filteri',
+    showResults: 'Prikaži rezultate ({n})',
     tabResolved: 'Riješeni',
     resolvedAnyTime: 'Riješeni bilo kada',
     sortResolvedNewest: 'Nedavno riješeni',
