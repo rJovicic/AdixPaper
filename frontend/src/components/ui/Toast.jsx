@@ -37,7 +37,7 @@ export function ToastProvider({ children }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-[70] flex flex-col items-center gap-2 p-4 sm:bottom-auto sm:left-auto sm:top-0 sm:items-end"
+        className="pointer-events-none fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-[70] flex flex-col items-center gap-2 p-4 sm:bottom-auto sm:left-auto sm:top-0 sm:items-end"
       >
         {toasts.map((toast) => {
           const tone = TONES[toast.tone]

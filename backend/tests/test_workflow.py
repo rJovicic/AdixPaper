@@ -247,3 +247,31 @@ def test_a_retried_report_with_the_same_key_does_not_create_a_duplicate(client, 
     # Reports without a key still work.
     no_key = {k: v for k, v in body.items() if k != "klijent_kljuc"}
     assert client.post("/api/kvarovi", json=no_key, headers=worker).status_code == 201
+
+
+def test_overview_compares_open_work_with_a_week_ago_from_the_history(client, admin, make_user, machine):
+    _, worker = make_user()
+    _, lead = make_user(rola="voditelj")
+
+    def kpi():
+        return client.get("/api/dashboard/pregled", headers=admin).json()["kpi"]
+
+    before = kpi()
+    # Open and urgent ten days ago, put on hold today: counted as open+urgent a week ago, not as on hold.
+    held = report(client, worker, machine, prioritet="Hitno")
+    shift_reported(held["id"], 240)
+    put(client, lead, held["id"], status="Na čekanju", razlog_cekanja="dijelovi")
+    # Open ten days ago, resolved today: open a week ago, and resolved today.
+    fixed = report(client, worker, machine, prioritet="Normalno")
+    shift_reported(fixed["id"], 240)
+    put(client, lead, fixed["id"], status="Riješeno", sto_je_uradjeno="Zamijenjen ležaj")
+    # Reported today: not part of a week ago.
+    report(client, worker, machine, prioritet="Hitno")
+    after = kpi()
+
+    assert after["otvoreni_prije_tjedan"] - before["otvoreni_prije_tjedan"] == 2
+    assert after["hitni_prije_tjedan"] - before["hitni_prije_tjedan"] == 1
+    assert after["na_cekanju_prije_tjedan"] == before["na_cekanju_prije_tjedan"]
+    assert after["na_cekanju"] - before["na_cekanju"] == 1
+    assert after["rijeseni_danas"] - before["rijeseni_danas"] == 1
+    assert after["rijeseni_jucer"] == before["rijeseni_jucer"]

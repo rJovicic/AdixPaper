@@ -52,7 +52,7 @@ export default function FaultInbox({ inbox, tone = 'dark', align = 'right' }) {
       >
         <Bell size={20} aria-hidden="true" />
         {unread > 0 && (
-          <span aria-hidden="true" className="absolute right-1 top-1 min-w-[1.125rem] rounded-full bg-urgent px-1 text-center numeral text-[0.6875rem] leading-[1.125rem] text-stock ring-2 ring-brand-deep">
+          <span aria-hidden="true" className={`absolute right-1 top-1 min-w-[1.125rem] rounded-full bg-urgent-mark px-1 text-center text-[0.6875rem] font-bold leading-[1.125rem] text-stock ring-2 ${tone === 'dark' ? 'ring-brand-deep' : 'ring-stock'}`}>
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -62,7 +62,7 @@ export default function FaultInbox({ inbox, tone = 'dark', align = 'right' }) {
           id={panelId}
           role="region"
           aria-label={t('inbox.title')}
-          className={`enter-fade fixed inset-x-2 top-14 z-50 max-h-[min(32rem,75dvh)] overflow-y-auto rounded-lg border border-rule bg-stock text-ink shadow-dialog sm:absolute sm:inset-x-auto sm:top-12 sm:w-[22rem] ${align === 'left' ? 'sm:left-0' : 'sm:right-0'}`}
+          className={`enter-fade fixed inset-x-2 top-[calc(3.75rem+env(safe-area-inset-top))] z-50 max-h-[min(32rem,75dvh)] overflow-y-auto rounded-lg border border-rule bg-stock text-ink shadow-dialog sm:absolute sm:inset-x-auto sm:top-12 sm:w-[22rem] ${align === 'left' ? 'sm:left-0' : 'sm:right-0'}`}
         >
           <div className="sticky top-0 flex items-center gap-2 border-b border-rule bg-stock px-4 py-3">
             <h2 className="flex-1 font-semibold">{t('inbox.title')}</h2>

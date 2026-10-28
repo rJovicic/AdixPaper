@@ -34,14 +34,17 @@ export default {
         figure: ['2.5rem', { lineHeight: '1', letterSpacing: '-0.01em' }],
       },
       borderRadius: {
-        sm: '3px',
-        DEFAULT: '6px',
-        lg: '10px',
+        sm: '6px',
+        DEFAULT: '8px',
+        md: '10px',
+        lg: '14px',
+        xl: '18px',
       },
       boxShadow: {
-        label: '0 1px 2px rgb(20 23 28 / 0.05), 0 6px 16px -12px rgb(20 23 28 / 0.18)',
-        lift: '0 6px 16px -6px rgb(20 23 28 / 0.18), 0 2px 4px rgb(20 23 28 / 0.06)',
-        dialog: '0 20px 48px -12px rgb(20 23 28 / 0.35), 0 4px 12px rgb(20 23 28 / 0.08)',
+        label: '0 1px 2px rgb(16 38 90 / 0.04), 0 4px 14px -6px rgb(16 38 90 / 0.10)',
+        lift: '0 8px 22px -8px rgb(16 38 90 / 0.22), 0 2px 4px rgb(16 38 90 / 0.06)',
+        dialog: '0 24px 56px -14px rgb(16 38 90 / 0.38), 0 4px 12px rgb(16 38 90 / 0.08)',
+        fab: '0 8px 20px -4px rgb(31 86 208 / 0.55), 0 2px 6px rgb(16 38 90 / 0.18)',
       },
       screens: {
         xs: '420px',

@@ -40,6 +40,7 @@ test('lead takes, records parts for, and resolves a fault; the worker sees the r
 
   const workerPage = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage()
   await signIn(workerPage, worker)
+  await workerPage.goto('/radnik/kvarovi')
   await workerPage.getByRole('tab', { name: /Riješeni/ }).click()
   await workerPage.locator('a', { hasText: faultNumber(fault.id) }).click()
   await expect(workerPage.getByText('Zamijenjena brtva ventila.')).toBeVisible()
@@ -127,16 +128,31 @@ test('lead finds a fault by number and a machine by name with Ctrl K', async ({ 
   await expect(page).toHaveURL(new RegExp(`oprema=${machine.id}`))
 })
 
-test('overview "Mine" tab lists only the lead\'s own faults', async ({ page, request }) => {
+test('overview: figures say how they moved, the priority table opens faults, the person and the date greet', async ({ page, request }) => {
   const { machine, worker } = await setupFixture(request)
-  const adminHeaders = { Authorization: `Bearer ${await apiToken(request, ADMIN)}` }
   const workerHeaders = { Authorization: `Bearer ${await apiToken(request, worker)}` }
-  const title = `Preuzet E2E ${machine.id}`
-  const mine = await (await request.post('/api/kvarovi', { headers: workerHeaders, data: { oprema_id: machine.id, naslov: title, prioritet: 'Hitno' } })).json()
-  await request.put(`/api/kvarovi/${mine.id}`, { headers: adminHeaders, data: { status: 'U rješavanju' } })
+  const title = `Prioritet E2E ${machine.id}`
+  const fault = await (await request.post('/api/kvarovi', { headers: workerHeaders, data: { oprema_id: machine.id, naslov: title, prioritet: 'Hitno' } })).json()
 
   await signIn(page, ADMIN)
-  await page.getByRole('button', { name: /^Moji/ }).click()
-  await expect(page.getByRole('button', { name: /^Moji/ })).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.getByRole('region', { name: 'Zahtijeva pažnju' }).getByText(title)).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^(Dobro jutro|Dobar dan|Dobra večer), /)
+  const figures = page.getByRole('navigation', { name: 'Ključni pokazatelji' })
+  await expect(figures.getByRole('link')).toHaveCount(4)
+  // Every change is read out in words, against a stated reference.
+  await expect(figures.getByText(/(više|manje|Jednako) od prošlog tjedna/).first()).toBeAttached()
+  await expect(figures.getByText(/(više|manje|Jednako) od jučer/)).toBeAttached()
+  await figures.getByRole('link', { name: /Riješeno danas/ }).click()
+  await expect(page).toHaveURL(/pregled=rijeseni&rijeseno=danas/)
+  await expect(page.getByRole('tab', { name: /Riješeni/ })).toHaveAttribute('aria-selected', 'true')
+
+  await page.goto(`/admin/kvarovi/${fault.id}`)
+  await expect(page.getByRole('heading', { name: title })).toBeVisible()
+  await expect(page.getByText(machine.naziv).first()).toBeVisible()
+  await page.goto('/admin')
+  await expect(page.getByRole('region', { name: 'Aktivnost uživo' }).getByRole('link').first()).toBeVisible()
+  // The priority table: one row per fault, opening it.
+  const table = page.getByRole('region', { name: 'Prioritetni kvarovi' }).getByRole('table')
+  await expect(table.getByRole('columnheader', { name: 'Odgovorna osoba' })).toBeVisible()
+  await table.getByRole('row').nth(1).getByRole('link').click()
+  await expect(page).toHaveURL(/\/admin\/kvarovi\/\d+$/)
 })

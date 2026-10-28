@@ -1,51 +1,22 @@
-import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
-import { CheckCircle2, ClipboardList, Plus, QrCode, X } from 'lucide-react'
-import PushToggle from '../../components/PushToggle'
+import { useEffect } from 'react'
+import { useSearchParams } from 'react-router'
+import { CheckCircle2, ClipboardList } from 'lucide-react'
 import { api } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useLiveRefresh } from '../../lib/live'
 import { useI18n } from '../../i18n'
-import FaultCard from '../../components/FaultCard'
+import FaultRow from '../../components/FaultRow'
 import { useAuth } from '../../auth/AuthProvider'
 import { isUpdated } from '../../lib/seen'
-import { scanSupported } from '../../lib/qr'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 
-/** Straight after a report: what happens next, and (where the server supports it) phone notifications. */
-function ReportedPanel({ fault, onClose }) {
-  const { t } = useI18n()
-  return (
-    <section role="status" aria-labelledby="reported-title" className="enter-rise mt-5 rounded-lg border border-ok/30 bg-ok-wash/60 p-4">
-      <div className="flex items-start gap-3">
-        <CheckCircle2 size={24} aria-hidden="true" className="mt-0.5 shrink-0 text-ok" />
-        <div className="min-w-0 flex-1">
-          <h2 id="reported-title" className="font-semibold text-ink">{t('worker.reportedTitle', { id: fault.id })}</h2>
-          <p className="mt-0.5 text-ink-2">{t('worker.reportedBody')}</p>
-        </div>
-        <button type="button" className="btn-icon -mr-2 -mt-2 h-10 w-10" aria-label={t('common.close')} onClick={onClose}>
-          <X size={18} aria-hidden="true" />
-        </button>
-      </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <Link to={`/radnik/kvar/${fault.id}`} className="btn-secondary w-full">{t('worker.reportedOpen')}</Link>
-        <PushToggle hint={t('worker.pushHint')} />
-      </div>
-    </section>
-  )
-}
-
+/** Every fault the worker reported: active ones first, resolved ones a tab away. */
 export default function MyFaults() {
   const { t } = useI18n()
-  const location = useLocation()
-  const navigate = useNavigate()
-  const newId = location.state?.newId
-  const [tab, setTab] = useState('open')
+  const [params, setParams] = useSearchParams()
+  const tab = params.get('pregled') === 'rijeseni' ? 'resolved' : 'open'
   const { user } = useAuth()
-  const canScan = scanSupported()
   const faults = useAsync(() => api.get('/kvarovi').then((response) => asArray(response.data)), [])
-
-  // Workers keep this screen open to see whether someone is on it: changes arrive live.
   useLiveRefresh(faults.refresh)
 
   useEffect(() => {
@@ -53,11 +24,9 @@ export default function MyFaults() {
   }, [t])
 
   const list = faults.data || []
-  const created = newId ? list.find((fault) => fault.id === newId) : null
   const open = list.filter((fault) => fault.status !== 'Riješeno')
   const resolved = list.filter((fault) => fault.status === 'Riješeno')
   const shown = tab === 'open' ? open : resolved
-
   const tabs = [
     { id: 'open', label: t('worker.tabOpen'), count: open.length },
     { id: 'resolved', label: t('worker.tabResolved'), count: resolved.length },
@@ -65,41 +34,9 @@ export default function MyFaults() {
 
   return (
     <div>
-      {user?.ime && <p className="text-ink-2">{t('worker.hello', { name: user.ime })}</p>}
-      <h1 className="text-2xl font-semibold tracking-[-0.01em]">{t('worker.title')}</h1>
+      <h1 className="text-[1.5rem] font-semibold leading-tight tracking-[-0.01em] text-ink">{t('worker.title')}</h1>
 
-      <div className={`mt-4 grid gap-3 ${canScan ? 'grid-cols-2' : ''}`}>
-        <Link to="/radnik/prijava" className="group flex min-h-[6.5rem] flex-col justify-between gap-3 rounded-lg bg-brand p-4 text-stock shadow-label transition-colors hover:bg-brand-hover">
-          <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-md bg-white/15">
-            <Plus size={22} strokeWidth={2.5} />
-          </span>
-          <span>
-            <span className="block text-[1.0625rem] font-semibold leading-tight">{t('worker.report')}</span>
-            <span className="block text-meta text-stock/90">{t('worker.reportHint')}</span>
-          </span>
-        </Link>
-        {canScan && (
-          <Link to="/radnik/skeniraj" className="surface group flex min-h-[6.5rem] flex-col justify-between gap-3 p-4 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
-            <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-md bg-info-wash text-brand">
-              <QrCode size={22} />
-            </span>
-            <span>
-              <span className="block text-[1.0625rem] font-semibold leading-tight text-ink">{t('scan.tile')}</span>
-              <span className="block text-meta text-ink-2">{t('scan.tileHint')}</span>
-            </span>
-          </Link>
-        )}
-      </div>
-      {!canScan && (
-        <p className="mt-2 flex items-center gap-1.5 text-meta text-ink-2">
-          <QrCode size={15} aria-hidden="true" className="shrink-0" />
-          {t('worker.qrHint')}
-        </p>
-      )}
-
-      {created && <ReportedPanel fault={created} onClose={() => navigate('.', { replace: true, state: null })} />}
-
-      <div role="tablist" aria-label={t('worker.title')} className="mt-6 flex border-b border-rule">
+      <div role="tablist" aria-label={t('worker.title')} className="pill-track mt-4">
         {tabs.map((item) => (
           <button
             key={item.id}
@@ -108,33 +45,29 @@ export default function MyFaults() {
             id={`tab-${item.id}`}
             aria-selected={tab === item.id}
             aria-controls="worker-panel"
-            onClick={() => setTab(item.id)}
-            className={`-mb-px flex min-h-[2.75rem] items-center gap-2 border-b-2 px-4 font-semibold transition-colors ${
-              tab === item.id ? 'border-brand text-ink' : 'border-transparent text-ink-2 hover:text-ink'
-            }`}
+            onClick={() => setParams(item.id === 'resolved' ? { pregled: 'rijeseni' } : {}, { replace: true })}
+            className="pill-tab"
           >
             {item.label}
-            <span className="rounded-sm bg-[#E8EAED] px-1.5 py-0.5 text-xs font-semibold tabular text-ink-2">{faults.loading ? '·' : item.count}</span>
+            <span className="tabular">({faults.loading && !faults.data ? '·' : item.count})</span>
           </button>
         ))}
       </div>
 
-      <div id="worker-panel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="pt-4">
+      <div id="worker-panel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="surface mt-4 overflow-hidden">
         {faults.loading && !faults.data ? (
-          <div className="surface"><LoadingRows rows={3} /></div>
+          <LoadingRows rows={3} />
         ) : faults.error ? (
-          <div className="surface"><ErrorState error={faults.error} onRetry={faults.reload} /></div>
+          <ErrorState error={faults.error} onRetry={faults.reload} />
         ) : shown.length === 0 ? (
-          <div className="surface">
-            {tab === 'open'
-              ? <EmptyState icon={ClipboardList} title={t('worker.emptyOpenTitle')} body={t('worker.emptyOpenBody')} />
-              : <EmptyState icon={CheckCircle2} title={t('worker.emptyResolvedTitle')} body={t('worker.emptyResolvedBody')} />}
-          </div>
+          tab === 'open'
+            ? <EmptyState icon={ClipboardList} title={t('worker.emptyOpenTitle')} body={t('worker.emptyOpenBody')} />
+            : <EmptyState icon={CheckCircle2} title={t('worker.emptyResolvedTitle')} body={t('worker.emptyResolvedBody')} />
         ) : (
-          <ul className="space-y-3">
+          <ul className="divide-y divide-rule">
             {shown.map((fault) => (
               <li key={fault.id}>
-                <FaultCard fault={fault} to={`/radnik/kvar/${fault.id}`} highlight={fault.id === newId} updated={fault.id !== newId && isUpdated(user?.id, fault)} />
+                <FaultRow fault={fault} to={`/radnik/kvar/${fault.id}`} updated={isUpdated(user?.id, fault)} />
               </li>
             ))}
           </ul>

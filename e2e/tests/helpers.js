@@ -50,8 +50,34 @@ export async function settle(page) {
   await page.waitForTimeout(250)
 }
 
-/** Opens the signed-in person's account menu (language, password, sign out). */
+/**
+ * Opens where the signed-in person's language, password and sign-out live: the account menu at the
+ * foot of the lead's rail on wide screens, the profile screen (avatar in the header) on phones.
+ */
 export async function openAccountMenu(page) {
-  // The account button is the one control that always names the panel it opens.
-  await page.locator('button[aria-expanded][aria-controls]:visible').first().click()
+  // The rail's account button is the one control that always names the panel it opens.
+  const menu = page.locator('aside button[aria-expanded][aria-controls]:visible')
+  if (await menu.count()) await menu.first().click()
+  else await page.getByRole('link', { name: /^Profil i postavke/ }).click()
+}
+
+/** Chooses a machine on step 1 of the report (a list of large radio rows). */
+export async function chooseMachine(page, name) {
+  await page.locator('label').filter({ hasText: name }).first().click()
+}
+
+/**
+ * Walks the three report steps and sends: machine (+ part), what is wrong, priority.
+ * Leaves the page on the confirmation screen.
+ */
+export async function reportFault(page, { machine, component, headline, details, priority }) {
+  if (machine) await chooseMachine(page, machine)
+  if (component) await page.getByLabel('Dio mašine').selectOption({ label: component })
+  await page.getByRole('button', { name: 'Dalje' }).click()
+  await page.getByLabel('Što se događa?').fill(headline)
+  if (details) await page.getByLabel('Detalji').fill(details)
+  await page.getByRole('button', { name: 'Dalje' }).click()
+  if (priority) await page.getByLabel(new RegExp(priority)).check()
+  await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
+  await expect(page.getByRole('heading', { name: 'Kvar je uspješno prijavljen' })).toBeVisible()
 }

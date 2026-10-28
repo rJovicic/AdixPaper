@@ -9,7 +9,7 @@ import Timeline from '../../components/Timeline'
 import Photos from '../../components/Photos'
 import { useAuth } from '../../auth/AuthProvider'
 import { markSeen } from '../../lib/seen'
-import { DueTag, FaultNumber, LabelFields, PriorityMark, StatusMark, WaitingTag } from '../../components/ui/Marks'
+import { DueTag, FaultNumber, LabelFields, PriorityMark, PriorityTile, StatusMark, WaitingTag } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 
 export default function WorkerFault() {
@@ -60,14 +60,20 @@ export default function WorkerFault() {
       <div>
         {back}
         <article className="surface overflow-hidden">
-          <header className="border-b border-rule px-5 py-4">
-            <FaultNumber id={item.id} size="lg" />
-            <h1 className="mt-2 text-xl font-semibold leading-snug">{item.naslov}</h1>
-            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-              <StatusMark status={item.status} />
-              <PriorityMark priority={item.prioritet} />
-              <DueTag fault={item} />
-              <WaitingTag fault={item} />
+          <header className="flex gap-3.5 border-b border-rule px-4 py-4 sm:px-5">
+            <PriorityTile priority={item.prioritet} className="mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <p className="flex min-w-0 items-baseline gap-2 text-sm font-semibold text-ink-2">
+                <span className="truncate">{item.oprema?.naziv}</span>
+                <FaultNumber id={item.id} size="sm" className="shrink-0 text-base" />
+              </p>
+              <h1 className="mt-0.5 text-xl font-semibold leading-snug">{item.naslov}</h1>
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                <PriorityMark priority={item.prioritet} />
+                <StatusMark status={item.status} />
+                <DueTag fault={item} className="ml-1" />
+                <WaitingTag fault={item} />
+              </div>
             </div>
           </header>
           <LabelFields
@@ -80,7 +86,7 @@ export default function WorkerFault() {
               resolved && { label: t('fault.resolvedAt'), value: format.dateTime(item.datum_rjesavanja), wide: true },
             ]}
           />
-          <div className="px-5 py-4">
+          <div className="px-4 py-4 sm:px-5">
             <h2 className="field-label">{t('fault.description')}</h2>
             <p className="mt-1 whitespace-pre-wrap break-words text-ink">{item.opis || <span className="text-ink-3">{t('fault.noDescription')}</span>}</p>
           </div>

@@ -9,7 +9,7 @@ import { useLiveRefresh } from '../../lib/live'
 import { useI18n } from '../../i18n'
 import { useToast } from '../../components/ui/Toast'
 import Menu from '../../components/ui/Menu'
-import FaultCard from '../../components/FaultCard'
+import FaultRow from '../../components/FaultRow'
 import { DueTag, FaultNumber, PriorityMark, StatusMark, WaitingTag } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
 
@@ -39,33 +39,32 @@ function viewFromParams(params) {
 function ViewTabs({ view, counts, onChange }) {
   const { t } = useI18n()
   const tabs = [
-    { id: 'active', label: t('faults.tabActive'), icon: ClipboardList, count: counts?.active },
-    { id: 'resolved', label: t('faults.tabResolved'), icon: CheckCircle2, count: counts?.resolved },
+    { id: 'active', label: t('faults.tabActive'), count: counts?.active },
+    { id: 'resolved', label: t('faults.tabResolved'), count: counts?.resolved },
   ]
   return (
-    <div role="tablist" aria-label={t('faults.views')} className="mb-4 flex gap-1 border-b border-rule">
-      {tabs.map((tab) => {
-        const Icon = tab.icon
-        const selected = view === tab.id
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={selected}
-            onClick={() => onChange(tab.id)}
-            className={`-mb-px inline-flex min-h-[2.75rem] items-center gap-2 border-b-2 px-3 text-[0.9375rem] font-semibold transition-colors sm:px-4 ${
-              selected ? 'border-brand text-brand' : 'border-transparent text-ink-2 hover:text-ink'
-            }`}
-          >
-            <Icon size={17} aria-hidden="true" />
-            {tab.label}
-            {typeof tab.count === 'number' && (
-              <span className={`rounded-sm px-1.5 py-0.5 numeral text-xs ${selected ? 'bg-brand text-stock' : 'bg-ink/[0.07] text-ink-2'}`}>{tab.count}</span>
-            )}
-          </button>
-        )
-      })}
+    <div role="tablist" aria-label={t('faults.views')} className="pill-track mb-4 sm:inline-flex sm:min-w-[22rem]">
+      {tabs.map((tab) => (
+        <button key={tab.id} type="button" role="tab" aria-selected={view === tab.id} onClick={() => onChange(tab.id)} className="pill-tab">
+          {tab.label}
+          {typeof tab.count === 'number' && <span className="tabular">({tab.count})</span>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Phones: one tap per priority, as chips under the search. */
+function PriorityChips({ value, onChange }) {
+  const { t, priority } = useI18n()
+  return (
+    <div role="group" aria-label={t('faults.priorityChips')} className="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:hidden">
+      <button type="button" className="chip" aria-pressed={!value} onClick={() => onChange('')}>{t('faults.chipAll')}</button>
+      {PRIORITIES.map((item) => (
+        <button key={item} type="button" className="chip" aria-pressed={value === item} onClick={() => onChange(value === item ? '' : item)}>
+          {priority(item)}
+        </button>
+      ))}
     </div>
   )
 }
@@ -324,9 +323,10 @@ export default function Faults() {
         <button type="button" className="btn-secondary shrink-0" onClick={() => setFiltersOpen(true)} aria-haspopup="dialog">
           <SlidersHorizontal size={17} aria-hidden="true" />
           {t('faults.filters')}
-          {activeFilters > 0 && <span className="rounded-sm bg-brand px-1.5 py-0.5 numeral text-xs text-stock">{activeFilters}</span>}
+          {activeFilters > 0 && <span className="min-w-[1.25rem] rounded-full bg-brand px-1.5 text-center text-xs font-bold leading-5 text-stock">{activeFilters}</span>}
         </button>
       </div>
+      <PriorityChips value={filters.prioritet} onChange={(value) => setFilter('prioritet', value)} />
       {filtersOpen && (
         <Dialog
           title={t('faults.filters')}
@@ -382,9 +382,9 @@ export default function Faults() {
         </div>
       ) : (
         <div aria-busy={loading} className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
-          <ul className="space-y-3 md:hidden">
+          <ul className="surface divide-y divide-rule overflow-hidden md:hidden">
             {rows.map((fault) => (
-              <li key={fault.id}><FaultCard fault={fault} to={`/admin/kvarovi/${fault.id}`} /></li>
+              <li key={fault.id}><FaultRow fault={fault} to={`/admin/kvarovi/${fault.id}`} /></li>
             ))}
           </ul>
 
@@ -392,13 +392,13 @@ export default function Faults() {
             <table className="w-full text-[0.9375rem]">
               <thead className="table-head">
                 <tr>
-                  <th scope="col" className="w-20 px-4 py-2.5 font-semibold">#</th>
-                  <th scope="col" className="w-[38%] px-4 py-2.5 font-semibold">{t('faults.colFault')}</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('fault.priority')}</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('fault.status')}</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{view === 'resolved' ? t('fault.resolvedAt') : t('fault.due')}</th>
-                  <th scope="col" className="hidden px-4 py-2.5 font-semibold lg:table-cell">{t('fault.assignee')}</th>
-                  <th scope="col" className="hidden px-4 py-2.5 font-semibold xl:table-cell">{t('fault.reportedAt')}</th>
+                  <th scope="col" className="w-20 px-4 py-2.5 font-medium">#</th>
+                  <th scope="col" className="w-[38%] px-4 py-2.5 font-medium">{t('faults.colFault')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('fault.priority')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{t('fault.status')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-medium">{view === 'resolved' ? t('fault.resolvedAt') : t('fault.due')}</th>
+                  <th scope="col" className="hidden px-4 py-2.5 font-medium lg:table-cell">{t('fault.assignee')}</th>
+                  <th scope="col" className="hidden px-4 py-2.5 font-medium xl:table-cell">{t('fault.reportedAt')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
@@ -416,9 +416,9 @@ export default function Faults() {
                       <Link to={`/admin/kvarovi/${fault.id}`} className="block truncate font-semibold text-ink hover:underline">{fault.naslov}</Link>
                       <span className="block truncate text-meta text-ink-2">{[fault.oprema?.naziv, fault.komponenta?.naziv].filter(Boolean).join(' · ')}</span>
                     </td>
-                    <td className="px-4 py-3"><PriorityMark priority={fault.prioritet} /></td>
+                    <td className="px-4 py-3"><PriorityMark priority={fault.prioritet} className="text-[0.75rem]" /></td>
                     <td className="px-4 py-3">
-                      <StatusMark status={fault.status} />
+                      <StatusMark status={fault.status} className="text-[0.75rem]" />
                       <WaitingTag fault={fault} compact className="mt-1 flex text-meta" />
                     </td>
                     <td className="px-4 py-3">

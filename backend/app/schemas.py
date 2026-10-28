@@ -518,6 +518,13 @@ class PregledKpi(BaseModel):
     ceka_dijelove: int
     prijavljeni_u_periodu: int
     rijeseni_u_periodu: int
+    # The same open counts a week ago, replayed from the status/priority history, and resolved
+    # today vs. yesterday (plant time): the overview's "vs last week" / "vs yesterday" lines.
+    otvoreni_prije_tjedan: int = 0
+    hitni_prije_tjedan: int = 0
+    na_cekanju_prije_tjedan: int = 0
+    rijeseni_danas: int = 0
+    rijeseni_jucer: int = 0
 
 
 class PregledOpterecenje(BaseModel):
@@ -532,6 +539,7 @@ class PregledAktivnost(BaseModel):
     id: int
     kvar_id: int
     kvar_naslov: str
+    oprema_naziv: Optional[str] = None
     tip: str
     naslov: str
     opis: Optional[str] = None

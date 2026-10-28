@@ -109,7 +109,7 @@ function StatusDonut({ rows }) {
   if (!total) return <Empty />
   const data = rows.filter((row) => row.broj > 0)
   return (
-    <div className="flex flex-col items-center gap-4 px-5 py-4 sm:flex-row">
+    <div className="flex flex-col items-center gap-4 px-5 py-4 sm:flex-row lg:flex-col xl:flex-row">
       <div className="relative h-40 w-40 shrink-0" role="img" aria-label={`${t('analytics.byStatus')}: ${data.map((row) => `${status(row.status)} ${row.broj}`).join(', ')}`}>
         {/* A conic gradient: no focusable SVG parts; the wrapper's label carries the data. */}
         <div aria-hidden="true" className="h-full w-full rounded-full" style={{ background: conic(data, total), mask: 'radial-gradient(circle, transparent 52%, #000 53%)', WebkitMask: 'radial-gradient(circle, transparent 52%, #000 53%)' }} />
@@ -118,7 +118,7 @@ function StatusDonut({ rows }) {
           <span className="text-meta text-ink-2">{t('analytics.total')}</span>
         </span>
       </div>
-      <ul className="w-full space-y-2">
+      <ul className="w-full min-w-0 space-y-2 sm:flex-1">
         {rows.map((row) => (
           <li key={row.status} className="flex items-center justify-between gap-3 text-sm">
             <span className="inline-flex items-center gap-2 text-ink">

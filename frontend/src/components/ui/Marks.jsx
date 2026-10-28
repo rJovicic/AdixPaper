@@ -1,4 +1,4 @@
-import { Clock } from 'lucide-react'
+import { AlertTriangle, ArrowDown, Clock, Wrench } from 'lucide-react'
 import { useI18n } from '../../i18n'
 import { slaInfo } from '../../lib/sla'
 
@@ -13,7 +13,7 @@ export const TONES = {
 }
 
 const STATUS_TONE = { Novo: 'new', 'U rješavanju': 'info', 'Na čekanju': 'warning', 'Riješeno': 'success' }
-const PRIORITY_TONE = { Hitno: 'danger', Normalno: 'neutral', Nisko: 'neutral' }
+const PRIORITY_TONE = { Hitno: 'danger', Normalno: 'warning', Nisko: 'neutral' }
 
 /** A state pill: dot + word on a tinted ground. `hollow` draws an outlined dot (e.g. low priority, inactive). */
 export function Badge({ tone = 'neutral', hollow = false, className = '', children }) {
@@ -38,6 +38,24 @@ export function StatusMark({ status, className = '' }) {
 export function PriorityMark({ priority, className = '' }) {
   const { priority: label } = useI18n()
   return <Badge tone={PRIORITY_TONE[priority]} hollow={priority === 'Nisko'} className={className}>{label(priority)}</Badge>
+}
+
+const PRIORITY_TILE = {
+  Hitno: { className: 'bg-urgent-mark', icon: AlertTriangle },
+  Normalno: { className: 'bg-warn-mark', icon: Wrench },
+  Nisko: { className: 'bg-slate-mark', icon: ArrowDown },
+}
+
+/** The round priority marker that leads a fault row. Decorative: the priority pill beside it says it in words. */
+export function PriorityTile({ priority, size = 'md', className = '' }) {
+  const tile = PRIORITY_TILE[priority] || PRIORITY_TILE.Normalno
+  const Icon = tile.icon
+  const sizes = { sm: 'h-8 w-8', md: 'h-10 w-10' }
+  return (
+    <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center rounded-full text-stock ${tile.className} ${sizes[size]} ${className}`}>
+      <Icon size={size === 'sm' ? 16 : 18} strokeWidth={2.25} />
+    </span>
+  )
 }
 
 /** Time left in the response window, or how late it is. Renders nothing for resolved faults. */

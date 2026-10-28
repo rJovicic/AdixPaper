@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
 from typing import List, Optional
 
@@ -33,6 +33,46 @@ def _sla_ratio(kvar: Kvar, now: datetime) -> Optional[float]:
 
 
 ACTIVITY_ROWS = 8
+OPEN_VALUES = {s.value for s in OPEN_STATUSES}
+
+
+def _open_counts_at(db: Session, at: datetime) -> dict:
+    """Open, urgent and on-hold counts as they stood at `at`.
+
+    A fault's status and priority at `at` are the "old" values of its first status/priority change
+    after `at`, or its current values when nothing changed since. Faults resolved before `at` and
+    untouched since are left out by the query.
+    """
+    candidates = db.query(Kvar.id, Kvar.status, Kvar.prioritet).filter(
+        Kvar.datum_prijave <= at,
+        (Kvar.status.in_(OPEN_STATUSES)) | (Kvar.datum_rjesavanja.is_(None)) | (Kvar.datum_rjesavanja > at),
+    ).all()
+    state = {row.id: {"status": _enum_value(row.status), "prioritet": _enum_value(row.prioritet)} for row in candidates}
+    if not state:
+        return {"otvoreni": 0, "hitni": 0, "na_cekanju": 0}
+    changes = db.query(KvarDogadjaj.kvar_id, KvarDogadjaj.tip, KvarDogadjaj.podaci).filter(
+        KvarDogadjaj.kreiran > at,
+        KvarDogadjaj.tip.in_(["status", "prioritet"]),
+        KvarDogadjaj.kvar_id.in_(list(state)),
+    ).order_by(KvarDogadjaj.kreiran.asc(), KvarDogadjaj.id.asc()).all()
+    undone = set()
+    for kvar_id, tip, podaci in changes:
+        if (kvar_id, tip) in undone or not podaci or not podaci.get("old"):
+            continue
+        undone.add((kvar_id, tip))
+        state[kvar_id][tip] = podaci["old"]
+    open_then = [s for s in state.values() if s["status"] in OPEN_VALUES]
+    return {
+        "otvoreni": len(open_then),
+        "hitni": sum(1 for s in open_then if s["prioritet"] == PrioritetEnum.hitno.value),
+        "na_cekanju": sum(1 for s in open_then if s["status"] == StatusKvaraEnum.na_cekanju.value),
+    }
+
+
+def _resolved_between(db: Session, start: datetime, end: datetime) -> int:
+    return db.query(func.count(Kvar.id)).filter(
+        Kvar.status == StatusKvaraEnum.rijeseno, Kvar.datum_rjesavanja >= start, Kvar.datum_rjesavanja < end
+    ).scalar() or 0
 
 
 @router.get("/pregled", response_model=Pregled)
@@ -53,7 +93,15 @@ def get_pregled(
 
     open_faults = db.query(Kvar).options(joinedload(Kvar.voditelj)).filter(Kvar.status.in_(OPEN_STATUSES)).all()
     reasons = {k.id: k.razlozi_paznje_u(now) for k in open_faults}
+    week_ago = _open_counts_at(db, now - timedelta(days=7))
+    today = local_day_start(now)
+    yesterday = local_day_start(today - timedelta(hours=12))
     kpi = PregledKpi(
+        otvoreni_prije_tjedan=week_ago["otvoreni"],
+        hitni_prije_tjedan=week_ago["hitni"],
+        na_cekanju_prije_tjedan=week_ago["na_cekanju"],
+        rijeseni_danas=_resolved_between(db, today, now + timedelta(seconds=1)),
+        rijeseni_jucer=_resolved_between(db, yesterday, today),
         otvoreni=len(open_faults),
         hitni=sum(1 for k in open_faults if k.prioritet == PrioritetEnum.hitno),
         kasni=sum(1 for k in open_faults if "kasni" in reasons[k.id]),
@@ -91,7 +139,7 @@ def get_pregled(
 
     events = (
         db.query(KvarDogadjaj)
-        .options(joinedload(KvarDogadjaj.korisnik), joinedload(KvarDogadjaj.kvar))
+        .options(joinedload(KvarDogadjaj.korisnik), joinedload(KvarDogadjaj.kvar).joinedload(Kvar.oprema))
         .order_by(KvarDogadjaj.kreiran.desc(), KvarDogadjaj.id.desc())
         .limit(ACTIVITY_ROWS)
         .all()
@@ -101,6 +149,7 @@ def get_pregled(
             id=e.id,
             kvar_id=e.kvar_id,
             kvar_naslov=e.kvar.naslov if e.kvar else "",
+            oprema_naziv=e.kvar.oprema.naziv if e.kvar and e.kvar.oprema else None,
             tip=e.tip,
             naslov=e.naslov,
             opis=(e.opis[:160] + "…") if e.opis and len(e.opis) > 160 else e.opis,

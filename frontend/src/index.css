@@ -5,42 +5,43 @@
 @tailwind utilities;
 
 /*
- * Reel-label palette: the logo blue carries action and the shell; state carries semantic colour
- * (owner's brief, 2026-10-28): red urgent/overdue, amber waiting/due soon, blue in progress,
- * violet new, green resolved/active, slate neutral. Every state is a dot + a word, never colour alone.
+ * Plant-floor console palette (redesign 2026-10-28, owner's five-screen reference):
+ * a deep navy shell, one saturated blue for action, a cool light ground with white cards.
+ * State carries semantic colour: red urgent/overdue, amber waiting, blue in progress, violet new,
+ * green resolved, slate neutral. Every state is a dot or icon + a word, never colour alone.
  * Values are RGB channels so Tailwind can apply alpha.
  * Contrast (WCAG): every text pair >= 4.5:1 on white and on its wash, control borders >= 3:1. See DESIGN.md.
  */
 :root {
-  --ground: 237 239 242;      /* #EDEFF2 reel-core grey */
-  --stock: 255 255 255;       /* label stock */
-  --ink: 21 24 29;            /* #15181D */
-  --ink-2: 71 78 89;          /* #474E59 */
-  --ink-3: 99 107 119;        /* #636B77 */
-  --rule: 214 218 224;        /* #D6DAE0 hairlines */
-  --rule-strong: 133 140 151; /* #858C97 control borders, 3.4:1 */
-  --brand: 42 89 162;         /* #2A59A2 logo blue: actions, links, in progress */
-  --brand-hover: 34 75 138;   /* #224B8A */
-  --brand-deep: 21 44 82;     /* #152C52 shell rail */
-  --brand-wash: 231 237 247;  /* #E7EDF7 selection */
-  --brand-on-deep: 184 198 222; /* #B8C6DE quiet text on rail */
+  --ground: 244 246 250;      /* #F4F6FA cool page ground */
+  --stock: 255 255 255;       /* cards */
+  --ink: 15 23 42;            /* #0F172A */
+  --ink-2: 71 85 105;         /* #475569 7.6:1 */
+  --ink-3: 91 103 121;        /* #5B6779 5.7:1, 5.3:1 on the ground */
+  --rule: 228 232 240;        /* #E4E8F0 hairlines */
+  --rule-strong: 134 145 163; /* #8691A3 control borders, 3.2:1 */
+  --brand: 31 86 208;         /* #1F56D0 action blue, 6.1:1 with white */
+  --brand-hover: 24 71 179;   /* #1847B3 */
+  --brand-deep: 16 38 90;     /* #10265A navy shell */
+  --brand-wash: 232 239 252;  /* #E8EFFC selection */
+  --brand-on-deep: 185 199 230; /* #B9C7E6 quiet text on navy, 8.4:1 */
   --urgent: 180 35 24;        /* #B42318 text 6.6:1 */
-  --urgent-mark: 217 45 32;   /* #D92D20 */
-  --urgent-wash: 254 243 242; /* #FEF3F2 */
+  --urgent-mark: 217 45 32;   /* #D92D20 tiles, dots, count badges (4.8:1 with white) */
+  --urgent-wash: 254 241 240; /* #FEF1F0 */
   --grey: 148 149 151;        /* #949597 logo wordmark grey */
-  --warn: 181 71 8;           /* #B54708 amber text 5.4:1 */
-  --warn-mark: 247 144 9;     /* #F79009 */
-  --warn-wash: 255 250 235;   /* #FFFAEB */
+  --warn: 166 73 0;           /* #A64900 amber text 5.6:1 */
+  --warn-mark: 245 166 35;    /* #F5A623 */
+  --warn-wash: 255 247 230;   /* #FFF7E6 */
   --ok: 6 118 71;             /* #067647 green text 5.7:1 */
-  --ok-mark: 23 178 106;      /* #17B26A */
-  --ok-wash: 236 253 243;     /* #ECFDF3 */
+  --ok-mark: 22 163 106;      /* #16A36A */
+  --ok-wash: 234 250 241;     /* #EAFAF1 */
   --new: 89 37 220;           /* #5925DC violet text 7.7:1 */
   --new-mark: 122 90 248;     /* #7A5AF8 */
-  --new-wash: 244 243 255;    /* #F4F3FF */
-  --info-wash: 239 244 255;   /* #EFF4FF */
+  --new-wash: 244 242 255;    /* #F4F2FF */
+  --info-wash: 238 243 254;   /* #EEF3FE */
   --slate: 71 84 103;         /* #475467 */
   --slate-mark: 152 162 179;  /* #98A2B3 */
-  --slate-wash: 242 244 247;  /* #F2F4F7 */
+  --slate-wash: 241 244 248;  /* #F1F4F8 */
 
   color-scheme: light;
   -webkit-tap-highlight-color: transparent;
@@ -90,10 +91,10 @@
 }
 
 @layer components {
-  /* Numerals set like the printed number on a reel label. */
+  /* Figures: full width, bold, tabular, so counts and fault numbers line up. */
   .numeral {
-    font-variation-settings: 'wdth' 72;
-    font-weight: 800;
+    font-variation-settings: 'wdth' 100;
+    font-weight: 700;
     font-variant-numeric: tabular-nums lining-nums;
     letter-spacing: -0.01em;
   }
@@ -101,11 +102,35 @@
     font-variant-numeric: tabular-nums;
   }
   .field-label {
-    @apply text-label font-semibold uppercase text-ink-2;
+    @apply text-meta font-medium text-ink-3;
   }
 
   .surface {
     @apply rounded-lg border border-rule bg-stock shadow-label;
+  }
+  /* Card header: title left, a quiet link right. */
+  .card-head {
+    @apply flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pb-3 pt-4 sm:px-5;
+  }
+  .card-title {
+    @apply text-base font-semibold text-ink;
+  }
+  /* Rounded pill tabs on a tinted track (Aktivni / Riješeni). */
+  .pill-track {
+    @apply flex rounded-full bg-slate-wash p-1;
+  }
+  .pill-tab {
+    @apply flex min-h-[2.5rem] flex-1 items-center justify-center gap-1.5 rounded-full px-4 text-sm font-semibold text-ink-2 transition-colors hover:text-ink;
+  }
+  .pill-tab[aria-selected='true'], .pill-tab[aria-pressed='true'] {
+    @apply bg-brand text-stock shadow-label hover:text-stock;
+  }
+  /* Filter chips (Svi / Hitno / Normalno / Nisko). */
+  .chip {
+    @apply inline-flex min-h-[2.25rem] items-center gap-1.5 whitespace-nowrap rounded-full border border-transparent bg-slate-wash px-3.5 text-sm font-semibold text-ink-2 transition-colors hover:bg-brand-wash hover:text-ink;
+  }
+  .chip[aria-pressed='true'] {
+    @apply bg-brand text-stock hover:bg-brand-hover hover:text-stock;
   }
 
 
@@ -125,14 +150,14 @@
 
   /* State pill: tinted ground, a dot and the word. Tones: see Marks.jsx. */
   .badge {
-    @apply inline-flex items-center gap-1.5 self-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[0.8125rem] font-semibold leading-5;
+    @apply inline-flex items-center gap-1.5 self-center whitespace-nowrap rounded-full border border-transparent px-2.5 py-0.5 text-[0.8125rem] font-semibold leading-5;
   }
   .badge > .dot {
     @apply h-1.5 w-1.5 shrink-0 rounded-full;
   }
 
   .btn {
-    @apply inline-flex min-h-[2.5rem] items-center justify-center gap-2 whitespace-nowrap rounded px-4 text-[0.9375rem] font-semibold
+    @apply inline-flex min-h-[2.75rem] items-center justify-center gap-2 whitespace-nowrap rounded px-4 text-[0.9375rem] font-semibold
       transition-[background-color,border-color,color,box-shadow] duration-150
       disabled:cursor-not-allowed disabled:opacity-55;
   }
@@ -143,10 +168,10 @@
     @apply min-h-[2.25rem] px-3 text-sm;
   }
   .btn-primary {
-    @apply btn bg-brand text-stock hover:bg-brand-hover active:bg-brand-deep;
+    @apply btn bg-brand text-stock shadow-[0_1px_2px_rgb(16_38_90/0.12)] hover:bg-brand-hover active:bg-brand-deep;
   }
   .btn-secondary {
-    @apply btn border border-rule-strong bg-stock text-ink hover:border-ink-3 hover:bg-ground/60 active:bg-ground;
+    @apply btn border border-rule-strong/70 bg-stock text-ink hover:border-ink-3 hover:bg-ground/60 active:bg-ground;
   }
   .btn-quiet {
     @apply btn text-ink-2 hover:bg-ink/5 hover:text-ink active:bg-ink/10;
@@ -181,7 +206,7 @@
   }
 
   .table-head {
-    @apply border-b border-rule bg-ground/50 text-left text-label font-semibold uppercase text-ink-2;
+    @apply border-b border-rule text-left text-meta font-medium text-ink-3;
   }
 }
 
@@ -195,6 +220,10 @@
   /* Fixed bottom bars: clear the home indicator on iPhones, nothing elsewhere. */
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* Navy bars under the translucent iOS status bar of the installed app. */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
   }
 }
 
