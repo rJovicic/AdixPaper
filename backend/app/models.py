@@ -284,6 +284,22 @@ class KvarPrilog(Base):
     korisnik = relationship("Korisnik")
 
 
+class ZadatakIzvrsenje(Base):
+    """One run of a background job (e.g. photo retention): the audit trail and failure counter."""
+    __tablename__ = "zadaci_izvrsenja"
+
+    id = Column(Integer, primary_key=True, index=True)
+    zadatak = Column(String(40), nullable=False, index=True)
+    nacin = Column(String(20), nullable=False)
+    status = Column(String(20), nullable=False)  # ok | greska | preskoceno
+    pokrenut = Column(DateTime(timezone=True), nullable=False, index=True)
+    zavrsen = Column(DateTime(timezone=True), nullable=True)
+    kvarova = Column(Integer, default=0, nullable=False)
+    fotografija = Column(Integer, default=0, nullable=False)
+    obrisano = Column(Integer, default=0, nullable=False)
+    poruka = Column(Text, nullable=True)
+
+
 class PushPretplata(Base):
     __tablename__ = "push_pretplate"
 

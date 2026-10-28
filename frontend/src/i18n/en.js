@@ -336,6 +336,8 @@ export default {
       waiting: 'Waiting reason changed',
       prilog: 'Photo added',
       prilogRemoved: 'Photo removed',
+      retencija: 'Photos removed under the retention rule (12 months)',
+      retencijaCount: 'Photos removed under the retention rule (12 months): {count}',
     },
     eventChange: '{from} → {to}',
     eventAssigned: 'Taken by: {name}',

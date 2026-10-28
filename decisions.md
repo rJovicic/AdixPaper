@@ -167,3 +167,8 @@
 - Decided by: Claude (default)
 - Why: the references show an in-app scanner. `BarcodeDetector` exists on Android Chrome but not on iOS Safari; a library would add ~40–100 kB to the worker bundle. Where unsupported, the tile/tab is not shown (no dead control) and the phone's camera app opens the label as before. `Permissions-Policy` now allows `camera=(self)`.
 - Safety: only the numeric id from a `/m/<id>` path is used; the app never navigates to the scanned URL itself.
+
+## 2026-10-28 · Photo retention runs inside the app, dry-run first
+- Decided by: the owner (12 months after resolution); mechanics by Claude (default)
+- What: an hourly check in the app process runs the rule once a day (Europe/Zagreb). No cron service (cost), no external scheduler. Default `dry-run`; `delete` is an explicit, owner-approved variable change. Only photos go; faults and timelines stay, with a timeline entry.
+- Why in-app: one replica, no extra service; the advisory lock keeps it correct if replicas are ever added. Revisit if the app moves to several services.

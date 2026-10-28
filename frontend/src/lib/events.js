@@ -16,6 +16,7 @@ export function eventTitle(event, i18n, people = {}) {
     if (!data.new) return `${base}: ${t('fault.eventUnassigned')}`
     if (people[data.new]) return `${base}: ${t('fault.eventAssigned', { name: people[data.new] })}`
   }
+  if (event.tip === 'retencija' && data.count) return t('fault.events.retencijaCount', { count: data.count })
   if (event.tip === 'prilog' && event.naslov?.startsWith('Uklonjena')) return t('fault.events.prilogRemoved')
   return base.startsWith('fault.') ? event.naslov : base
 }

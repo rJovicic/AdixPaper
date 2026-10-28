@@ -50,7 +50,7 @@ Owner decisions (2026-10-28):
 | 6 | **QR validation** (read-only), then 🔒 set `PUBLIC_URL` (§7) | None | Open |
 | 7 | **Employee privacy notice** text (company/legal) and the 12-month photo rule in it (§8) | — | Open |
 | 8 | 🔒 **Repository visibility**: decide whether to make the repo private (it publishes supplier prices and stock) | Private repos have limited free Actions minutes — check the GitHub plan | Open |
-| 9 | 🔒 Merge the command-center PR, then (later) the photo-retention PR | — | Open |
+| 9 | 🔒 Merge the command-center PR, then (later) the photo-retention PR. The retention PR ships in `dry-run`: check the logged count, then 🔒 set `PHOTO_RETENTION_MODE=delete` | — | Open |
 
 ## 4. Database startup (in this release)
 
@@ -85,7 +85,7 @@ Railway's health check runs only at deploy time [D]. Free options:
 |---|---|
 | Failed or crashed deploy, volume usage | Railway project webhook → Discord or Slack channel (formatted automatically [D]) |
 | App down, or database unreachable (`/health` returns 503 without the DB) | Scheduled GitHub Actions workflow calling `/health` every 15–30 min; a failure emails the owner. Free for public repos; GitHub may delay schedules and pauses them after 60 days without repo activity. |
-| Photo-cleanup failures | Covered by the separate photo-retention PR (run log, alert hook) |
+| Photo-cleanup failures | Photo-retention PR: `/health/jobs` (503 after 3 failed runs or 48 h without a run) for the same scheduled check, plus optional `ALERT_WEBHOOK_URL` (Discord/Slack, free) |
 
 Paid, not planned without approval: Railway Pro monitors, Uptime Kuma as an extra service, Sentry or external uptime services.
 
