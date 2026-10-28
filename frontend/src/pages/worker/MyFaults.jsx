@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation } from 'react-router'
-import { CheckCircle2, ClipboardList, Plus, QrCode } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router'
+import { CheckCircle2, ClipboardList, Plus, QrCode, X } from 'lucide-react'
+import PushToggle from '../../components/PushToggle'
 import { api } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
+import { useLiveRefresh } from '../../lib/live'
 import { useI18n } from '../../i18n'
 import FaultCard from '../../components/FaultCard'
 import { useAuth } from '../../auth/AuthProvider'
@@ -10,27 +12,48 @@ import { isUpdated } from '../../lib/seen'
 import { scanSupported } from '../../lib/qr'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 
+/** Straight after a report: what happens next, and (where the server supports it) phone notifications. */
+function ReportedPanel({ fault, onClose }) {
+  const { t } = useI18n()
+  return (
+    <section role="status" aria-labelledby="reported-title" className="enter-rise mt-5 rounded-lg border border-ok/30 bg-ok-wash/60 p-4">
+      <div className="flex items-start gap-3">
+        <CheckCircle2 size={24} aria-hidden="true" className="mt-0.5 shrink-0 text-ok" />
+        <div className="min-w-0 flex-1">
+          <h2 id="reported-title" className="font-semibold text-ink">{t('worker.reportedTitle', { id: fault.id })}</h2>
+          <p className="mt-0.5 text-ink-2">{t('worker.reportedBody')}</p>
+        </div>
+        <button type="button" className="btn-icon -mr-2 -mt-2 h-10 w-10" aria-label={t('common.close')} onClick={onClose}>
+          <X size={18} aria-hidden="true" />
+        </button>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Link to={`/radnik/kvar/${fault.id}`} className="btn-secondary w-full">{t('worker.reportedOpen')}</Link>
+        <PushToggle hint={t('worker.pushHint')} />
+      </div>
+    </section>
+  )
+}
+
 export default function MyFaults() {
   const { t } = useI18n()
   const location = useLocation()
+  const navigate = useNavigate()
   const newId = location.state?.newId
   const [tab, setTab] = useState('open')
   const { user } = useAuth()
   const canScan = scanSupported()
   const faults = useAsync(() => api.get('/kvarovi').then((response) => asArray(response.data)), [])
 
-  // Workers keep this screen open to see whether someone is on it: refresh while visible.
-  const { reload } = faults
-  useEffect(() => {
-    const timer = setInterval(() => document.visibilityState === 'visible' && reload(), 60_000)
-    return () => clearInterval(timer)
-  }, [reload])
+  // Workers keep this screen open to see whether someone is on it: changes arrive live.
+  useLiveRefresh(faults.refresh)
 
   useEffect(() => {
     document.title = `${t('worker.title')} · ${t('app.name')}`
   }, [t])
 
   const list = faults.data || []
+  const created = newId ? list.find((fault) => fault.id === newId) : null
   const open = list.filter((fault) => fault.status !== 'Riješeno')
   const resolved = list.filter((fault) => fault.status === 'Riješeno')
   const shown = tab === 'open' ? open : resolved
@@ -73,6 +96,8 @@ export default function MyFaults() {
           {t('worker.qrHint')}
         </p>
       )}
+
+      {created && <ReportedPanel fault={created} onClose={() => navigate('.', { replace: true, state: null })} />}
 
       <div role="tablist" aria-label={t('worker.title')} className="mt-6 flex border-b border-rule">
         {tabs.map((item) => (

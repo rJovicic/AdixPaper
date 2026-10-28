@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import SessionLocal, engine
+from .live import publish_fault
 from .models import Kvar, KvarDogadjaj, KvarPrilog, StatusKvaraEnum, ZadatakIzvrsenje
 from .timeutil import PLANT_TZ, as_utc, utcnow
 
@@ -145,6 +146,7 @@ def _delete_fault_photos(db: Session, kvar_id: int, now: datetime) -> int:
         interno=False,
     ))
     db.commit()
+    publish_fault(kvar, "photo")
     return len(ids)
 
 

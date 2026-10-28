@@ -4,21 +4,21 @@
   "short_name": "Adix Paper",
   "description": "Prijava i praćenje kvarova strojeva",
   "lang": "hr",
-  "start_url": "/",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "background_color": "#EDEFF2",
   "theme_color": "#152C52",
+  "categories": ["business", "productivity", "utilities"],
   "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Prijavi kvar", "short_name": "Prijava", "url": "/radnik/prijava?source=shortcut", "icons": [{ "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Kvarovi", "short_name": "Kvarovi", "url": "/admin/kvarovi?source=shortcut", "icons": [{ "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }

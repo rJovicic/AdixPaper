@@ -425,6 +425,7 @@ KVAR_INTERNAL_FIELDS = {"napomene_voditelja": None, "materijal": None, "troskovi
 
 class KvarNovoOut(BaseModel):
     id: int
+    prijavio_id: Optional[int] = None
     naslov: str
     prioritet: PrioritetEnum
     status: StatusKvaraEnum

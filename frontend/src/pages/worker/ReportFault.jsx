@@ -74,7 +74,8 @@ const PRIORITY_MARKERS = {
   Nisko: 'border-[1.5px] border-ink-3',
 }
 
-export default function ReportFault() {
+/** The report form. `base` is the shell it opens in: workers ('/radnik') or leads ('/admin'). */
+export default function ReportFault({ base = '/radnik' }) {
   const i18n = useI18n()
   const { t, priority } = i18n
   const navigate = useNavigate()
@@ -91,7 +92,7 @@ export default function ReportFault() {
   })
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const [submitting, setSubmitting] = useState('') // '' | 'report' | 'photo'
   const [photo, setPhoto] = useState(null)
   const photoInput = useRef(null)
   const photoUrl = useMemo(() => (photo ? URL.createObjectURL(photo) : null), [photo])
@@ -149,7 +150,8 @@ export default function ReportFault() {
       refs[firstInvalid].current?.focus()
       return
     }
-    setSubmitting(true)
+    if (submitting) return // a second tap while sending; the server would deduplicate it anyway
+    setSubmitting('report')
     try {
       const { data } = await api.post('/kvarovi', {
         oprema_id: Number(form.oprema_id),
@@ -161,30 +163,35 @@ export default function ReportFault() {
       })
       writeDraft(user?.id, EMPTY)
       if (photo) {
+        setSubmitting('photo')
         try {
           await uploadPhoto(data.id, photo)
         } catch (error) {
           // The report itself is saved; say so plainly and send the worker where the photo can be added again.
           toast.error(`${t('report.photoFailed', { id: data.id })} ${errorMessage(error, i18n)}`)
-          navigate(`/radnik/kvar/${data.id}`)
+          navigate(base === '/admin' ? `/admin/kvarovi/${data.id}` : `/radnik/kvar/${data.id}`)
           return
         }
       }
-      toast.success(t('report.success', { id: data.id }))
-      navigate('/radnik', { state: { newId: data.id } })
+      if (base === '/admin') {
+        toast.success(t('report.success', { id: data.id }))
+        navigate(`/admin/kvarovi/${data.id}`)
+      } else {
+        navigate('/radnik', { state: { newId: data.id } }) // the confirmation panel there says it
+      }
     } catch (error) {
       const fields = fieldErrors(error, i18n)
       setErrors(fields)
       setFormError(Object.keys(fields).length ? '' : errorMessage(error, i18n))
-      setSubmitting(false)
+      setSubmitting('')
     }
   }
 
   return (
     <div>
-      <Link to="/radnik" className="btn-quiet -ml-3 mb-2">
+      <Link to={base} className="btn-quiet -ml-3 mb-2">
         <ArrowLeft size={18} aria-hidden="true" />
-        {t('fault.backToMine')}
+        {base === '/admin' ? t('report.backToOverview') : t('fault.backToMine')}
       </Link>
       <h1 className="text-2xl font-semibold tracking-[-0.01em]">{t('report.title')}</h1>
 
@@ -248,6 +255,9 @@ export default function ReportFault() {
                 ref={refs.naslov}
                 className="control"
                 maxLength={200}
+                autoComplete="off"
+                autoCapitalize="sentences"
+                enterKeyHint="next"
                 value={form.naslov}
                 placeholder={t('report.headlinePlaceholder')}
                 onChange={(event) => update('naslov', event.target.value)}
@@ -262,6 +272,7 @@ export default function ReportFault() {
                 className="control"
                 rows={3}
                 maxLength={5000}
+                autoCapitalize="sentences"
                 value={form.opis}
                 placeholder={t('report.detailsPlaceholder')}
                 onChange={(event) => update('opis', event.target.value)}
@@ -313,10 +324,11 @@ export default function ReportFault() {
             }))}
           />
 
-          <button type="submit" disabled={submitting} className="btn-primary btn-lg w-full">
+          <button type="submit" disabled={Boolean(submitting)} aria-busy={Boolean(submitting)} className="btn-primary btn-lg w-full">
             <Send size={19} aria-hidden="true" />
-            {submitting ? t('report.submitting') : t('report.submit')}
+            {submitting === 'photo' ? t('report.sendingPhoto') : submitting ? t('report.submitting') : t('report.submit')}
           </button>
+          <p aria-live="polite" className="sr-only">{submitting === 'photo' ? t('report.sendingPhoto') : ''}</p>
         </form>
       )}
     </div>

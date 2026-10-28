@@ -8,6 +8,8 @@ self.addEventListener('push', event => {
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     data: { url: data.url || '/' },
+    // Same tag = the same fault: the phone replaces the earlier notification instead of stacking copies.
+    tag: data.tag || data.url || undefined,
     vibrate: [200, 100, 200],
     requireInteraction: true
   }

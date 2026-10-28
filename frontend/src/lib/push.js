@@ -34,10 +34,27 @@ export async function enablePush(publicKey) {
   return subscription
 }
 
-export async function disablePush() {
+/**
+ * Stops push on this device. With `token` (signing out) the server copy is removed with that
+ * token directly, outside the API client, so a failure there never looks like an expired session.
+ * The browser-side unsubscribe alone is enough for the push service to report the endpoint gone.
+ */
+export async function disablePush({ token, localOnly = false } = {}) {
+  if (!pushSupported() || !navigator.serviceWorker.controller) return
   const subscription = await currentSubscription()
   if (!subscription) return
   const { endpoint, keys } = subscription.toJSON()
-  await api.delete('/notifikacije/pretplata', { data: { endpoint, p256dh: keys.p256dh, auth: keys.auth } }).catch(() => {})
+  const body = { endpoint, p256dh: keys.p256dh, auth: keys.auth }
+  if (localOnly) {
+    // Expired session: the server would refuse; the push service reports the endpoint gone instead.
+  } else if (token) {
+    await fetch('/api/notifikacije/pretplata', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    }).catch(() => {})
+  } else {
+    await api.delete('/notifikacije/pretplata', { data: body }).catch(() => {})
+  }
   await subscription.unsubscribe()
 }

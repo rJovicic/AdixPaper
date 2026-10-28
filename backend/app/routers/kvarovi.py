@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from io import BytesIO
 import json
+from types import SimpleNamespace
 import logging
 
 from ..database import get_db, SessionLocal
@@ -42,6 +43,7 @@ from ..schemas import (
 from ..auth import get_current_user, require_admin, require_voditelj_or_admin, role_value
 from ..timeutil import utcnow, as_utc, local_naive, period_start
 from ..images import reencode_photo
+from ..live import publish_fault
 
 router = APIRouter(prefix="/api/kvarovi", tags=["kvarovi"])
 logger = logging.getLogger("adixpaper")
@@ -211,9 +213,12 @@ def _query_kvarovi(
                 func.lower(Oprema.naziv).like(pattern),
                 func.lower(KomponentaOpreme.naziv).like(pattern),
             ))
-    if sort not in (None, "", "novo", "staro", "rizik"):
+    if sort not in (None, "", "novo", "staro", "rizik", "rijeseno"):
         raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
-    if sort == "staro":
+    if sort == "rijeseno":
+        # Most recently resolved first (the resolved-faults view); unresolved ones last.
+        query = query.order_by(Kvar.datum_rjesavanja.is_(None), desc(Kvar.datum_rjesavanja), desc(Kvar.id))
+    elif sort == "staro":
         query = query.order_by(Kvar.datum_prijave.asc(), Kvar.id.asc())
     else:
         query = query.order_by(desc(Kvar.datum_prijave), desc(Kvar.id))
@@ -238,9 +243,11 @@ def _query_kvarovi(
     return records, len(records)
 
 
-def _send_push_notifications(title: str, body: str, url: str = "/", user_ids: Optional[List[int]] = None):
+def _send_push_notifications(title: str, body: str, url: str = "/", user_ids: Optional[List[int]] = None, tag: Optional[str] = None):
     """Runs as a background task, after the request's session is closed, so it opens its own.
-    Without `user_ids`, goes to every active lead and admin (new faults)."""
+    Without `user_ids`, goes to every active lead and admin (new faults). The payload holds only
+    a short title and line plus an in-app link: the app shows details after sign-in. `tag` lets
+    the phone replace an older notification about the same thing instead of stacking a copy."""
     from ..config import settings
 
     if not settings.VAPID_PRIVATE_KEY:
@@ -264,7 +271,7 @@ def _send_push_notifications(title: str, body: str, url: str = "/", user_ids: Op
                         "endpoint": p.endpoint,
                         "keys": {"p256dh": p.p256dh, "auth": p.auth}
                     },
-                    data=json.dumps({"title": title, "body": body, "url": url}),
+                    data=json.dumps({"title": title, "body": body, "url": url, "tag": tag or url}),
                     vapid_private_key=settings.VAPID_PRIVATE_KEY,
                     vapid_claims={"sub": settings.VAPID_EMAIL}
                 )
@@ -667,12 +674,15 @@ def create_kvar(
     )
     db.commit()
     db.refresh(kvar)
+    publish_fault(kvar, "created")
 
     background_tasks.add_task(
         _send_push_notifications,
         f"Novi kvar [{data.prioritet.value}]",
         f"{oprema.naziv}: {data.naslov}",
-        f"/admin/kvarovi/{kvar.id}"
+        f"/admin/kvarovi/{kvar.id}",
+        None,
+        f"kvar-{kvar.id}-novi",
     )
 
     return _kvar_for(_load_kvar(kvar.id, db), current_user)
@@ -721,6 +731,7 @@ def add_kvar_komentar(
         kvar.azurirano = utcnow()
     db.commit()
     db.refresh(event)
+    publish_fault(kvar, "comment", internal=interno)
     if not interno:
         _notify_reporter(background_tasks, kvar, current_user, f"Komentar: {tekst[:140]}")
     return event
@@ -910,9 +921,12 @@ def update_kvar(
         )
 
     kvar.verzija = (kvar.verzija or 1) + 1
-    if old_status != new_status or old_voditelj_id != kvar.voditelj_id or kvar.razlog_cekanja != old_waiting_reason:
+    visible_change = old_status != new_status or old_voditelj_id != kvar.voditelj_id or kvar.razlog_cekanja != old_waiting_reason
+    if visible_change:
         kvar.azurirano = utcnow()
     db.commit()
+    # Workers hear only about changes they can see (status, handler, waiting reason).
+    publish_fault(kvar, "updated", internal=not visible_change)
     if old_status != new_status:
         _notify_reporter(background_tasks, kvar, current_user, f"Status: {new_status}")
     elif old_voditelj_id != kvar.voditelj_id and kvar.voditelj:
@@ -930,8 +944,10 @@ def delete_kvar(
     kvar = db.query(Kvar).filter(Kvar.id == kvar_id).first()
     if not kvar:
         raise HTTPException(status_code=404, detail="Kvar nije pronađen")
+    reporter_id = kvar.prijavio_id
     db.delete(kvar)
     db.commit()
+    publish_fault(SimpleNamespace(id=kvar_id, prijavio_id=reporter_id), "deleted")
     logger.warning("Fault %s deleted by %s", kvar_id, current_user.username)
 
 
@@ -973,6 +989,7 @@ def add_prilog(
     kvar.azurirano = utcnow()
     db.commit()
     db.refresh(prilog)
+    publish_fault(kvar, "photo")
     return prilog
 
 
@@ -1003,3 +1020,4 @@ def delete_prilog(kvar_id: int, prilog_id: int, db: Session = Depends(get_db), c
     db.delete(prilog)
     _add_event(db, kvar, current_user, "prilog", "Uklonjena fotografija", podaci={"prilog_id": prilog_id})
     db.commit()
+    publish_fault(kvar, "photo")

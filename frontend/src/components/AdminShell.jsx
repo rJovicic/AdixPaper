@@ -9,6 +9,9 @@ import { useAuth } from '../auth/AuthProvider'
 import { useI18n } from '../i18n'
 import { useNewFaultAlerts } from '../lib/useNewFaultAlerts'
 import PushToggle from './PushToggle'
+import FaultInbox from './FaultInbox'
+import InstallPrompt from './InstallPrompt'
+import { useLiveRefresh } from '../lib/live'
 
 const NAV = [
   { to: '/admin', key: 'nav.dashboard', icon: LayoutGrid, end: true },
@@ -18,25 +21,28 @@ const NAV = [
   { to: '/admin/analize', key: 'nav.analytics', icon: BarChart3 },
   { to: '/admin/korisnici', key: 'nav.users', icon: Users, adminOnly: true },
 ]
+// Overdue is time-driven as well as event-driven: a fault becomes late with nobody touching it.
 const OVERDUE_POLL_MS = 60000
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '')
 
 /** Overdue faults, for the count beside "Faults" in the rail. */
 function useOverdueCount() {
   const [count, setCount] = useState(0)
+  const active = useRef(true)
+  // One page of overdue faults is enough: the count comes back in X-Total-Count.
+  const load = useCallback(() => api.get('/kvarovi?status=otvoreni&sla=kasni&limit=1')
+    .then((response) => active.current && setCount(Number(response.headers['x-total-count']) || 0))
+    .catch(() => {}), [])
+  useLiveRefresh(load, (message) => message.action !== 'comment' && message.action !== 'photo')
   useEffect(() => {
-    let active = true
-    // One page of overdue faults is enough: the count comes back in X-Total-Count.
-    const load = () => api.get('/kvarovi?status=otvoreni&sla=kasni&limit=1')
-      .then((response) => active && setCount(Number(response.headers['x-total-count']) || 0))
-      .catch(() => {})
+    active.current = true
     load()
     const timer = window.setInterval(load, OVERDUE_POLL_MS)
     return () => {
-      active = false
+      active.current = false
       window.clearInterval(timer)
     }
-  }, [])
+  }, [load])
   return count
 }
 
@@ -139,11 +145,12 @@ function Brand() {
   )
 }
 
-function ShellBody({ isAdmin, overdue, onSearch, onNavigate }) {
+function ShellBody({ isAdmin, overdue, onSearch, onNavigate, inbox }) {
   return (
     <>
-      <div className="px-3 pt-1">
-        <SearchTrigger onOpen={onSearch} />
+      <div className="flex items-center gap-1 px-3 pt-1">
+        <div className="min-w-0 flex-1"><SearchTrigger onOpen={onSearch} /></div>
+        {inbox}
       </div>
       <ShellNav isAdmin={isAdmin} overdue={overdue} onNavigate={onNavigate} />
       <div className="border-t border-white/[0.08] p-2">
@@ -165,7 +172,7 @@ export default function AdminShell() {
   const isAdmin = user?.rola === 'admin'
   const overdue = useOverdueCount()
 
-  useNewFaultAlerts(Boolean(user))
+  const inbox = useNewFaultAlerts(user)
 
   const openSearch = useCallback(() => {
     setDrawerOpen(false)
@@ -200,7 +207,7 @@ export default function AdminShell() {
 
       <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col bg-brand-deep lg:flex">
         <div className="px-5 pb-4 pt-5"><Brand /></div>
-        <ShellBody isAdmin={isAdmin} overdue={overdue} onSearch={openSearch} />
+        <ShellBody isAdmin={isAdmin} overdue={overdue} onSearch={openSearch} inbox={<FaultInbox inbox={inbox} align="left" />} />
       </aside>
 
       <header className="sticky top-0 z-40 flex items-center gap-2 bg-brand-deep px-2 py-2 lg:hidden">
@@ -218,6 +225,7 @@ export default function AdminShell() {
         <button type="button" onClick={openSearch} className="btn-icon h-11 w-11 text-stock hover:bg-white/10 hover:text-stock" aria-label={t('search.title')}>
           <Search size={20} aria-hidden="true" />
         </button>
+        <FaultInbox inbox={inbox} />
       </header>
 
       <dialog
@@ -247,6 +255,7 @@ export default function AdminShell() {
 
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
       <TabBar overdue={overdue} onMenu={() => setDrawerOpen(true)} menuOpen={drawerOpen} />
+      <InstallPrompt />
 
       <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 pb-28 pt-6 focus:outline-none sm:px-6 sm:pb-16 lg:px-8 lg:pt-7">
         <div className="mx-auto max-w-[76rem]">

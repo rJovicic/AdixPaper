@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { ChevronUp, KeyRound, LogOut } from 'lucide-react'
+import { ChevronUp, Download, KeyRound, LogOut } from 'lucide-react'
+import { useInstallAction } from './InstallPrompt'
 import { useAuth } from '../auth/AuthProvider'
 import { displayName } from '../auth/session'
 import { useI18n } from '../i18n'
@@ -28,6 +29,7 @@ export default function AccountMenu({ variant = 'bar', children }) {
   const buttonRef = useRef(null)
   const panelId = useId()
   const name = displayName(user)
+  const install = useInstallAction()
 
   useEffect(() => {
     if (!open) return undefined
@@ -91,6 +93,19 @@ export default function AccountMenu({ variant = 'bar', children }) {
           <LanguageSwitch />
         </div>
         {children}
+        {install.visible && (
+          <button
+            type="button"
+            className={itemClass}
+            onClick={() => {
+              setOpen(false)
+              install.start()
+            }}
+          >
+            <Download size={17} aria-hidden="true" className="text-ink-2" />
+            {t('install.menu')}
+          </button>
+        )}
         <button
           type="button"
           className={itemClass}
@@ -108,6 +123,7 @@ export default function AccountMenu({ variant = 'bar', children }) {
         </button>
       </div>
       {changingPassword && <ChangePasswordDialog onClose={() => setChangingPassword(false)} />}
+      {install.dialog}
     </div>
   )
 }

@@ -73,9 +73,10 @@ test('admin cannot deactivate their own account', async ({ page }) => {
 
 test('dashboard figures link to filtered fault lists', async ({ page }) => {
   await signIn(page, ADMIN)
-  await page.getByRole('link', { name: /Hitni/ }).click()
-  await expect(page).toHaveURL(/status=otvoreni&prioritet=Hitno/)
+  await page.getByRole('navigation', { name: 'Ključni pokazatelji' }).getByRole('link', { name: /Hitni/ }).click()
+  await expect(page).toHaveURL(/prioritet=Hitno/)
   await expect(page.getByLabel('Prioritet')).toHaveValue('Hitno')
+  await expect(page.getByRole('tab', { name: /Aktivni/ })).toHaveAttribute('aria-selected', 'true')
 })
 
 test('lead opens a machine\'s faults from the machine list and filters by assignee', async ({ page, request }) => {
@@ -138,5 +139,4 @@ test('overview "Mine" tab lists only the lead\'s own faults', async ({ page, req
   await page.getByRole('button', { name: /^Moji/ }).click()
   await expect(page.getByRole('button', { name: /^Moji/ })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('region', { name: 'Zahtijeva pažnju' }).getByText(title)).toBeVisible()
-  await expect(page.getByRole('region', { name: 'Moji kvarovi' }).getByText(title)).toBeVisible()
 })

@@ -10,6 +10,11 @@ export function onUnauthorized(handler) {
   unauthorizedHandler = handler
 }
 
+/** For requests made outside axios (the live stream): end the session like a 401 would. */
+export function reportUnauthorized() {
+  if (unauthorizedHandler) unauthorizedHandler()
+}
+
 api.interceptors.request.use((config) => {
   const token = readSession()?.token
   if (token) config.headers.Authorization = `Bearer ${token}`

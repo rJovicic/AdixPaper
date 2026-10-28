@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { AlertTriangle, ArrowLeft, CheckCircle2, History, PackagePlus, Pause, Play, RotateCcw, RotateCw, Save, SearchX, Trash2 } from 'lucide-react'
 import { api, errorKind, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
+import { useLive, useLiveRefresh } from '../../lib/live'
 import { useI18n } from '../../i18n'
 import { focusFirstInvalid } from '../../lib/focus'
 import { useToast } from '../../components/ui/Toast'
@@ -197,6 +198,26 @@ export default function FaultDetail() {
 
   const dirty = form && initial ? Object.keys(changedFields(form, initial)).length > 0 : false
 
+  // Someone else changed this fault: show it at once, unless this lead is mid-edit; then keep
+  // their edits and say so (saving would be refused with 409 anyway).
+  const editing = useRef({ dirty: false, saving: false, version: null })
+  editing.current = { dirty, saving: Boolean(saving), version: fault.data?.verzija ?? null }
+  useLiveRefresh(events.refresh, (message) => message.kvarId === Number(id))
+  useLiveRefresh(history.refresh, (message) => message.kvarId !== Number(id) || message.action !== 'comment')
+  useLive((message) => {
+    const relevant = message.type === 'resync' || (message.type === 'kvar' && message.kvarId === Number(id))
+    if (!relevant || editing.current.saving) return
+    if (message.action === 'deleted') {
+      fault.reload()
+      return
+    }
+    get(`/kvarovi/${id}`).then((latest) => {
+      if (!latest || latest.verzija === editing.current.version) return
+      if (editing.current.dirty) setConflict('remote')
+      else fault.setData(latest)
+    }).catch(() => {})
+  })
+
   useEffect(() => {
     if (!dirty) return undefined
     const warn = (event) => {
@@ -337,7 +358,7 @@ export default function FaultDetail() {
               <AlertTriangle size={20} aria-hidden="true" className="mt-0.5 shrink-0 text-urgent" />
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-ink">{t('fault.conflictTitle')}</p>
-                <p className="mt-0.5 text-ink-2">{t('fault.conflictBody')}</p>
+                <p className="mt-0.5 text-ink-2">{t(conflict === 'remote' ? 'fault.conflictLiveBody' : 'fault.conflictBody')}</p>
               </div>
               <button type="button" className="btn-secondary" onClick={reloadLatest}>
                 <RotateCw size={16} aria-hidden="true" /> {t('fault.conflictReload')}
