@@ -56,7 +56,7 @@ export function LoadingRows({ rows = 5, className = '' }) {
 
 export function PageHeader({ title, meta, actions, children }) {
   return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-5 flex flex-wrap items-start justify-between gap-x-4 gap-y-3 sm:mb-6 sm:items-end">
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold leading-tight tracking-[-0.01em] text-ink sm:text-[1.75rem]">{title}</h1>
         {meta && <p className="mt-1 text-ink-2">{meta}</p>}

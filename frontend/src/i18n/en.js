@@ -202,6 +202,11 @@ export default {
     newFault: 'New fault #{id}',
     open: 'Open',
   },
+  export: {
+    readyTitle: 'The file is ready',
+    readyBody: 'Tap to print it, save it to Files or send it.',
+    share: 'Share or save',
+  },
   live: {
     on: 'Live',
     reconnecting: 'Reconnecting… figures may be behind',
@@ -494,6 +499,8 @@ export default {
     openStatuses: 'All open',
     views: 'Fault views',
     tabActive: 'Active',
+    filters: 'Filters',
+    showResults: 'Show results ({n})',
     tabResolved: 'Resolved',
     resolvedAnyTime: 'Resolved any time',
     sortResolvedNewest: 'Recently resolved',

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Factory, Pencil, Plus, QrCode, Search, SearchX, Trash2 } from 'lucide-react'
-import { api, downloadFile, errorMessage, fieldErrors } from '../../api/client'
+import { api, errorMessage, fieldErrors } from '../../api/client'
+import { useFileExport } from '../../components/FileExport'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
 import { focusFirstInvalid } from '../../lib/focus'
@@ -80,12 +81,12 @@ function ComponentsEditor({ machineId }) {
         </ul>
       )}
       <form onSubmit={add} className="flex items-start gap-2" noValidate>
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <Field label={t('machines.addComponent')} error={error}>
             {(props) => <input {...props} className="control" maxLength={150} value={name} placeholder={t('machines.componentPlaceholder')} onChange={(event) => setName(event.target.value)} />}
           </Field>
         </div>
-        <button type="submit" className="btn-secondary mt-[1.875rem]" disabled={busy}>
+        <button type="submit" className="btn-secondary mt-[1.875rem] shrink-0" disabled={busy}>
           <Plus size={17} aria-hidden="true" /> {t('common.add')}
         </button>
       </form>
@@ -95,20 +96,9 @@ function ComponentsEditor({ machineId }) {
 
 /** Downloads printable QR labels: one machine, or every machine in use. */
 function useQrLabels() {
-  const i18n = useI18n()
-  const toast = useToast()
-  const [busy, setBusy] = useState(false)
-  const download = async (machineId) => {
-    setBusy(true)
-    try {
-      await downloadFile(`/oprema/qr-oznake.pdf${machineId ? `?ids=${machineId}` : ''}`, 'adix-paper-qr-oznake.pdf')
-    } catch (error) {
-      toast.error(`${i18n.t('machines.qrFailed')} ${errorMessage(error, i18n)}`)
-    } finally {
-      setBusy(false)
-    }
-  }
-  return { busy, download }
+  const exporter = useFileExport('machines.qrFailed')
+  const download = (machineId) => exporter.run(`/oprema/qr-oznake.pdf${machineId ? `?ids=${machineId}` : ''}`, 'adix-paper-qr-oznake.pdf')
+  return { busy: exporter.busy, download, dialog: exporter.dialog }
 }
 
 function MachineDialog({ machine, justCreated = false, onClose, onSaved }) {
@@ -216,6 +206,7 @@ function MachineDialog({ machine, justCreated = false, onClose, onSaved }) {
         </div>
       </form>
       {machine ? <ComponentsEditor machineId={machine.id} /> : <p className="mt-5 text-meta text-ink-2">{t('machines.componentsAfterSave')}</p>}
+      {qr.dialog}
     </Dialog>
   )
 }
@@ -281,6 +272,7 @@ export default function Machines() {
 
   return (
     <div>
+      {qr.dialog}
       <PageHeader
         title={t('machines.title')}
         meta={machines.data ? t('common.results', { n: rows.length }) : ' '}

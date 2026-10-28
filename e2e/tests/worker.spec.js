@@ -75,7 +75,11 @@ test('worker changes their own password; the old one stops working', async ({ pa
 test('after an expired session, signing in returns to the same screen', async ({ page, request }) => {
   const { worker } = await setupFixture(request)
   await signIn(page, worker)
-  await page.evaluate(() => {
+  // Swap the token as the next page starts, before any app code runs: changed from the running page,
+  // a profile refresh still in flight from sign-in could write the valid token back first.
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('e2e.expired')) return
+    sessionStorage.setItem('e2e.expired', '1')
     const session = JSON.parse(localStorage.getItem('adix.session'))
     localStorage.setItem('adix.session', JSON.stringify({ ...session, token: 'expired-token' }))
   })

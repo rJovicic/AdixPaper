@@ -53,6 +53,9 @@
   }
   body {
     @apply bg-ground text-ink antialiased;
+    /* The installed app should not bounce or show a grey flash on every tap, like a native app. */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
     font-size: 1rem;
     line-height: 1.5;
     text-rendering: optimizeLegibility;
@@ -183,6 +186,9 @@
 }
 
 @layer utilities {
+  a, button, select, label, summary, [role='button'] {
+    touch-action: manipulation; /* no double-tap zoom delay */
+  }
   .safe-bottom {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }

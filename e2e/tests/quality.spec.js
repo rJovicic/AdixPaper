@@ -148,3 +148,65 @@ test('no serious accessibility violations in the waiting dialog, the duplicate w
   const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
   expect(overflow, 'report form overflow').toBeLessThanOrEqual(0)
 })
+
+const IPHONE = {
+  viewport: { width: 390, height: 844 },
+  isMobile: true,
+  hasTouch: true,
+  userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1',
+}
+
+test('iPhone: editing a machine is a full-screen sheet that never scrolls sideways', async ({ browser }) => {
+  const context = await browser.newContext(IPHONE)
+  const page = await context.newPage()
+  await signIn(page, ADMIN)
+  await page.evaluate(() => localStorage.setItem('adix.install.dismissed', '1'))
+  await page.goto('/admin/oprema')
+  await page.getByRole('button', { name: /^Uredi: / }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'Uredi mašinu' })
+  await expect(dialog.getByText('Dijelovi mašine')).toBeAttached()
+  const box = await dialog.boundingBox()
+  expect(Math.round(box.width)).toBe(390) // edge to edge
+  const sideways = await page.evaluate(() => {
+    const body = document.querySelector('dialog[open] .overflow-y-auto')
+    return body.scrollWidth - body.clientWidth
+  })
+  expect(sideways).toBeLessThanOrEqual(0)
+  await expect(dialog.getByRole('button', { name: 'Zatvori' })).not.toBeFocused() // no ring on open
+  await context.close()
+})
+
+test('iPhone: QR labels go to the share sheet and the app stays on screen', async ({ browser }) => {
+  const context = await browser.newContext(IPHONE)
+  const page = await context.newPage()
+  await page.addInitScript(() => {
+    window.__shared = []
+    navigator.canShare = () => true
+    navigator.share = async (data) => { window.__shared.push(data.files.map((file) => `${file.name}:${file.type}:${file.size > 0}`)) }
+  })
+  await signIn(page, ADMIN)
+  await page.goto('/admin/oprema')
+  await page.getByRole('button', { name: /QR oznake/ }).click()
+  await expect.poll(() => page.evaluate(() => window.__shared)).toEqual([['adix-paper-qr-oznake.pdf:application/pdf:true']])
+  await expect(page).toHaveURL(/\/admin\/oprema$/)
+  await expect(page.getByRole('heading', { name: 'Mašine' })).toBeVisible()
+  await context.close()
+})
+
+test('phone: fault filters live in a sheet; the count shows how many apply', async ({ browser }) => {
+  const context = await browser.newContext(IPHONE)
+  const page = await context.newPage()
+  await signIn(page, ADMIN)
+  await page.evaluate(() => localStorage.setItem('adix.install.dismissed', '1'))
+  await page.goto('/admin/kvarovi')
+  await page.getByRole('button', { name: /^Filteri/ }).click()
+  const sheet = page.getByRole('dialog', { name: 'Filteri' })
+  await sheet.getByLabel('Prioritet').selectOption('Hitno')
+  await sheet.getByRole('button', { name: /Prikaži rezultate/ }).click()
+  await expect(sheet).toBeHidden()
+  await expect(page).toHaveURL(/prioritet=Hitno/)
+  await expect(page.getByRole('button', { name: /^Filteri/ })).toContainText('1')
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+  expect(overflow).toBeLessThanOrEqual(0)
+  await context.close()
+})

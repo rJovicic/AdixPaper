@@ -73,9 +73,31 @@ export function fieldErrors(error, i18n) {
   return result
 }
 
-/** Downloads a binary API response as a file. */
+const isIOS = () => typeof navigator !== 'undefined'
+  && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1))
+
+/**
+ * Saves a binary API response as a file. On iPhone/iPad it goes through the share sheet (Print,
+ * Save to Files, AirDrop): a download link there replaces the app with a viewer and, in the
+ * installed app, leaves a blank page behind. Resolves 'shared' | 'cancelled' | 'downloaded'.
+ * When iOS refuses to share because the tap is too long ago (a slow download), it rejects with
+ * { code: 'needs-tap', file } so the caller can offer one more tap (see useFileExport).
+ */
 export async function downloadFile(path, filename) {
   const response = await api.get(path, { responseType: 'blob', timeout: 60000 })
+  if (isIOS() && typeof File !== 'undefined') {
+    const file = new File([response.data], filename, { type: response.data.type || 'application/octet-stream' })
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] })
+        return 'shared'
+      } catch (error) {
+        if (error?.name === 'AbortError') return 'cancelled'
+        if (error?.name === 'NotAllowedError') throw Object.assign(new Error('needs-tap'), { code: 'needs-tap', file })
+        // Anything else: fall back to the plain download below.
+      }
+    }
+  }
   const href = URL.createObjectURL(response.data)
   const link = document.createElement('a')
   link.href = href
@@ -84,4 +106,5 @@ export async function downloadFile(path, filename) {
   link.click()
   link.remove()
   setTimeout(() => URL.revokeObjectURL(href), 1000)
+  return 'downloaded'
 }
