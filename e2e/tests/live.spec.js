@@ -28,7 +28,7 @@ test('a report from a phone appears on the lead\'s overview at once, with one al
 
   const phone = await (await browser.newContext({ viewport: PHONE, hasTouch: true })).newPage()
   await signIn(phone, worker)
-  await phone.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Prijavi kvar' }).click()
+  await phone.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Prijavi', exact: true }).click()
   await reportFault(phone, { machine: machine.naziv, component: 'Nož', headline: title })
   const id = Number((await phone.getByText(/^#\d+$/).textContent()).slice(1))
 
@@ -128,7 +128,7 @@ test('a change made elsewhere while a lead is editing keeps their edits and says
   await expect(page.getByLabel('Što je napravljeno')).toHaveValue('Moje bilješke')
 
   await banner.getByRole('button', { name: 'Učitaj najnovije' }).click()
-  await expect(page.getByLabel('Prioritet')).toHaveValue('Hitno')
+  await expect(page.getByLabel('Prioritet', { exact: true })).toHaveValue('Hitno')
 })
 
 test('a worker never receives live events for another worker\'s fault', async ({ browser, request }) => {
@@ -274,4 +274,36 @@ test('iPhone in Safari: the bell explains that notifications need the home-scree
   await panel.getByRole('button', { name: /Obavijesti na iPhoneu/ }).click()
   await expect(page.getByRole('dialog', { name: 'Instalirajte Adix Paper' }).getByText(/Dodaj na početni zaslon/)).toBeVisible()
   await context.close()
+})
+
+test('back from the background after a while, the app opens a fresh live connection and re-reads', async ({ page, request }) => {
+  const { worker } = await setupFixture(request)
+  await page.setViewportSize(PHONE)
+  await signIn(page, worker)
+  await settle(page)
+  const streams = []
+  page.on('request', (req) => { if (req.url().endsWith('/api/uzivo')) streams.push(req.url()) })
+  // The phone locks: hidden for longer than the reconnect threshold (the clock is moved, not waited).
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+    const now = Date.now
+    Date.now = () => now() + 60_000
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await expect.poll(() => streams.length).toBeGreaterThan(0)
+})
+
+test('the icon family is served: rounded and full-bleed sizes, an SVG favicon, the iOS icon without transparency', async ({ request }) => {
+  const manifest = await (await request.get('/manifest.json')).json()
+  const sizes = manifest.icons.map((icon) => `${icon.sizes}:${icon.purpose}`)
+  expect(sizes).toEqual(expect.arrayContaining(['192x192:any', '512x512:any', '192x192:maskable', '512x512:maskable']))
+  expect(manifest.shortcuts).toBeUndefined() // shortcuts would offer every role the same actions
+  const svg = await request.get('/favicon.svg')
+  expect(svg.status()).toBe(200)
+  expect(await svg.text()).toContain('<polygon')
+  const apple = await (await request.get('/apple-touch-icon.png')).body()
+  // PNG colour type byte (offset 25): 2 = RGB without alpha, which iOS needs to avoid a black ground.
+  expect(apple[25]).toBe(2)
 })

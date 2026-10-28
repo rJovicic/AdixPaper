@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ADMIN, PHONE, apiToken, chooseMachine, reportFault, settle, setupFixture, signIn } from './helpers'
+import { ADMIN, PHONE, apiToken, chooseMachine, settle, setupFixture, signIn } from './helpers'
 
 // The redesigned shell and flows: the tab bar's "+", the stepped report, phone tabs on a fault, Profile.
 
@@ -8,8 +8,8 @@ test('phone tab bar: "+" opens the report; the steps go back and forth without l
   await page.setViewportSize(PHONE)
   await signIn(page, worker)
   const nav = page.getByRole('navigation', { name: 'Glavna navigacija' })
-  for (const name of ['Početna', 'Kvarovi', 'Prijavi kvar', 'Profil']) await expect(nav.getByRole('link', { name, exact: true })).toBeVisible()
-  await nav.getByRole('link', { name: 'Prijavi kvar' }).click()
+  await expect(nav.getByRole('link')).toHaveText(['Početna', 'Kvarovi', 'Prijavi', 'Profil'])
+  await nav.getByRole('link', { name: 'Prijavi', exact: true }).click()
   await expect(page).toHaveURL(/\/radnik\/prijava$/)
   await expect(nav).toBeHidden() // never above the keyboard
 
@@ -45,15 +45,28 @@ test('a scanned machine with no parts starts on the description step', async ({ 
   await expect(page.getByRole('button', { name: new RegExp(bare.naziv) })).toBeVisible() // the chosen machine, to change it
 })
 
-test('a lead reports from the overview and lands on the new fault', async ({ page, request }) => {
+test('administrators manage faults but never report them: no action, no screen, no API', async ({ page, request }) => {
   const { machine } = await setupFixture(request)
-  await signIn(page, ADMIN)
-  await page.getByRole('main').getByRole('link', { name: 'Prijavi kvar' }).click()
-  await expect(page).toHaveURL(/\/admin\/prijava$/)
-  await reportFault(page, { machine: machine.naziv, component: 'Nož', headline: 'Voditelj prijavljuje', priority: 'Hitno' })
-  await page.getByRole('link', { name: 'Pogledaj kvar' }).click()
-  await expect(page).toHaveURL(/\/admin\/kvarovi\/\d+$/)
-  await expect(page.getByRole('heading', { name: 'Voditelj prijavljuje' })).toBeVisible()
+  for (const viewport of [{ width: 1440, height: 900 }, PHONE]) {
+    await page.setViewportSize(viewport)
+    await signIn(page, ADMIN)
+    await settle(page)
+    await expect(page.getByRole('link', { name: /^(Prijavi kvar|Novi kvar|Prijavi)$/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /^(Prijavi kvar|Novi kvar)$/ })).toHaveCount(0)
+    await page.goto('/admin/kvarovi')
+    await settle(page)
+    await expect(page.getByRole('link', { name: /^(Prijavi kvar|Novi kvar|Prijavi)$/ })).toHaveCount(0)
+    // Typed by hand: neither the old lead form nor the worker's form opens.
+    await page.goto('/admin/prijava')
+    await expect(page).toHaveURL(/\/admin$/)
+    await page.goto('/radnik/prijava')
+    await expect(page).toHaveURL(/\/admin$/)
+    await page.context().clearCookies()
+    await page.evaluate(() => localStorage.clear())
+  }
+  const token = await apiToken(request, ADMIN)
+  const refused = await request.post('/api/kvarovi', { headers: { Authorization: `Bearer ${token}` }, data: { oprema_id: machine.id, naslov: 'Admin ne prijavljuje' } })
+  expect(refused.status()).toBe(403)
 })
 
 test('phone: a fault shows one section at a time under tabs; wide screens show them all', async ({ page, request }) => {
@@ -88,7 +101,7 @@ test('phone: a fault shows one section at a time under tabs; wide screens show t
 test('Profile holds language, password and sign-out; leads also reach the screens not on the tab bar', async ({ page }) => {
   await page.setViewportSize(PHONE)
   await signIn(page, ADMIN)
-  await page.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Profil' }).click()
+  await page.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Više' }).click()
   await expect(page).toHaveURL(/\/admin\/profil$/)
   for (const name of ['Rezervni dijelovi', 'Analize', 'Korisnici']) await expect(page.getByRole('link', { name })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Promijeni lozinku' })).toBeVisible()

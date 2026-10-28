@@ -241,3 +241,12 @@ def test_workers_never_receive_internal_notes_costs_or_parts(client, admin, make
     # Leads still get everything on the detail endpoint.
     full = client.get(f"/api/kvarovi/{kvar['id']}", headers=lead_h).json()
     assert full["napomene_voditelja"] == "Interna procjena" and len(full["utroseni_dijelovi"]) == 1
+
+
+def test_administrators_manage_faults_but_do_not_report_them(client, admin, make_user, machine):
+    response = client.post("/api/kvarovi", json={"oprema_id": machine["id"], "naslov": "Admin prijava"}, headers=admin)
+    assert response.status_code == 403
+    # Workers still report; the administrator still manages what they reported.
+    _, worker = make_user()
+    fault = report(client, worker, machine)
+    assert client.put(f"/api/kvarovi/{fault['id']}", json={"status": "U rješavanju"}, headers=admin).status_code == 200

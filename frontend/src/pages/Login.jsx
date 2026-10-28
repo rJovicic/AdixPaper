@@ -61,23 +61,21 @@ export default function Login() {
   const notice = reason === 'expired' ? t('login.expired') : reason === 'signedOut' ? t('login.signedOut') : ''
 
   return (
-    <div className="flex min-h-dvh flex-col bg-brand-deep">
+    <div className="flex min-h-dvh flex-col bg-stock sm:bg-ground">
       <div className="flex justify-end px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-        <LanguageSwitch tone="deep" />
+        <LanguageSwitch />
       </div>
-      <main className="flex flex-1 items-start justify-center px-4 pb-10 pt-6 sm:items-center sm:pt-0">
-        <div className="enter-rise w-full max-w-[25rem]">
-          <section aria-labelledby="login-title" className="overflow-hidden rounded-lg bg-stock shadow-dialog">
-            <header className="flex items-center gap-4 border-b border-rule px-6 py-5">
+      <main className="flex flex-1 items-start justify-center px-4 pb-10 pt-4 sm:items-center sm:pt-0">
+        <div className="enter-rise w-full max-w-[24rem]">
+          <section aria-labelledby="login-title" className="sm:surface sm:px-2 sm:py-2">
+            <header className="flex flex-col items-center px-6 pb-2 pt-6 text-center">
               <BrandLogo size="lg" />
-              <div className="min-w-0">
-                <p className="text-xl font-semibold leading-tight text-ink">{t('app.name')}</p>
-                <p className="mt-0.5 text-ink-2">{t('app.tagline')}</p>
-              </div>
+              <p className="mt-4 text-2xl font-semibold tracking-[-0.01em] text-ink">{t('app.name')}</p>
+              <p className="mt-1 text-ink-2">{t('app.tagline')}</p>
             </header>
 
-            <form onSubmit={submit} noValidate className="space-y-5 px-6 py-6">
-              <h1 id="login-title" className="text-lg font-semibold text-ink">{t('login.title')}</h1>
+            <form onSubmit={submit} noValidate className="space-y-5 px-6 pb-6 pt-4">
+              <h1 id="login-title" className="sr-only">{t('login.title')}</h1>
 
               {notice && !formError && (
                 <p role="status" className="rounded border border-rule bg-ground/60 px-3 py-2.5 text-sm text-ink-2">{notice}</p>
@@ -136,10 +134,10 @@ export default function Login() {
               <button type="submit" disabled={submitting} className="btn-primary btn-lg w-full">
                 {submitting ? t('login.submitting') : t('login.submit')}
               </button>
-              <p className="text-sm text-ink-2">{t('login.help')}</p>
+              <p className="text-center text-sm text-ink-3">{t('login.help')}</p>
             </form>
           </section>
-          <p className="mt-5 text-center text-meta text-brand-on-deep">{t('app.companies')}</p>
+          <p className="mt-5 text-center text-meta text-ink-3">{t('app.companies')}</p>
         </div>
       </main>
     </div>

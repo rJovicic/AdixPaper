@@ -76,7 +76,8 @@ export default function App() {
               </Route>
               <Route path="/admin" element={<RequireRole roles={['admin', 'voditelj']}><AdminShell /></RequireRole>}>
                 <Route index element={<Dashboard />} />
-                <Route path="prijava" element={<ReportFault base="/admin" />} />
+                {/* Administrators and leads manage faults; reporting is the worker's screen. */}
+                <Route path="prijava" element={<Navigate to="/admin" replace />} />
                 <Route path="skeniraj" element={<ScanMachine />} />
                 <Route path="kvarovi" element={<Faults />} />
                 <Route path="kvarovi/:id" element={<FaultDetail />} />

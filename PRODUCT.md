@@ -55,7 +55,7 @@ Built around this plant's own machines, components and spare-parts catalogue (66
 
 ## Brand Commitments
 
-- Name: **Adix Paper**. Logo: `frontend/public/adix-paper-logo.png` (blue mark with "ADIX PAPER" wordmark) and its app icons. The logo's blue is the brand colour.
+- Name: **Adix Paper**. Logo: `frontend/public/adix-paper-logo.png` (blue mark with "ADIX PAPER" wordmark); the app icons and in-app mark are drawn from a vector trace of it (`BrandMark`). The logo's blue is the brand colour.
 - Companies named in the product: Cupup d.o.o, Delt papir d.o.o.
 
 ## Evidence on Hand

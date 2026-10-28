@@ -41,9 +41,9 @@ export function PriorityMark({ priority, className = '' }) {
 }
 
 const PRIORITY_TILE = {
-  Hitno: { className: 'bg-urgent-mark', icon: AlertTriangle },
-  Normalno: { className: 'bg-warn-mark', icon: Wrench },
-  Nisko: { className: 'bg-slate-mark', icon: ArrowDown },
+  Hitno: { className: 'bg-urgent-wash text-urgent', icon: AlertTriangle },
+  Normalno: { className: 'bg-warn-wash text-warn', icon: Wrench },
+  Nisko: { className: 'bg-slate-wash text-slate', icon: ArrowDown },
 }
 
 /** The round priority marker that leads a fault row. Decorative: the priority pill beside it says it in words. */
@@ -52,8 +52,8 @@ export function PriorityTile({ priority, size = 'md', className = '' }) {
   const Icon = tile.icon
   const sizes = { sm: 'h-8 w-8', md: 'h-10 w-10' }
   return (
-    <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center rounded-full text-stock ${tile.className} ${sizes[size]} ${className}`}>
-      <Icon size={size === 'sm' ? 16 : 18} strokeWidth={2.25} />
+    <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center rounded-full ${tile.className} ${sizes[size]} ${className}`}>
+      <Icon size={size === 'sm' ? 16 : 18} strokeWidth={2} />
     </span>
   )
 }

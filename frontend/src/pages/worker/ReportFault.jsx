@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { ArrowLeft, ArrowRight, Camera, Check, CheckCircle2, Factory, Info, Plus, Search, Send, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Camera, Check, CheckCircle2, Factory, Info, Plus, QrCode, Search, Send, X } from 'lucide-react'
 import { api, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
@@ -12,9 +12,11 @@ import { ErrorState, LoadingRows } from '../../components/ui/States'
 import { PriorityMark, StatusMark } from '../../components/ui/Marks'
 import PushToggle from '../../components/PushToggle'
 import { uploadPhoto } from '../../lib/photo'
+import { scanSupported } from '../../lib/qr'
 
 const EMPTY = { oprema_id: '', komponenta_id: '', naslov: '', opis: '', prioritet: 'Normalno', kljuc: '', korak: 1 }
 const STEPS = 3
+const BASE = '/radnik'
 const MAX_PHOTOS = 5 // the server keeps up to 6 per fault; one is left for the lead
 const PRIORITY_DOT = { Hitno: 'bg-urgent-mark', Normalno: 'bg-warn-mark', Nisko: 'border-2 border-slate-mark' }
 
@@ -229,11 +231,11 @@ function PhotoStrip({ photos, onAdd, onRemove }) {
 }
 
 /** After sending: what was reported, where to follow it, and (where the server supports it) phone notifications. */
-function Reported({ fault, machine, base, onNew }) {
+function Reported({ fault, machine, onNew }) {
   const { t } = useI18n()
   const heading = useRef(null)
   useEffect(() => heading.current?.focus(), [])
-  const to = base === '/admin' ? `/admin/kvarovi/${fault.id}` : `/radnik/kvar/${fault.id}`
+  const to = `/radnik/kvar/${fault.id}`
   return (
     <div className="enter-rise mx-auto max-w-md pt-4 text-center">
       <span aria-hidden="true" className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-ok-mark text-stock shadow-[0_10px_24px_-10px_rgb(22_163_106/0.8)]">
@@ -262,14 +264,14 @@ function Reported({ fault, machine, base, onNew }) {
         </button>
       </div>
       <div className="mt-4 text-left empty:hidden">
-        <PushToggle variant="card" hint={base === '/admin' ? t('inbox.pushHint') : t('worker.pushHint')} />
+        <PushToggle variant="card" hint={t('worker.pushHint')} />
       </div>
     </div>
   )
 }
 
-/** The report, in three short steps. `base` is the shell it opens in: workers ('/radnik') or leads ('/admin'). */
-export default function ReportFault({ base = '/radnik' }) {
+/** The worker's report, in three short steps. Administrators and leads manage faults; they do not report them here. */
+export default function ReportFault() {
   const i18n = useI18n()
   const { t, priority } = i18n
   const navigate = useNavigate()
@@ -294,6 +296,7 @@ export default function ReportFault({ base = '/radnik' }) {
   const refs = { oprema_id: useRef(null), komponenta_id: useRef(null), naslov: useRef(null) }
   const stepHeading = useRef(null)
   const autoAdvanced = useRef(false)
+  const canScan = scanSupported()
 
   useEffect(() => {
     document.title = `${t('report.title')} · ${t('app.name')}`
@@ -400,7 +403,7 @@ export default function ReportFault({ base = '/radnik' }) {
         } catch (error) {
           // The report itself is saved; say so plainly and send the worker where the photo can be added again.
           toast.error(`${t('report.photoFailed', { id: data.id })} ${errorMessage(error, i18n)}`)
-          navigate(base === '/admin' ? `/admin/kvarovi/${data.id}` : `/radnik/kvar/${data.id}`)
+          navigate(`/radnik/kvar/${data.id}`)
           return
         }
       }
@@ -425,10 +428,10 @@ export default function ReportFault({ base = '/radnik' }) {
     setDone(null)
     setErrors({})
     setForm({ ...EMPTY, kljuc: newKey() })
-    navigate(`${base}/prijava`, { replace: true })
+    navigate(`${BASE}/prijava`, { replace: true })
   }
 
-  if (done) return <Reported fault={done.fault} machine={done.machine} base={base} onNew={startNew} />
+  if (done) return <Reported fault={done.fault} machine={done.machine} onNew={startNew} />
 
   const labels = [t('report.stepMachine'), t('report.stepDescription'), t('report.stepPriority')]
   const stepTitles = [t('report.titleMachine'), t('report.titleDescription'), t('report.titlePriority')]
@@ -438,7 +441,7 @@ export default function ReportFault({ base = '/radnik' }) {
     <div className="mx-auto max-w-2xl">
       <div className="mb-4 flex items-center gap-1">
         {step === 1 ? (
-          <Link to={base} className="btn-icon -ml-2.5 h-11 w-11" aria-label={base === '/admin' ? t('report.backToOverview') : t('fault.backToMine')}>
+          <Link to={BASE} className="btn-icon -ml-2.5 h-11 w-11" aria-label={t('fault.backToMine')}>
             <ArrowLeft size={21} aria-hidden="true" />
           </Link>
         ) : (
@@ -510,6 +513,11 @@ export default function ReportFault({ base = '/radnik' }) {
                   </Field>
                 )}
                 <KnownFaults faults={known.data} />
+                {canScan && !form.oprema_id && (
+                  <Link to={`${BASE}/skeniraj`} className="btn-secondary w-full">
+                    <QrCode size={18} aria-hidden="true" /> {t('report.orScan')}
+                  </Link>
+                )}
               </>
             )}
 

@@ -57,8 +57,11 @@ export async function settle(page) {
 export async function openAccountMenu(page) {
   // The rail's account button is the one control that always names the panel it opens.
   const menu = page.locator('aside button[aria-expanded][aria-controls]:visible')
-  if (await menu.count()) await menu.first().click()
-  else await page.getByRole('link', { name: /^Profil i postavke/ }).click()
+  if (await menu.count()) return menu.first().click()
+  const tab = page.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: /^(Profil|Više)$/ })
+  if (await tab.isVisible()) return tab.click()
+  // Full-screen forms hide the tab bar; the profile has its own address.
+  await page.goto(new URL(page.url()).pathname.startsWith('/admin') ? '/admin/profil' : '/radnik/profil')
 }
 
 /** Chooses a machine on step 1 of the report (a list of large radio rows). */

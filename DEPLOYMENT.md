@@ -90,7 +90,7 @@ The server sends Web Push itself when something happens: leads and admins get "N
 
 ## Installing on phones
 
-The app is an installable PWA (manifest, service worker, maskable and Apple icons). On a phone, a one-time card offers installation a few seconds after opening: Android Chrome shows its own install dialog; iPhone/iPad get step-by-step "Share → Add to Home Screen" instructions. "Not now" hides it for good on that device; the account menu keeps "Instaliraj aplikaciju". Notification permission is only ever requested from a button press (bell, account menu, or the confirmation after a report), never on page load.
+The app is an installable PWA (manifest, service worker, maskable and Apple icons). On a phone, a one-time card offers installation a few seconds after opening: Android Chrome shows its own install dialog; iPhone/iPad get step-by-step "Share → Add to Home Screen" instructions. "Not now" hides it for good on that device; Profil (phones) and the account menu keep "Instaliraj aplikaciju". Notification permission is only ever requested from a button press (bell, account menu, or the confirmation after a report), never on page load.
 
 ## Region and personal data
 

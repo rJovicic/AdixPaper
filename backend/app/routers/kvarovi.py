@@ -647,6 +647,9 @@ def create_kvar(
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(get_current_user)
 ):
+    # Workers (and maintenance leads, on the floor) report faults; administrators manage them.
+    if role_value(current_user.rola) == "admin":
+        raise HTTPException(status_code=403, detail="Administrator ne prijavljuje kvarove")
     oprema = db.query(Oprema).filter(Oprema.id == data.oprema_id).first()
     if not oprema:
         raise HTTPException(status_code=404, detail="Oprema nije pronađena")

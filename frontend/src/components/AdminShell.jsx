@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
-import { BarChart3, Factory, Home, PackageSearch, QrCode, Search, Settings, User, Users, Wrench } from 'lucide-react'
+import { BarChart3, Factory, Home, Menu, PackageSearch, QrCode, Search, Settings, Users, Wrench } from 'lucide-react'
 import { scanSupported } from '../lib/qr'
 import { BrandOnNavy } from './BrandLogo'
 import AccountMenu from './AccountMenu'
 import SearchPalette from './SearchPalette'
 import BottomNav from './BottomNav'
-import Avatar from './ui/Avatar'
 import LanguageSwitch from './ui/LanguageSwitch'
 import { api } from '../api/client'
 import { useAuth } from '../auth/AuthProvider'
-import { displayName } from '../auth/session'
 import { useI18n } from '../i18n'
 import { useNewFaultAlerts } from '../lib/useNewFaultAlerts'
 import PushToggle from './PushToggle'
@@ -18,14 +16,14 @@ import FaultInbox from './FaultInbox'
 import InstallPrompt from './InstallPrompt'
 import { useLiveRefresh } from '../lib/live'
 
+// Daily work first; records and reports after a quiet divider; settings sit with the account.
 const NAV = [
   { to: '/admin', key: 'nav.dashboard', icon: Home, end: true },
   { to: '/admin/kvarovi', key: 'nav.faults', icon: Wrench, badge: true },
   { to: '/admin/oprema', key: 'nav.machines', icon: Factory },
-  { to: '/admin/rezervni-dijelovi', key: 'nav.parts', icon: PackageSearch },
-  { to: '/admin/korisnici', key: 'nav.users', icon: Users, adminOnly: true },
-  { to: '/admin/analize', key: 'nav.analytics', icon: BarChart3 },
-  { to: '/admin/profil', key: 'nav.settings', icon: Settings },
+  { to: '/admin/rezervni-dijelovi', key: 'nav.parts', icon: PackageSearch, group: 'records' },
+  { to: '/admin/korisnici', key: 'nav.users', icon: Users, adminOnly: true, group: 'records' },
+  { to: '/admin/analize', key: 'nav.analytics', icon: BarChart3, group: 'records' },
 ]
 // Overdue is time-driven as well as event-driven: a fault becomes late with nobody touching it.
 const OVERDUE_POLL_MS = 60000
@@ -67,20 +65,23 @@ function SearchTrigger({ onOpen }) {
   )
 }
 
+const navClass = ({ isActive }) =>
+  `flex min-h-[2.75rem] items-center gap-3 rounded px-3.5 text-[0.9375rem] font-medium transition-colors ${
+    isActive ? 'bg-brand font-semibold text-stock' : 'text-brand-on-deep hover:bg-white/[0.06] hover:text-stock'
+  }`
+
 function ShellNav({ isAdmin, overdue }) {
   const { t } = useI18n()
+  const items = NAV.filter((item) => !item.adminOnly || isAdmin)
   return (
     <nav aria-label={t('common.menu')} className="flex-1 space-y-1 overflow-y-auto px-4 py-2">
-      {NAV.filter((item) => !item.adminOnly || isAdmin).map(({ to, key, icon: Icon, end, badge }) => (
+      {items.map(({ to, key, icon: Icon, end, badge, group }, index) => (
+        <div key={to}>
+          {group && !items[index - 1]?.group && <div aria-hidden="true" className="mx-3 my-3 h-px bg-white/[0.08]" />}
         <NavLink
-          key={to}
           to={to}
           end={end}
-          className={({ isActive }) =>
-            `flex min-h-[2.875rem] items-center gap-3 rounded px-3.5 text-[0.9375rem] font-medium transition-colors ${
-              isActive ? 'bg-brand font-semibold text-stock shadow-[0_6px_16px_-8px_rgb(31_86_208/0.9)]' : 'text-brand-on-deep hover:bg-white/[0.07] hover:text-stock'
-            }`
-          }
+          className={navClass}
         >
           <Icon size={19} aria-hidden="true" />
           {t(key)}
@@ -91,22 +92,9 @@ function ShellNav({ isAdmin, overdue }) {
             </span>
           )}
         </NavLink>
+        </div>
       ))}
     </nav>
-  )
-}
-
-/** The signed-in person, as a round avatar that opens their profile and settings. */
-function ProfileLink({ user, tone }) {
-  const { t } = useI18n()
-  return (
-    <Link
-      to="/admin/profil"
-      aria-label={t('account.profileOf', { name: displayName(user) })}
-      className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${tone === 'navy' ? 'hover:bg-white/10' : 'hover:bg-ink/5'}`}
-    >
-      <Avatar user={user} tone={tone === 'navy' ? 'outline' : 'light'} />
-    </Link>
   )
 }
 
@@ -120,7 +108,7 @@ export default function AdminShell() {
   const inbox = useNewFaultAlerts(user)
   const canScan = scanSupported()
   // On the report form and the scanner the bar would ride above the keyboard or the camera.
-  const focused = /^\/admin\/(prijava|skeniraj)/.test(pathname)
+  const focused = /^\/admin\/skeniraj/.test(pathname)
 
   const openSearch = useCallback(() => setSearchOpen(true), [])
 
@@ -139,7 +127,7 @@ export default function AdminShell() {
     { to: '/admin', label: t('nav.dashboard'), icon: Home, end: true },
     { to: '/admin/kvarovi', label: t('nav.faults'), icon: Wrench, count: overdue, countLabel: t('nav.overdue') },
     { to: '/admin/oprema', label: t('nav.machines'), icon: Factory },
-    { to: '/admin/profil', label: t('nav.profile'), icon: User },
+    { to: '/admin/profil', label: t('nav.more'), icon: Menu },
   ]
 
   return (
@@ -156,6 +144,9 @@ export default function AdminShell() {
         <div className="border-t border-white/[0.08] p-3">
           <AccountMenu variant="rail">
             <PushToggle />
+            <Link to="/admin/profil" className="flex min-h-[2.75rem] w-full items-center gap-3 rounded px-3 text-[0.9375rem] font-medium text-ink transition-colors hover:bg-brand-wash">
+              <Settings size={17} aria-hidden="true" className="text-ink-2" /> {t('nav.settings')}
+            </Link>
           </AccountMenu>
         </div>
       </aside>
@@ -167,7 +158,6 @@ export default function AdminShell() {
           <div className="ml-auto flex items-center gap-2">
             <FaultInbox inbox={inbox} tone="light" />
             <LanguageSwitch />
-            <ProfileLink user={user} tone="light" />
           </div>
         </header>
 
@@ -186,7 +176,6 @@ export default function AdminShell() {
               <Search size={20} aria-hidden="true" />
             </button>
             <FaultInbox inbox={inbox} />
-            <ProfileLink user={user} tone="navy" />
           </div>
         </header>
 
@@ -202,7 +191,7 @@ export default function AdminShell() {
       </div>
 
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
-      <BottomNav items={tabs} reportTo="/admin/prijava" hidden={focused} />
+      <BottomNav items={tabs} hidden={focused} />
       <InstallPrompt hidden={focused} />
     </div>
   )

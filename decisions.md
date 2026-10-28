@@ -204,3 +204,18 @@
 - What: `/api/dashboard/pregled` adds open, urgent and on-hold counts as of seven days ago (replayed from status/priority events: a fault's state then is the "old" value of its first change after that moment) and resolved today vs. yesterday in plant time.
 - Rejected: storing daily snapshots (a scheduler and a table for four numbers); comparing with "reported in the previous 7 days" (a different quantity under the same label).
 - Limit: a priority change before history was recorded (events exist since the timeline was introduced) counts with the current priority.
+
+## 2026-10-28 · Administrators manage faults; only the floor reports them
+- Decided by: the owner ("administrators do not report faults")
+- What: the lead/admin interface loses its report button, the report tab and the `/admin/prijava` screen (it now redirects to the overview); workers keep the full flow. The API answers 403 when an administrator tries to create a fault.
+- Kept: maintenance leads (`voditelj`) can still create faults through the API, as before, because leads also work on the floor; their interface no longer offers it. Reopen if leads should be refused too.
+- Rejected: hiding the button only (a typed URL or an API call would still work).
+
+## 2026-10-28 · Final polish: reference direction A, with quieter icons
+- Decided by: Claude, from rendered comparisons (docs/design/variations-*.png)
+- A (reference: navy frame, blue actions, white cards) is kept. From B (minimal) it takes pale icon tiles and priority markers instead of solid colour blocks. C (dark) was rendered but not shipped: the navy frame and logo lose their contrast in dark, and it would need its own full QA.
+- Mobile: four equal tabs, no raised "+" (it duplicated the home screen's main action); no avatar in the headers (the Profil / Više tab is the same place).
+
+## 2026-10-28 · Live updates survive a sleeping phone
+- Decided by: Claude, from production logs (desktop streams lasted the full 10 minutes; iPhone streams ended after seconds, when the app went to the background)
+- What: the client drops a stream that has been silent for 45 s (the server pings every 20 s) and reconnects when the app returns after more than 15 s in the background or from the back-forward cache; the greeting then re-reads every screen.

@@ -50,7 +50,7 @@ export default {
     changed: 'Your password has been changed.',
     mismatch: 'The passwords do not match.',
     samePassword: 'The new password must differ from the current one.',
-    profileOf: 'Profile and settings: {name}',
+
   },
   time: {
     justNow: 'just now',
@@ -123,7 +123,7 @@ export default {
     deniedBody: 'Allow the camera (iPhone: Settings → Adix Paper or Safari → Camera) or choose the machine by hand.',
     cameraTitle: 'The camera is not available',
     cameraBody: 'Another app may be using it. Choose the machine manually.',
-    tab: 'Scan',
+
   },
   roles: {
     admin: 'Administrator',
@@ -192,7 +192,8 @@ export default {
     main: 'Main navigation',
     settings: 'Settings',
     profile: 'Profile',
-    report: 'Report a fault',
+    more: 'More',
+    reportShort: 'Report',
   },
   notify: {
     onTest: 'Notifications are on. Send a test notification from the same menu.',
@@ -277,18 +278,17 @@ export default {
     homeSubtitle: 'Here is where your reports stand.',
     kpiOpen: 'Open',
     kpiInProgress: 'In progress',
-    kpiWaiting: 'On hold',
     kpiResolved: 'Resolved, 7 days',
     kpiOpenSub: '{n} not yet taken',
     kpiInProgressSub: 'Someone is on them',
-    kpiWaitingSub: 'Waiting for parts or other',
     kpiResolvedSub: 'Fixed for you',
     activeTitle: 'My faults',
     viewAll: 'View all',
     kpiNav: 'My reports in numbers',
+    scanCta: 'Scan the machine\'s QR code',
+    reportManual: 'Or choose the machine yourself',
   },
   report: {
-    backToOverview: 'Overview',
     knownTitle: 'Open faults already reported on this machine: {n}',
     knownBody: 'If it is the same fault, there is no need to report it again. If it is a different fault, just carry on.',
     photoPreview: 'Selected photo {n}',
@@ -333,6 +333,7 @@ export default {
     doneNumber: 'Fault number',
     doneOpen: 'View the fault',
     doneNew: 'Report another',
+    orScan: 'Or scan the QR code',
   },
   fault: {
     progress: 'Progress',
@@ -433,7 +434,6 @@ export default {
     tabWork: 'Work',
   },
   dashboard: {
-    report: 'Report a fault',
     waiting: 'On hold',
     periodLabel: 'Period',
     periods: { danas: 'Today', '7d': '7 days', '30d': '30 days', mjesec: 'This month' },
