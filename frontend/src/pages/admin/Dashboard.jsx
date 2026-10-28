@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { AlarmClock, ArrowRight, CheckCircle2, ClipboardList, History, Inbox, PackageSearch, Siren, UserX, Users } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ClipboardList, History, PauseCircle, Plus, Siren, WifiOff } from 'lucide-react'
 import { api } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
+import { useLiveRefresh, useLiveStatus } from '../../lib/live'
 import { slaInfo } from '../../lib/sla'
 import { eventTitle } from '../../lib/events'
 import { useI18n } from '../../i18n'
 import { useAuth } from '../../auth/AuthProvider'
-import { AttentionReasons, Due, FaultNumber, StatusMark, WaitingTag } from '../../components/ui/Marks'
+import { AttentionReasons, Due, FaultNumber, PriorityMark, StatusMark, WaitingTag } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
-import Segmented from '../../components/ui/Segmented'
 
 const get = (path) => api.get(path).then((response) => response.data)
-const ATTENTION_ROWS = 10
-const REFRESH_MS = 60_000
-const PERIODS = ['danas', '7d', '30d', 'mjesec']
-const PERIOD_KEY = 'adix.overviewPeriod'
-const ROW_COLUMNS = 'lg:grid-cols-[3.5rem_minmax(0,1fr)_minmax(0,14rem)_8.5rem]'
+const QUEUE_ROWS = 6
+const RECENT_ROWS = 6
+const ACTIVITY_ROWS = 8
+const PERIOD = '7d'
+// Lateness changes with the clock, not only with events.
+const CLOCK_REFRESH_MS = 60_000
 
 // Most pressing reason first; faults without a reason follow, by time left.
 const REASON_RANK = { kasni: 0, hitno: 1, uskoro: 2, nedodijeljen: 3, ceka_dugo: 4 }
@@ -26,122 +27,86 @@ const byAttention = (a, b) => rank(a) - rank(b) || minutesLeft(a) - minutesLeft(
 
 const fullName = (person) => (person ? `${person.ime} ${person.prezime}` : '')
 
-function readPeriod() {
-  try {
-    const value = localStorage.getItem(PERIOD_KEY)
-    return PERIODS.includes(value) ? value : '7d'
-  } catch {
-    return '7d'
-  }
-}
-
 const FIGURE_TONE = {
   info: 'bg-info-wash text-brand',
   danger: 'bg-urgent-wash text-urgent',
   warning: 'bg-warn-wash text-warn',
   success: 'bg-ok-wash text-ok',
-  new: 'bg-new-wash text-new',
 }
 
-/** One overview figure: a card with a tinted icon tile; the whole card opens the matching list. */
+/** One key figure; the whole card opens the matching list. */
 function Figure({ label, value, sub, to, icon: Icon, tone = 'info', alert = false, loading }) {
   return (
-    <Link to={to} className="surface group flex min-w-0 flex-col gap-3 p-4 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
-      <span className="flex items-center gap-3">
-        <span aria-hidden="true" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${FIGURE_TONE[tone]}`}>
-          <Icon size={18} />
+    <Link to={to} className="surface group flex min-w-0 flex-col gap-1.5 p-3 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift sm:gap-2 sm:p-4">
+      <span className="flex items-start justify-between gap-2">
+        <span className="min-w-0 text-sm font-semibold leading-tight text-ink-2">{label}</span>
+        <span aria-hidden="true" className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md sm:h-8 sm:w-8 ${FIGURE_TONE[tone]}`}>
+          <Icon size={16} />
         </span>
-        <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-tight text-ink-2">{label}</span>
       </span>
-      <span className="flex items-end justify-between gap-2">
-        <span className={`numeral text-figure ${alert && value > 0 ? 'text-urgent' : 'text-ink'}`}>{loading ? '–' : value}</span>
-        <ArrowRight size={18} aria-hidden="true" className="mb-1 shrink-0 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-brand" />
-      </span>
-      <span className="min-h-[1.125rem] truncate text-meta text-ink-2">{loading ? '' : sub}</span>
+      <span className={`numeral text-[1.75rem] leading-none sm:text-figure ${alert && value > 0 ? 'text-urgent' : 'text-ink'}`}>{loading ? '–' : value}</span>
+      <span className="line-clamp-2 min-h-[1.125rem] text-meta leading-snug text-ink-2">{loading ? '' : sub}</span>
     </Link>
   )
 }
 
-function AttentionRow({ fault, unassigned }) {
+function SectionHeader({ id, title, action }) {
+  return (
+    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-rule px-4 py-3 sm:px-5">
+      <h2 id={id} className="text-base font-semibold sm:text-lg">{title}</h2>
+      {action && <span className="ml-auto">{action}</span>}
+    </header>
+  )
+}
+
+function QueueRow({ fault }) {
   const { t } = useI18n()
   return (
     <li>
-      <Link
-        to={`/admin/kvarovi/${fault.id}`}
-        className={`grid grid-cols-[3.5rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 px-5 py-3 transition-colors hover:bg-brand-wash/50 ${ROW_COLUMNS} lg:items-center`}
-      >
-        <FaultNumber id={fault.id} size="sm" className="pt-0.5 lg:pt-0" />
+      <Link to={`/admin/kvarovi/${fault.id}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1.5 px-4 py-3 transition-colors hover:bg-brand-wash/50 sm:px-5">
         <span className="min-w-0">
-          <span className="block truncate font-semibold text-ink">{fault.naslov}</span>
-          <span className="block truncate text-meta text-ink-2">{[fault.oprema?.naziv, fault.komponenta?.naziv].filter(Boolean).join(' · ')}</span>
-          <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <StatusMark status={fault.status} className="text-meta" />
-            <span className="truncate text-meta text-ink-2">{fault.voditelj ? fullName(fault.voditelj) : <span className="text-ink-3">{unassigned}</span>}</span>
+          <span className="flex min-w-0 items-baseline gap-2">
+            <FaultNumber id={fault.id} size="sm" />
+            <span className="truncate font-semibold text-ink">{fault.naslov}</span>
+          </span>
+          <span className="mt-0.5 block truncate text-meta text-ink-2">
+            {[fault.oprema?.naziv, fault.voditelj ? fullName(fault.voditelj) : t('fault.unassigned')].filter(Boolean).join(' · ')}
           </span>
         </span>
-        <span className="col-start-2 min-w-0 lg:col-start-auto">
+        <Due fault={fault} className="text-right" />
+        <span className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <StatusMark status={fault.status} className="text-meta" />
           {fault.razlozi_paznje?.some((reason) => reason !== 'uskoro') ? (
-            <AttentionReasons fault={fault} withTime={false} className="lg:flex-col lg:gap-y-1" />
+            <AttentionReasons fault={fault} withTime={false} className="text-meta" />
           ) : fault.status === 'Na čekanju' ? (
-            <WaitingTag fault={fault} />
-          ) : (
-            <span className="text-sm text-ink-3">{t('dashboard.onTrack')}</span>
-          )}
+            <WaitingTag fault={fault} className="text-meta" />
+          ) : null}
         </span>
-        <Due fault={fault} className="col-start-2 min-w-[7rem] lg:col-start-auto" />
       </Link>
     </li>
   )
 }
 
-function Workload({ rows, unassigned, userId }) {
-  const { t } = useI18n()
-  const max = Math.max(1, unassigned, ...rows.map((row) => row.otvoreni))
-  const bar = (n, late) => (
-    <span aria-hidden="true" className="due-bar mt-1.5" data-late={late ? '' : undefined}>
-      <i style={{ width: `${Math.max(n ? 4 : 0, Math.round((n / max) * 100))}%` }} />
-    </span>
-  )
+function RecentRow({ fault }) {
+  const { t, format } = useI18n()
   return (
-    <ul className="divide-y divide-rule">
-      {unassigned > 0 && (
-        <li>
-          <Link to="/admin/kvarovi?status=otvoreni&preuzeo=nitko" className="block px-5 py-2.5 transition-colors hover:bg-brand-wash/50">
-            <span className="flex items-baseline justify-between gap-3">
-              <span className="font-semibold text-new">{t('dashboard.workloadUnassigned')}</span>
-              <span className="numeral text-lg text-new">{unassigned}</span>
-            </span>
-            {bar(unassigned, false)}
-          </Link>
-        </li>
-      )}
-      {rows.map((row) => {
-        const details = [
-          row.u_rjesavanju ? t('dashboard.loadInProgress', { n: row.u_rjesavanju }) : null,
-          row.na_cekanju ? t('dashboard.loadWaiting', { n: row.na_cekanju }) : null,
-        ].filter(Boolean)
-        return (
-          <li key={row.korisnik.id}>
-            <Link to={`/admin/kvarovi?status=otvoreni&preuzeo=${row.korisnik.id}`} className="block px-5 py-2.5 transition-colors hover:bg-brand-wash/50">
-              <span className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate font-medium text-ink">
-                  {fullName(row.korisnik)}
-                  {String(row.korisnik.id) === String(userId) && <span className="font-normal text-ink-3"> · {t('dashboard.you')}</span>}
-                </span>
-                <span className={`numeral text-lg ${row.otvoreni ? 'text-ink' : 'text-ink-3'}`}>{row.otvoreni}</span>
-              </span>
-              {bar(row.otvoreni, row.kasni > 0)}
-              {(details.length > 0 || row.kasni > 0) && (
-                <span className="mt-1 flex flex-wrap gap-x-2 text-meta text-ink-2">
-                  {details.join(' · ')}
-                  {row.kasni > 0 && <span className="font-semibold text-urgent">{t('dashboard.loadLate', { n: row.kasni })}</span>}
-                </span>
-              )}
-            </Link>
-          </li>
-        )
-      })}
-    </ul>
+    <li>
+      <Link to={`/admin/kvarovi/${fault.id}`} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-4 py-2.5 transition-colors hover:bg-brand-wash/50 sm:px-5 md:grid-cols-[minmax(0,1fr)_7rem_8rem_6.5rem]">
+        <span className="min-w-0">
+          <span className="block truncate font-medium text-ink">
+            <span className="numeral text-ink-3">#{fault.id}</span> {fault.naslov}
+          </span>
+          <span className="block truncate text-meta text-ink-2">
+            {fault.oprema?.naziv || '—'} · {fault.voditelj ? fullName(fault.voditelj) : t('fault.unassigned')}
+          </span>
+        </span>
+        <span className="hidden md:block"><PriorityMark priority={fault.prioritet} className="text-meta" /></span>
+        <span><StatusMark status={fault.status} className="text-meta" /></span>
+        <time dateTime={fault.datum_prijave} title={format.dateTime(fault.datum_prijave)} className="hidden whitespace-nowrap text-right text-meta text-ink-2 md:block">
+          {format.ago(fault.datum_prijave)}
+        </time>
+      </Link>
+    </li>
   )
 }
 
@@ -153,20 +118,20 @@ function Activity({ items, people }) {
     <ol className="divide-y divide-rule">
       {items.map((item) => (
         <li key={item.id}>
-          <Link to={`/admin/kvarovi/${item.kvar_id}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 px-5 py-2.5 transition-colors hover:bg-brand-wash/50">
-            <span className="min-w-0">
-              <span className="block truncate text-[0.9375rem] font-medium text-ink">
+          <Link to={`/admin/kvarovi/${item.kvar_id}`} className="block px-4 py-2.5 transition-colors hover:bg-brand-wash/50 sm:px-5">
+            <span className="flex items-baseline justify-between gap-3">
+              <span className="min-w-0 truncate text-sm font-medium text-ink">
                 {eventTitle(item, i18n, people)}
                 {item.interno && <span className="font-normal text-ink-3"> · {t('fault.internal')}</span>}
               </span>
-              <span className="block truncate text-meta text-ink-2">
-                <span className="numeral text-ink-3">#{item.kvar_id}</span> {item.kvar_naslov}
-                {item.korisnik ? ` · ${fullName(item.korisnik)}` : ''}
-              </span>
+              <time dateTime={item.kreiran} title={format.dateTime(item.kreiran)} className="shrink-0 whitespace-nowrap text-meta text-ink-3">
+                {format.ago(item.kreiran)}
+              </time>
             </span>
-            <time dateTime={item.kreiran} title={format.dateTime(item.kreiran)} className="whitespace-nowrap pt-0.5 text-meta text-ink-3">
-              {format.ago(item.kreiran)}
-            </time>
+            <span className="block truncate text-meta text-ink-2">
+              <span className="numeral text-ink-3">#{item.kvar_id}</span> {item.kvar_naslov}
+              {item.korisnik ? ` · ${fullName(item.korisnik)}` : ''}
+            </span>
           </Link>
         </li>
       ))}
@@ -174,38 +139,55 @@ function Activity({ items, people }) {
   )
 }
 
+/** "Live" when changes arrive by themselves; otherwise say the data may be behind. */
+function LiveState() {
+  const { t } = useI18n()
+  const status = useLiveStatus()
+  if (status === 'live') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-meta font-semibold text-ok">
+        <span aria-hidden="true" className="h-2 w-2 rounded-full bg-ok-mark motion-safe:animate-pulse" />
+        {t('live.on')}
+      </span>
+    )
+  }
+  if (status === 'connecting') return null
+  return (
+    <span role="status" className="inline-flex items-center gap-1.5 text-meta font-semibold text-warn">
+      <WifiOff size={14} aria-hidden="true" />
+      {status === 'offline' ? t('live.offline') : t('live.reconnecting')}
+    </span>
+  )
+}
+
 export default function Dashboard() {
   const { t, format } = useI18n()
   const { user } = useAuth()
   const [tab, setTab] = useState('all')
-  const [period, setPeriodState] = useState(readPeriod)
-  const overview = useAsync(() => get(`/dashboard/pregled?period=${period}`), [period])
+  const overview = useAsync(() => get(`/dashboard/pregled?period=${PERIOD}`), [])
   const faults = useAsync(() => get('/kvarovi?status=otvoreni').then(asArray), [])
-
-  const setPeriod = (value) => {
-    setPeriodState(value)
-    try {
-      localStorage.setItem(PERIOD_KEY, value)
-    } catch {
-      // Remembering the period is a convenience only.
-    }
-  }
+  const recent = useAsync(() => get(`/kvarovi?limit=${RECENT_ROWS}`).then(asArray), [])
 
   useEffect(() => {
     document.title = `${t('dashboard.title')} · ${t('app.name')}`
   }, [t])
 
-  // Keep a wall-mounted or long-open overview current without a manual reload.
-  const { reload: reloadOverview } = overview
-  const { reload: reloadFaults } = faults
+  // Every change to any fault shows here within a moment; lateness also moves with the clock.
+  const refreshAll = () => {
+    overview.refresh()
+    faults.refresh()
+    recent.refresh()
+  }
+  useLiveRefresh(refreshAll)
   useEffect(() => {
     const timer = setInterval(() => {
-      if (document.visibilityState !== 'visible') return
-      reloadOverview()
-      reloadFaults()
-    }, REFRESH_MS)
+      if (document.visibilityState === 'visible') {
+        overview.refresh()
+        faults.refresh()
+      }
+    }, CLOCK_REFRESH_MS)
     return () => clearInterval(timer)
-  }, [reloadOverview, reloadFaults])
+  }, [overview.refresh, faults.refresh]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const open = useMemo(() => [...(faults.data || [])].sort(byAttention), [faults.data])
   const unassigned = useMemo(() => open.filter((fault) => !fault.voditelj_id), [open])
@@ -215,7 +197,7 @@ export default function Dashboard() {
     { id: 'unassigned', label: t('dashboard.tabUnassigned'), list: unassigned },
     { id: 'mine', label: t('dashboard.tabMine'), list: mine },
   ]
-  const shown = (tabs.find((item) => item.id === tab) || tabs[0]).list.slice(0, ATTENTION_ROWS)
+  const queue = (tabs.find((item) => item.id === tab) || tabs[0]).list.slice(0, QUEUE_ROWS)
 
   const data = overview.data
   const kpi = data?.kpi
@@ -229,149 +211,127 @@ export default function Dashboard() {
     <div>
       <PageHeader
         title={t('dashboard.title')}
-        meta={format.dateLong(new Date())}
+        meta={<span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">{format.dateLong(new Date())} <LiveState /></span>}
         actions={
-          <Segmented
-            label={t('dashboard.periodLabel')}
-            value={period}
-            onChange={setPeriod}
-            options={PERIODS.map((value) => ({ value, label: t(`dashboard.periods.${value}`) }))}
-          />
+          <Link to="/admin/prijava" className="btn-primary">
+            <Plus size={18} aria-hidden="true" /> {t('dashboard.report')}
+          </Link>
         }
       />
 
       {overview.error && !data ? (
-        <div className="surface mb-6"><ErrorState error={overview.error} onRetry={overview.reload} /></div>
+        <div className="surface mb-5"><ErrorState error={overview.error} onRetry={overview.reload} /></div>
       ) : (
-        <nav aria-label={t('dashboard.kpiNav')} className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <nav aria-label={t('dashboard.kpiNav')} className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Figure
             label={t('dashboard.open')}
             value={kpi?.otvoreni ?? 0}
-            sub={kpi && t('dashboard.openSub', { progress: kpi.u_rjesavanju, waiting: kpi.na_cekanju })}
+            sub={kpi && t('dashboard.openSub2', { n: kpi.u_rjesavanju, untaken: kpi.nedodijeljeni })}
             loading={loadingKpi}
             icon={ClipboardList}
-            to="/admin/kvarovi?status=otvoreni"
+            to="/admin/kvarovi"
           />
-          <Figure label={t('dashboard.urgent')} value={kpi?.hitni ?? 0} sub={t('dashboard.urgentSub')} loading={loadingKpi} alert icon={Siren} tone="danger" to="/admin/kvarovi?status=otvoreni&prioritet=Hitno" />
-          <Figure label={t('dashboard.overdue')} value={kpi?.kasni ?? 0} sub={t('dashboard.overdueSub')} loading={loadingKpi} alert icon={AlarmClock} tone="danger" to="/admin/kvarovi?sla=kasni&sort=rizik" />
-          <Figure label={t('dashboard.unassigned')} value={kpi?.nedodijeljeni ?? 0} sub={t('dashboard.unassignedSub')} loading={loadingKpi} icon={UserX} tone="new" to="/admin/kvarovi?status=otvoreni&preuzeo=nitko&sort=rizik" />
           <Figure
-            label={t('dashboard.waitingParts')}
-            value={kpi?.ceka_dijelove ?? 0}
-            sub={kpi && t('dashboard.waitingPartsSub', { n: kpi.na_cekanju })}
+            label={t('dashboard.urgent')}
+            value={kpi?.hitni ?? 0}
+            sub={kpi && (kpi.kasni ? t('dashboard.urgentLate', { n: kpi.kasni }) : t('dashboard.urgentSub'))}
             loading={loadingKpi}
-            icon={PackageSearch}
-            tone="warning"
-            to="/admin/kvarovi?cekanje=dijelovi"
+            alert
+            icon={Siren}
+            tone="danger"
+            to="/admin/kvarovi?prioritet=Hitno&sort=rizik"
           />
           <Figure
-            label={t('dashboard.resolved')}
+            label={t('dashboard.waiting')}
+            value={kpi?.na_cekanju ?? 0}
+            sub={kpi && t('dashboard.waitingSub', { n: kpi.ceka_dijelove })}
+            loading={loadingKpi}
+            icon={PauseCircle}
+            tone="warning"
+            to="/admin/kvarovi?status=Na čekanju"
+          />
+          <Figure
+            label={t('dashboard.resolved7')}
             value={kpi?.rijeseni_u_periodu ?? 0}
-            sub={kpi && t('dashboard.resolvedSub', { n: kpi.prijavljeni_u_periodu, period: t(`dashboard.periods.${period}`) })}
+            sub={kpi && t('dashboard.reported7', { n: kpi.prijavljeni_u_periodu })}
             loading={loadingKpi}
             icon={CheckCircle2}
             tone="success"
-            to={`/admin/kvarovi?status=Riješeno&rijeseno=${period}`}
+            to={`/admin/kvarovi?pregled=rijeseni&rijeseno=${PERIOD}`}
           />
         </nav>
       )}
 
-      {/* Phones: attention, then my faults and workload, then activity. Desktop: activity under attention. */}
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
-          <section aria-labelledby="attention-title" className="surface min-w-0 xl:col-start-1 xl:row-start-1">
-            <header className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-rule px-5 py-3.5">
-              <h2 id="attention-title" className="text-lg font-semibold">{t('dashboard.attention')}</h2>
-              <div role="group" aria-label={t('dashboard.attentionFilter')} className="flex gap-1">
-                {tabs.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    aria-pressed={tab === item.id}
-                    onClick={() => setTab(item.id)}
-                    className={`inline-flex min-h-[2.25rem] items-center gap-1.5 rounded px-3 text-sm font-semibold transition-colors ${
-                      tab === item.id ? 'bg-brand-wash text-brand-deep' : 'text-ink-2 hover:bg-ink/5 hover:text-ink'
-                    }`}
-                  >
-                    {item.label}
-                    <span className="tabular font-medium text-ink-3">{faults.data ? item.list.length : '·'}</span>
-                  </button>
-                ))}
-              </div>
-              <Link to="/admin/kvarovi?status=otvoreni&sort=rizik" className="link ml-auto inline-flex items-center gap-1 text-sm">
-                {t('dashboard.allOpen')} <ArrowRight size={15} aria-hidden="true" />
-              </Link>
-            </header>
-            <div className={`hidden border-b border-rule bg-ground/50 px-5 py-2 lg:grid lg:gap-x-3 ${ROW_COLUMNS}`} aria-hidden="true">
-              <span className="field-label">#</span>
-              <span className="field-label">{t('faults.colFault')}</span>
-              <span className="field-label">{t('dashboard.why')}</span>
-              <span className="field-label">{t('fault.due')}</span>
+      {/* Phones: the queue first, then recent reports, then activity. Desktop: activity beside them. */}
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-w-0 space-y-5">
+          <section aria-labelledby="queue-title" className="surface min-w-0">
+            <SectionHeader
+              id="queue-title"
+              title={t('dashboard.attention')}
+              action={
+                <Link to="/admin/kvarovi?sort=rizik" className="link inline-flex items-center gap-1 text-sm">
+                  {t('dashboard.allOpen')} <ArrowRight size={15} aria-hidden="true" />
+                </Link>
+              }
+            />
+            <div role="group" aria-label={t('dashboard.attentionFilter')} className="flex gap-1 border-b border-rule px-3 py-2 sm:px-4">
+              {tabs.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={tab === item.id}
+                  onClick={() => setTab(item.id)}
+                  className={`inline-flex min-h-[2.25rem] items-center gap-1.5 rounded px-3 text-sm font-semibold transition-colors ${
+                    tab === item.id ? 'bg-brand-wash text-brand-deep' : 'text-ink-2 hover:bg-ink/5 hover:text-ink'
+                  }`}
+                >
+                  {item.label}
+                  <span className="tabular font-medium text-ink-3">{faults.data ? item.list.length : '·'}</span>
+                </button>
+              ))}
             </div>
             {faults.loading && !faults.data ? (
               <LoadingRows rows={4} />
-            ) : faults.error ? (
+            ) : faults.error && !faults.data ? (
               <ErrorState error={faults.error} onRetry={faults.reload} />
-            ) : shown.length === 0 ? (
+            ) : queue.length === 0 ? (
               <EmptyState icon={CheckCircle2} title={tab === 'all' ? t('dashboard.attentionEmpty') : t('dashboard.tabEmpty')} />
             ) : (
               <ul className="divide-y divide-rule">
-                {shown.map((fault) => <AttentionRow key={fault.id} fault={fault} unassigned={t('fault.unassigned')} />)}
+                {queue.map((fault) => <QueueRow key={fault.id} fault={fault} />)}
               </ul>
             )}
           </section>
 
-        <div className="space-y-6 xl:col-start-2 xl:row-span-2 xl:row-start-1">
-          <section aria-labelledby="mine-title" className="surface">
-            <header className="flex items-center justify-between border-b border-rule px-5 py-3.5">
-              <h2 id="mine-title" className="text-lg font-semibold">{t('dashboard.mine')}</h2>
-              <span className="numeral text-lg text-ink-3">{faults.data ? mine.length : ''}</span>
-            </header>
-            {faults.loading && !faults.data ? (
-              <LoadingRows rows={2} />
-            ) : mine.length === 0 ? (
-              <EmptyState icon={Inbox} title={t('dashboard.mineEmpty')} body={unassigned.length ? t('dashboard.mineEmptyBody', { n: unassigned.length }) : undefined} className="py-8" />
+          <section aria-labelledby="recent-title" className="surface min-w-0">
+            <SectionHeader
+              id="recent-title"
+              title={t('dashboard.recent')}
+              action={
+                <Link to="/admin/kvarovi" className="link inline-flex items-center gap-1 text-sm">
+                  {t('dashboard.allFaults')} <ArrowRight size={15} aria-hidden="true" />
+                </Link>
+              }
+            />
+            {recent.loading && !recent.data ? (
+              <LoadingRows rows={3} />
+            ) : recent.error && !recent.data ? (
+              <ErrorState error={recent.error} onRetry={recent.reload} />
+            ) : (recent.data || []).length === 0 ? (
+              <EmptyState icon={ClipboardList} title={t('dashboard.recentEmpty')} className="py-8" />
             ) : (
               <ul className="divide-y divide-rule">
-                {mine.slice(0, 4).map((fault) => (
-                  <li key={fault.id}>
-                    <Link to={`/admin/kvarovi/${fault.id}`} className="grid gap-2 px-5 py-3 transition-colors hover:bg-brand-wash/50">
-                      <span className="flex min-w-0 items-baseline gap-2.5">
-                        <FaultNumber id={fault.id} size="sm" />
-                        <span className="truncate font-semibold">{fault.naslov}</span>
-                      </span>
-                      <Due fault={fault} />
-                    </Link>
-                  </li>
-                ))}
+                {recent.data.map((fault) => <RecentRow key={fault.id} fault={fault} />)}
               </ul>
-            )}
-            <div className="border-t border-rule p-3">
-              <Link to="/admin/kvarovi?status=otvoreni&preuzeo=ja" className="btn-secondary w-full">{t('dashboard.allMine')}</Link>
-            </div>
-          </section>
-
-          <section aria-labelledby="workload-title" className="surface">
-            <header className="border-b border-rule px-5 py-3.5">
-              <h2 id="workload-title" className="text-lg font-semibold">{t('dashboard.workload')}</h2>
-              <p className="text-meta text-ink-2">{t('dashboard.workloadHint')}</p>
-            </header>
-            {loadingKpi ? (
-              <LoadingRows rows={3} />
-            ) : overview.error && !data ? null : (data?.opterecenje || []).length === 0 ? (
-              <EmptyState icon={Users} title={t('dashboard.workloadEmpty')} className="py-8" />
-            ) : (
-              <Workload rows={data.opterecenje} unassigned={kpi.nedodijeljeni} userId={user?.id} />
             )}
           </section>
         </div>
 
-          <section aria-labelledby="activity-title" className="surface min-w-0 xl:col-start-1 xl:row-start-2">
-            <header className="flex items-center justify-between border-b border-rule px-5 py-3.5">
-              <h2 id="activity-title" className="text-lg font-semibold">{t('dashboard.activity')}</h2>
-              {data && <span className="text-meta text-ink-3">{t('dashboard.updatedAt', { time: format.time(data.do) })}</span>}
-            </header>
-            {loadingKpi ? <LoadingRows rows={3} /> : <Activity items={data?.aktivnosti || []} people={people} />}
-          </section>
+        <section aria-labelledby="activity-title" className="surface min-w-0">
+          <SectionHeader id="activity-title" title={t('dashboard.activity')} />
+          {loadingKpi ? <LoadingRows rows={3} /> : <Activity items={(data?.aktivnosti || []).slice(0, ACTIVITY_ROWS)} people={people} />}
+        </section>
       </div>
     </div>
   )

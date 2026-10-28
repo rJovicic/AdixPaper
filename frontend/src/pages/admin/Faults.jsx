@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { CalendarCheck, ClipboardList, Download, FileSpreadsheet, FileText, Factory, RotateCw, Search, SearchX, X } from 'lucide-react'
+import { CalendarCheck, CheckCircle2, ClipboardList, Download, FileSpreadsheet, FileText, Factory, Search, SearchX, X } from 'lucide-react'
 import { api, downloadFile, errorMessage } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
+import { useLiveRefresh } from '../../lib/live'
 import { useI18n } from '../../i18n'
 import { useToast } from '../../components/ui/Toast'
 import Menu from '../../components/ui/Menu'
@@ -11,15 +12,60 @@ import { DueTag, FaultNumber, PriorityMark, StatusMark, WaitingTag } from '../..
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
 
 const PAGE = 50
-const STATUSES = ['Novo', 'U rješavanju', 'Na čekanju', 'Riješeno']
+const OPEN_STATUSES = ['Novo', 'U rješavanju', 'Na čekanju']
 const PRIORITIES = ['Hitno', 'Normalno', 'Nisko']
 const WAITING = ['dijelovi', 'vanjski_servis', 'odobrenje', 'proizvodnja', 'ostalo']
 const PERIODS = ['danas', '7d', '30d', 'mjesec']
 const SEARCH_DELAY_MS = 250
 
-async function fetchPage(query, offset) {
-  const response = await api.get(`/kvarovi?${query}${query ? '&' : ''}limit=${PAGE}&offset=${offset}`)
+async function fetchPage(query, offset, size = PAGE) {
+  const response = await api.get(`/kvarovi?${query}${query ? '&' : ''}limit=${size}&offset=${offset}`)
   return { rows: asArray(response.data), total: Number(response.headers['x-total-count'] ?? response.data.length) }
+}
+
+async function fetchCount(query) {
+  const response = await api.get(`/kvarovi?${query}${query ? '&' : ''}limit=1`)
+  return Number(response.headers['x-total-count'] ?? 0)
+}
+
+/** Old links (`status=Riješeno`, `rijeseno=7d`) open the resolved view; `status=otvoreni` the active one. */
+function viewFromParams(params) {
+  if (params.get('pregled') === 'rijeseni' || params.get('status') === 'Riješeno' || params.get('rijeseno')) return 'resolved'
+  return 'active'
+}
+
+function ViewTabs({ view, counts, onChange }) {
+  const { t } = useI18n()
+  const tabs = [
+    { id: 'active', label: t('faults.tabActive'), icon: ClipboardList, count: counts?.active },
+    { id: 'resolved', label: t('faults.tabResolved'), icon: CheckCircle2, count: counts?.resolved },
+  ]
+  return (
+    <div role="tablist" aria-label={t('faults.views')} className="mb-4 flex gap-1 border-b border-rule">
+      {tabs.map((tab) => {
+        const Icon = tab.icon
+        const selected = view === tab.id
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => onChange(tab.id)}
+            className={`-mb-px inline-flex min-h-[2.75rem] items-center gap-2 border-b-2 px-3 text-[0.9375rem] font-semibold transition-colors sm:px-4 ${
+              selected ? 'border-brand text-brand' : 'border-transparent text-ink-2 hover:text-ink'
+            }`}
+          >
+            <Icon size={17} aria-hidden="true" />
+            {tab.label}
+            {typeof tab.count === 'number' && (
+              <span className={`rounded-sm px-1.5 py-0.5 numeral text-xs ${selected ? 'bg-brand text-stock' : 'bg-ink/[0.07] text-ink-2'}`}>{tab.count}</span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 /** The URL's search text, settled: the list is not re-fetched on every keystroke. */
@@ -50,12 +96,13 @@ export default function Faults() {
   const toast = useToast()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
+  const view = viewFromParams(params)
   const filters = {
     q: params.get('q') || '',
-    status: params.get('status') || '',
+    status: OPEN_STATUSES.includes(params.get('status')) && view === 'active' ? params.get('status') : '',
     prioritet: params.get('prioritet') || '',
     sla: params.get('sla') || '',
-    sort: params.get('sort') || 'novo',
+    sort: params.get('sort') || (view === 'resolved' ? 'rijeseno' : 'novo'),
     assignee: params.get('preuzeo') || '',
     machine: params.get('oprema') || '',
     waiting: params.get('cekanje') || '',
@@ -63,22 +110,44 @@ export default function Faults() {
   }
   const settledQ = useSettled(filters.q.trim(), SEARCH_DELAY_MS)
 
+  // Filters shared by both views (search, priority, machine, handler): the tab counts use them too.
+  const sharedQuery = useMemo(() => {
+    const query = new URLSearchParams()
+    if (filters.prioritet) query.set('prioritet', filters.prioritet)
+    if (/^\d+$/.test(filters.machine)) query.set('oprema_id', filters.machine)
+    if (filters.assignee === 'ja' || filters.assignee === 'nitko' || /^\d+$/.test(filters.assignee)) query.set('preuzeo', filters.assignee)
+    if (settledQ) query.set('q', settledQ)
+    return query.toString()
+  }, [filters.prioritet, filters.machine, filters.assignee, settledQ])
+
   // Every filter is applied on the server, so the count, the pages and the exports agree.
   const serverQuery = useMemo(() => {
-    const query = new URLSearchParams()
-    if (filters.status) query.set('status', filters.status)
-    if (filters.prioritet) query.set('prioritet', filters.prioritet)
-    if (filters.sla) query.set('sla', filters.sla)
-    if (/^\d+$/.test(filters.machine)) query.set('oprema_id', filters.machine)
-    if (WAITING.includes(filters.waiting)) query.set('cekanje', filters.waiting)
-    if (filters.assignee === 'ja' || filters.assignee === 'nitko' || /^\d+$/.test(filters.assignee)) query.set('preuzeo', filters.assignee)
-    if (filters.resolved) query.set('rijeseno', filters.resolved)
-    if (settledQ) query.set('q', settledQ)
-    if (filters.sort !== 'novo') query.set('sort', filters.sort)
+    const query = new URLSearchParams(sharedQuery)
+    if (view === 'active') {
+      query.set('status', filters.status || 'otvoreni')
+      if (filters.sla) query.set('sla', filters.sla)
+      if (WAITING.includes(filters.waiting)) query.set('cekanje', filters.waiting)
+      if (filters.sort !== 'novo') query.set('sort', filters.sort)
+    } else {
+      query.set('status', 'Riješeno')
+      if (filters.resolved) query.set('rijeseno', filters.resolved)
+      if (filters.sort !== 'novo') query.set('sort', filters.sort)
+    }
     return query.toString()
-  }, [filters.status, filters.prioritet, filters.sla, filters.machine, filters.waiting, filters.assignee, filters.resolved, settledQ, filters.sort])
+  }, [sharedQuery, view, filters.status, filters.sla, filters.waiting, filters.resolved, filters.sort])
 
-  const firstPage = useAsync(() => fetchPage(serverQuery, 0), [serverQuery])
+  // A live refresh re-reads as many rows as are on screen, so "Show more" pages survive it.
+  const shownRows = useRef(PAGE)
+  const firstPage = useAsync(() => fetchPage(serverQuery, 0, shownRows.current), [serverQuery])
+  const counts = useAsync(async () => {
+    const shared = sharedQuery ? `${sharedQuery}&` : ''
+    const [active, resolved] = await Promise.all([fetchCount(`${shared}status=otvoreni`), fetchCount(`${shared}status=Riješeno`)])
+    return { active, resolved }
+  }, [sharedQuery])
+  useLiveRefresh(() => {
+    firstPage.refresh()
+    counts.refresh()
+  })
   // Pages loaded with "Show more" belong to the first page they extend; a new first page drops them.
   const [moreState, setMore] = useState({ base: null, rows: [], loading: false })
   const more = moreState.base === firstPage.data ? moreState : { base: firstPage.data, rows: [], loading: false }
@@ -97,11 +166,25 @@ export default function Faults() {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value)
     else next.delete(key)
+    if (view === 'resolved') next.set('pregled', 'rijeseni') // clearing the period keeps the view
     setParams(next, { replace: true })
   }
 
   const rows = useMemo(() => [...(firstPage.data?.rows || []), ...more.rows], [firstPage.data, more.rows])
   const total = firstPage.data?.total ?? 0
+  useEffect(() => {
+    shownRows.current = Math.max(PAGE, rows.length)
+  }, [rows.length])
+  useEffect(() => {
+    shownRows.current = PAGE // a different list starts with one page
+  }, [serverQuery])
+
+  const changeView = (next) => {
+    const query = new URLSearchParams()
+    for (const key of ['q', 'prioritet', 'oprema', 'preuzeo']) if (params.get(key)) query.set(key, params.get(key))
+    if (next === 'resolved') query.set('pregled', 'rijeseni')
+    setParams(query, { replace: true })
+  }
 
   const loadMore = async () => {
     const base = firstPage.data
@@ -116,6 +199,7 @@ export default function Faults() {
   }
 
   const hasFilters = Boolean(filters.q || filters.status || filters.prioritet || filters.sla || filters.assignee || filters.machine || filters.waiting || filters.resolved)
+  const clearFilters = () => setParams(view === 'resolved' ? { pregled: 'rijeseni' } : {}, { replace: true })
 
   const exportFile = async (path, filename) => {
     try {
@@ -133,10 +217,6 @@ export default function Faults() {
         meta={firstPage.data ? t('common.results', { n: total }) : ' '}
         actions={
           <>
-            <button type="button" onClick={firstPage.reload} disabled={loading} className="btn-secondary" aria-label={t('common.refresh')}>
-              <RotateCw size={17} aria-hidden="true" className={loading ? 'animate-spin motion-reduce:animate-none' : ''} />
-              <span className="hidden sm:inline">{t('common.refresh')}</span>
-            </button>
             <Menu
               label={t('faults.export')}
               icon={Download}
@@ -150,6 +230,8 @@ export default function Faults() {
           </>
         }
       />
+
+      <ViewTabs view={view} counts={counts.data} onChange={changeView} />
 
       {(filters.machine || filters.resolved) && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -174,8 +256,10 @@ export default function Faults() {
         </div>
       )}
 
-      <div className="surface mb-4 grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:gap-3 xl:grid-cols-[minmax(0,1.6fr)_repeat(6,minmax(0,1fr))]">
-        <div className="relative col-span-2 sm:col-span-3 xl:col-span-1">
+      <div className={`surface mb-4 grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 sm:gap-3 ${
+        view === 'active' ? 'xl:grid-cols-[minmax(0,1.6fr)_repeat(6,minmax(0,1fr))]' : 'lg:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,1fr))]'
+      }`}>
+        <div className={`relative col-span-2 sm:col-span-3 ${view === 'active' ? 'xl:col-span-1' : 'lg:col-span-1'}`}>
           <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
           <input
             type="search"
@@ -187,25 +271,35 @@ export default function Faults() {
             onChange={(event) => setFilter('q', event.target.value)}
           />
         </div>
-        <select className="control" aria-label={t('faults.status')} value={filters.status} onChange={(event) => setFilter('status', event.target.value)}>
-          <option value="">{t('faults.allStatuses')}</option>
-          <option value="otvoreni">{t('faults.openStatuses')}</option>
-          {STATUSES.map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
-        </select>
+        {view === 'active' ? (
+          <select className="control" aria-label={t('faults.status')} value={filters.status} onChange={(event) => setFilter('status', event.target.value)}>
+            <option value="">{t('faults.openStatuses')}</option>
+            {OPEN_STATUSES.map((value) => <option key={value} value={value}>{statusLabel(value)}</option>)}
+          </select>
+        ) : (
+          <select className="control" aria-label={t('faults.resolvedFilter')} value={filters.resolved} onChange={(event) => setFilter('rijeseno', event.target.value)}>
+            <option value="">{t('faults.resolvedAnyTime')}</option>
+            {PERIODS.map((value) => <option key={value} value={value}>{t(`dashboard.periodName.${value}`)}</option>)}
+          </select>
+        )}
         <select className="control" aria-label={t('faults.priority')} value={filters.prioritet} onChange={(event) => setFilter('prioritet', event.target.value)}>
           <option value="">{t('faults.allPriorities')}</option>
           {PRIORITIES.map((value) => <option key={value} value={value}>{priorityLabel(value)}</option>)}
         </select>
-        <select className="control" aria-label={t('faults.sla')} value={filters.sla} onChange={(event) => setFilter('sla', event.target.value)}>
-          <option value="">{t('faults.allSla')}</option>
-          <option value="kasni">{t('sla.filterLate')}</option>
-          <option value="uskoro">{t('sla.filterSoon')}</option>
-          <option value="ok">{t('sla.filterOk')}</option>
-        </select>
-        <select className="control" aria-label={t('waiting.filter')} value={filters.waiting} onChange={(event) => setFilter('cekanje', event.target.value)}>
-          <option value="">{t('waiting.allReasons')}</option>
-          {WAITING.map((value) => <option key={value} value={value}>{waitingReason(value)}</option>)}
-        </select>
+        {view === 'active' && (
+          <>
+            <select className="control" aria-label={t('faults.sla')} value={filters.sla} onChange={(event) => setFilter('sla', event.target.value)}>
+              <option value="">{t('faults.allSla')}</option>
+              <option value="kasni">{t('sla.filterLate')}</option>
+              <option value="uskoro">{t('sla.filterSoon')}</option>
+              <option value="ok">{t('sla.filterOk')}</option>
+            </select>
+            <select className="control" aria-label={t('waiting.filter')} value={filters.waiting} onChange={(event) => setFilter('cekanje', event.target.value)}>
+              <option value="">{t('waiting.allReasons')}</option>
+              {WAITING.map((value) => <option key={value} value={value}>{waitingReason(value)}</option>)}
+            </select>
+          </>
+        )}
         <select className="control" aria-label={t('faults.assignee')} value={filters.assignee} onChange={(event) => setFilter('preuzeo', event.target.value)}>
           <option value="">{t('faults.allAssignees')}</option>
           <option value="ja">{t('faults.assignedToMe')}</option>
@@ -216,10 +310,11 @@ export default function Faults() {
             </optgroup>
           )}
         </select>
-        <select className="control" aria-label={t('faults.sort')} value={filters.sort} onChange={(event) => setFilter('sort', event.target.value === 'novo' ? '' : event.target.value)}>
+        <select className="control" aria-label={t('faults.sort')} value={filters.sort} onChange={(event) => setFilter('sort', event.target.value === (view === 'resolved' ? 'rijeseno' : 'novo') ? '' : event.target.value)}>
+          {view === 'resolved' && <option value="rijeseno">{t('faults.sortResolvedNewest')}</option>}
           <option value="novo">{t('faults.sortNewest')}</option>
           <option value="staro">{t('faults.sortOldest')}</option>
-          <option value="rizik">{t('faults.sortRisk')}</option>
+          {view === 'active' && <option value="rizik">{t('faults.sortRisk')}</option>}
         </select>
       </div>
 
@@ -233,10 +328,12 @@ export default function Faults() {
             <EmptyState
               icon={SearchX}
               title={t('faults.noMatchTitle')}
-              action={<button type="button" className="btn-secondary" onClick={() => setParams({}, { replace: true })}>{t('common.clearFilters')}</button>}
+              action={<button type="button" className="btn-secondary" onClick={clearFilters}>{t('common.clearFilters')}</button>}
             />
+          ) : view === 'resolved' ? (
+            <EmptyState icon={CheckCircle2} title={t('faults.emptyResolvedTitle')} body={t('faults.emptyResolvedBody')} />
           ) : (
-            <EmptyState icon={ClipboardList} title={t('faults.emptyTitle')} body={t('faults.emptyBody')} />
+            <EmptyState icon={ClipboardList} title={t('faults.emptyActiveTitle')} body={t('faults.emptyActiveBody')} />
           )}
         </div>
       ) : (
@@ -255,7 +352,7 @@ export default function Faults() {
                   <th scope="col" className="w-[38%] px-4 py-2.5 font-semibold">{t('faults.colFault')}</th>
                   <th scope="col" className="px-4 py-2.5 font-semibold">{t('fault.priority')}</th>
                   <th scope="col" className="px-4 py-2.5 font-semibold">{t('fault.status')}</th>
-                  <th scope="col" className="px-4 py-2.5 font-semibold">{t('fault.due')}</th>
+                  <th scope="col" className="px-4 py-2.5 font-semibold">{view === 'resolved' ? t('fault.resolvedAt') : t('fault.due')}</th>
                   <th scope="col" className="hidden px-4 py-2.5 font-semibold lg:table-cell">{t('fault.assignee')}</th>
                   <th scope="col" className="hidden px-4 py-2.5 font-semibold xl:table-cell">{t('fault.reportedAt')}</th>
                 </tr>

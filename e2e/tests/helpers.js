@@ -40,6 +40,16 @@ export async function signIn(page, { username, password }) {
 /** Matches a fault number as rendered ("#" for screen readers, zero-padded digits: #047). */
 export const faultNumber = (id) => new RegExp(`#0*${id}(?!\\d)`)
 
+/**
+ * Waits until the screen has loaded its data. Not `networkidle`: the live-updates connection stays
+ * open for as long as the page does, so the network is never idle.
+ */
+export async function settle(page) {
+  await page.locator('main').first().waitFor()
+  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, { timeout: 15_000 })
+  await page.waitForTimeout(250)
+}
+
 /** Opens the signed-in person's account menu (language, password, sign out). */
 export async function openAccountMenu(page) {
   // The account button is the one control that always names the panel it opens.

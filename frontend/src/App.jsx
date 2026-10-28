@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { I18nProvider } from './i18n'
 import { AuthProvider, useAuth } from './auth/AuthProvider'
+import { LiveProvider } from './lib/live'
 import { homeForRole } from './auth/session'
 import { ToastProvider } from './components/ui/Toast'
 import RequireRole from './components/RequireRole'
@@ -41,6 +42,11 @@ const Users = lazyPage(() => import('./pages/admin/Users'))
 
 const pageFallback = <div className="surface mx-auto mt-8 max-w-3xl"><LoadingRows rows={4} /></div>
 
+function Live({ children }) {
+  const { user } = useAuth()
+  return <LiveProvider userId={user?.id}>{children}</LiveProvider>
+}
+
 function Home() {
   const { user } = useAuth()
   return <Navigate to={user ? homeForRole(user.rola) : '/login'} replace />
@@ -52,6 +58,7 @@ export default function App() {
       <BrowserRouter>
         <ToastProvider>
           <AuthProvider>
+            <Live>
             <Suspense fallback={pageFallback}>
             <Routes>
               <Route path="/" element={<Home />} />
@@ -65,6 +72,7 @@ export default function App() {
               </Route>
               <Route path="/admin" element={<RequireRole roles={['admin', 'voditelj']}><AdminShell /></RequireRole>}>
                 <Route index element={<Dashboard />} />
+                <Route path="prijava" element={<ReportFault base="/admin" />} />
                 <Route path="kvarovi" element={<Faults />} />
                 <Route path="kvarovi/:id" element={<FaultDetail />} />
                 <Route path="oprema" element={<Machines />} />
@@ -77,6 +85,7 @@ export default function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
             </Suspense>
+            </Live>
             <UpdateBanner />
           </AuthProvider>
         </ToastProvider>

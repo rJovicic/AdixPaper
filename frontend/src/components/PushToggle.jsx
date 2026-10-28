@@ -20,7 +20,7 @@ function usePushToggle() {
 }
 
 /** Push notifications on this device: leads hear about new faults, workers about changes to their own. Hidden unless the server has VAPID keys. */
-export default function PushToggle() {
+export default function PushToggle({ hint }) {
   const { t } = useI18n()
   const toast = useToast()
   const [push, setPush] = usePushToggle()
@@ -53,8 +53,11 @@ export default function PushToggle() {
       aria-pressed={push.enabled}
       className="flex min-h-[2.75rem] w-full items-center gap-3 rounded px-3 text-left text-[0.9375rem] font-medium text-ink transition-colors hover:bg-brand-wash disabled:opacity-60"
     >
-      <Icon size={17} aria-hidden="true" className="text-ink-2" />
-      {push.enabled ? t('notify.disable') : t('notify.enable')}
+      <Icon size={17} aria-hidden="true" className="shrink-0 text-ink-2" />
+      <span className="min-w-0">
+        {push.enabled ? t('notify.disable') : t('notify.enable')}
+        {hint && !push.enabled && <span className="block text-meta font-normal text-ink-2">{hint}</span>}
+      </span>
     </button>
   )
 }

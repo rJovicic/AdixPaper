@@ -4,6 +4,7 @@ import { scanSupported } from '../lib/qr'
 import BrandLogo from './BrandLogo'
 import AccountMenu from './AccountMenu'
 import PushToggle from './PushToggle'
+import InstallPrompt from './InstallPrompt'
 import { useI18n } from '../i18n'
 
 const tabClass = ({ isActive }) =>
@@ -55,6 +56,7 @@ export default function WorkerShell() {
           )}
         </div>
       </nav>
+      <InstallPrompt hidden={reporting} />
     </div>
   )
 }

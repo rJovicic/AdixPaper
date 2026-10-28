@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Camera, ImageOff, Trash2 } from 'lucide-react'
 import { api, errorMessage } from '../api/client'
 import { asArray, useAsync } from '../lib/useAsync'
+import { useLiveRefresh } from '../lib/live'
 import { uploadPhoto } from '../lib/photo'
 import { useI18n } from '../i18n'
 import { useToast } from './ui/Toast'
@@ -61,6 +62,7 @@ export default function Photos({ faultId, canAdd = false, canDelete = () => fals
   const toast = useToast()
   const input = useRef(null)
   const photos = useAsync(() => api.get(`/kvarovi/${faultId}/prilozi`).then((response) => asArray(response.data)), [faultId])
+  useLiveRefresh(photos.refresh, (message) => message.kvarId === Number(faultId) && message.action === 'photo')
   const [uploading, setUploading] = useState(false)
   const [viewing, setViewing] = useState(null)
   const [removing, setRemoving] = useState(null)

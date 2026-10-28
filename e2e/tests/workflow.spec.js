@@ -38,8 +38,8 @@ test('lead puts a fault on hold with a reason; the overview counts it and the wo
 
   // The overview figure leads to a list that contains this fault.
   await page.goto('/admin')
-  await page.getByRole('link', { name: /Čekaju dijelove/ }).click()
-  await expect(page).toHaveURL(/cekanje=dijelovi/)
+  await page.getByRole('navigation', { name: 'Ključni pokazatelji' }).getByRole('link', { name: /Na čekanju/ }).click()
+  await expect(page).toHaveURL(/status=Na/)
   await expect(page.locator('tbody tr', { hasText: faultNumber(fault.id) })).toBeVisible()
 
   const phone = await (await browser.newContext({ viewport: PHONE })).newPage()
@@ -60,6 +60,8 @@ test('a save based on an outdated page is refused with a way to load the latest'
   const fault = await reportAs(request, worker, machine, { naslov: 'Remen klizi' })
   const admin = { Authorization: `Bearer ${await apiToken(request, ADMIN)}` }
 
+  // Without live updates (e.g. a dropped connection) the server's version check still protects the save.
+  await page.route('**/api/uzivo', (route) => route.abort())
   await signIn(page, ADMIN)
   await page.goto(`/admin/kvarovi/${fault.id}`)
   await expect(page.getByRole('button', { name: 'Preuzmi kvar' })).toBeVisible()
@@ -108,19 +110,21 @@ test('worker is told about open faults on the machine, can still report, and att
   await expect(page.getByRole('dialog').getByRole('img', { name: /Fotografija kvara/ })).toBeVisible()
 })
 
-test('overview says why a fault needs attention and drills into one person\'s work', async ({ page, request }) => {
+test('overview says why a fault needs attention and opens it', async ({ page, request }) => {
   const { machine, worker } = await setupFixture(request)
   const fault = await reportAs(request, worker, machine, { naslov: 'Nitko ga ne gleda', prioritet: 'Hitno' })
 
   await signIn(page, ADMIN)
   await page.goto('/admin')
-  const row = page.locator('#attention-title').locator('xpath=ancestor::section').locator('li', { hasText: faultNumber(fault.id) })
-  await expect(row.getByText('Nitko nije preuzeo')).toBeVisible()
-  await expect(row.getByText('Hitno')).toBeVisible()
+  // The queue holds the most pressing few; on a shared test database others may outrank this one.
+  const queue = page.getByRole('region', { name: 'Zahtijeva pažnju' })
+  const first = queue.getByRole('listitem').first()
+  await expect(first.getByText(/Kasni|Hitno|Nitko nije preuzeo|Rok za|Čeka|U roku/).first()).toBeVisible()
+  await first.getByRole('link').click()
+  await expect(page).toHaveURL(/\/admin\/kvarovi\/\d+$/)
 
-  await page.getByRole('link', { name: /Admin Adix · vi/ }).click()
-  await expect(page).toHaveURL(/preuzeo=1/)
-  await expect(page.getByLabel('Preuzeo')).toHaveValue('1')
+  await page.goto(`/admin/kvarovi/${fault.id}`)
+  await expect(page.getByText('Nitko nije preuzeo')).toBeVisible()
 })
 
 test('the QR scan screen explains itself where the browser cannot read codes and offers the manual route', async ({ page, request }) => {

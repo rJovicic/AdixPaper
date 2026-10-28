@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { ArrowLeft, SearchX } from 'lucide-react'
 import { api, errorKind } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
+import { useLiveRefresh } from '../../lib/live'
 import { useI18n } from '../../i18n'
 import Timeline from '../../components/Timeline'
 import Photos from '../../components/Photos'
@@ -16,6 +17,10 @@ export default function WorkerFault() {
   const { t, format } = useI18n()
   const fault = useAsync(() => api.get(`/kvarovi/${id}`).then((response) => response.data), [id])
   const events = useAsync(() => api.get(`/kvarovi/${id}/dogadjaji`).then((response) => asArray(response.data)), [id])
+
+  const sameFault = (message) => message.kvarId === Number(id)
+  useLiveRefresh(fault.refresh, sameFault)
+  useLiveRefresh(events.refresh, sameFault)
 
   const { user } = useAuth()
   useEffect(() => {

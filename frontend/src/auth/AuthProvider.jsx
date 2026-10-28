@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { api, onUnauthorized } from '../api/client'
 import { clearSession, readSession, writeSession } from './session'
+import { disablePush } from '../lib/push'
 
 const AuthContext = createContext(null)
 
@@ -12,6 +13,8 @@ export function AuthProvider({ children }) {
   const [endReason, setEndReason] = useState(null)
 
   const signOut = useCallback((reason) => {
+    // A shared phone must not keep receiving the previous user's notifications.
+    disablePush(reason === 'expired' ? { localOnly: true } : { token: readSession()?.token }).catch(() => {})
     clearSession()
     setEndReason(reason || null)
     setSession(null)

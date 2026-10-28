@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
-import { ADMIN, openAccountMenu, setupFixture, signIn } from './helpers'
+import { ADMIN, openAccountMenu, setupFixture, signIn, settle } from './helpers'
 
 async function axe(page) {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze()
@@ -61,7 +61,7 @@ test('no serious accessibility violations on lead screens', async ({ page }) => 
   await signIn(page, ADMIN)
   for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici']) {
     await page.goto(path)
-    await page.waitForLoadState('networkidle')
+    await settle(page)
     expect(await axe(page), path).toEqual([])
   }
   await page.goto('/admin/kvarovi')
@@ -76,7 +76,7 @@ test('no horizontal scrolling at phone, tablet and desktop widths', async ({ pag
     await page.setViewportSize({ width, height: 900 })
     for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici']) {
       await page.goto(path)
-      await page.waitForLoadState('networkidle')
+      await settle(page)
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
       expect(overflow, `${path} at ${width}px`).toBeLessThanOrEqual(0)
     }
@@ -135,8 +135,8 @@ test('no serious accessibility violations in the waiting dialog, the duplicate w
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/admin')
-  await page.getByRole('heading', { name: 'Opterećenje tima' }).waitFor()
-  await page.waitForLoadState('networkidle')
+  await page.getByRole('heading', { name: 'Zahtijeva pažnju' }).waitFor()
+  await settle(page)
   expect(await axe(page), 'phone overview').toEqual([])
 
   const phone = await (await page.context().browser().newContext({ viewport: { width: 390, height: 844 } })).newPage()

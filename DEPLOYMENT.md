@@ -69,6 +69,29 @@ Owner's rule (2026-10-28): a fault's photos are removed **12 calendar months aft
 - Monitoring: `GET /health/jobs` → 200 when the job is healthy, off, or not yet due after a deploy; **503** after 3 failed runs in a row or no successful run for 48 h. No personal data in the response. After 3 failures in a row the app also logs an error and calls `ALERT_WEBHOOK_URL` once.
 - Removed photos remain in Railway backups until those backups expire (daily 6 days, weekly 1 month, monthly 3 months [Railway docs]). State this in the privacy notice.
 
+## Live updates
+
+Screens update by themselves: a new report appears on the lead's overview, fault list, counters and bell within a second; status, assignee, waiting reason, comments and photos reach every open view, including the worker's own list.
+
+- Mechanism: `GET /api/uzivo`, a Server-Sent Events stream read with `fetch` (the token goes in the `Authorization` header, never in a URL or the access log). No Redis or other service.
+- Events carry only `{seq, kvar_id, akcija}`; the browser re-reads what it shows through the normal API, so permissions are enforced exactly as before. Leads and admins get every fault's events; a worker only their own faults' events and never internal notes.
+- Robustness: a 20 s heartbeat keeps Railway's edge from closing the stream; the server ends each stream after 10 min (the edge's limit is 15 min) and the browser reconnects with backoff and re-reads its views. Views also re-read on return from the background, on reconnect, and every 2 min as a safety net; if the stream cannot be opened at all (a buffering proxy), they re-read every 30 s. An expired or revoked session ends the stream and signs the user out.
+- Limits: the event broker lives in process memory, which matches the single replica. With more than one replica, publishing needs a shared channel (PostgreSQL `LISTEN/NOTIFY`) first.
+
+## Push notifications (phones)
+
+The server sends Web Push itself when something happens: leads and admins get "New fault" for every report, a worker gets status, assignee and public-comment changes on their own faults. Payloads hold a short title, one line and an in-app link; the details open only after sign-in. Signing out removes the device's subscription; dead subscriptions (404/410) are deleted on the next send.
+
+**Not active in production until the owner configures it** (`VAPID_*` are unset; the app hides the notification switch then). To turn it on:
+1. On any computer with Node.js: `npx web-push generate-vapid-keys`. Keep the private key secret.
+2. 🔒 Railway → AdixPaper → Variables: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL=mailto:<a monitored address>`. One redeploy.
+3. On each phone: sign in → bell (leads) or account menu → "Uključi obavijesti". iPhone/iPad: only from the app **added to the Home Screen** (iOS 16.4 or newer); Safari tabs cannot receive push.
+4. Check: report a test fault from another account; the lead's phone should show "Novi kvar". Changing the keys later invalidates every existing subscription (each device turns notifications on again).
+
+## Installing on phones
+
+The app is an installable PWA (manifest, service worker, maskable and Apple icons). On a phone, a one-time card offers installation a few seconds after opening: Android Chrome shows its own install dialog; iPhone/iPad get step-by-step "Share → Add to Home Screen" instructions. "Not now" hides it for good on that device; the account menu keeps "Instaliraj aplikaciju". Notification permission is only ever requested from a button press (bell, account menu, or the confirmation after a report), never on page load.
+
 ## Region and personal data
 
 App, Postgres and its volume run in **Amsterdam (`europe-west4-drams3a`)** since 2026-10-28 07:54 UTC (verified read-only: same volume, clean restart on existing data, domain unchanged). They ran in `us-west2` before. The owner made the move on purpose (confirmed 2026-10-28). Railway is a US company even in the EU region, so keep its data processing agreement on file. The database holds personal data of employees (names, contact details, sign-in times, who reported or handled each fault, photos).
@@ -96,6 +119,7 @@ To deploy manually: Railway → AdixPaper → Deployments → Redeploy.
 | Health check returns 503 | Database unreachable | Check Postgres service is online and `DATABASE_URL` references it |
 | Logs show `Database not reachable yet (attempt N)` after a deploy or restart | Postgres is starting or its private hostname is not resolvable yet | Normally resolves on its own within seconds. If it ends with `giving up`, check the Postgres service, then redeploy the app |
 | `/health/jobs` returns 503 | Photo job failed 3 times in a row, or has not succeeded for 48 h | Logs: search `Photo retention`. Fix the cause; the next hourly check retries. `PHOTO_RETENTION_MODE=off` stops it meanwhile |
+| Overview shows "Ponovno povezivanje…" for a long time | The live stream cannot be opened (network, proxy) | The screens still re-read every 30 s. Check `/api/uzivo` in the browser's network tab: it should stay open and receive `hello` |
 | `502 connection dial timeout` at the edge | No process listening on `$PORT` | Ensure the builder is Dockerfile and root directory is empty (this was the original outage) |
 | Cannot sign in as admin | Admin existed before `ADMIN_*` changed | Set `ADMIN_RESET_PASSWORD=true`, redeploy, sign in, set it back to `false` |
 | Logs show `Too many failed sign-in attempts` (429) | Throttle: 10 failures per IP+username, or 20 per username from any IP, per 15 min | Wait, or restart the service to clear it |

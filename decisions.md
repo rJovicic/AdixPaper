@@ -180,3 +180,14 @@
 - Release: PR #3 and PR #4 merged and deployed 2026-10-28 for hands-on testing in production.
 - `PUBLIC_URL=https://adixpaper-production.up.railway.app` set, so printed QR labels always carry the production address. A domain change later means reprinting labels.
 - Photo deletion: stays `dry-run` for a few days, then `delete`.
+
+## 2026-10-28 · Live updates over Server-Sent Events
+- Decided by: Claude (owner asked for real-time updates without paid services)
+- What: one SSE stream per signed-in tab (`/api/uzivo`), read with `fetch` so the bearer token stays out of URLs; events name only the fault and action, screens re-read through the authorised API; reconnects and missed events are handled by re-reading, not replaying.
+- Why not WebSockets: updates flow one way; SSE is plain HTTP through Railway's edge with no extra library. Why not polling alone: a new report would take up to the poll interval to show; polling remains the fallback when the stream cannot open.
+- Limit: in-process broker = single replica. More replicas need PostgreSQL LISTEN/NOTIFY.
+
+## 2026-10-28 · Fault list split into Active and Resolved; overview reduced to four figures
+- Decided by: the owner (resolved faults should not clutter the list; simpler overview), layout by Claude
+- What: `/admin/kvarovi` opens on Active (Novo, U rješavanju, Na čekanju) with tab counts that follow the shared filters; Resolved is a full history with search, period and "recently resolved" order. Old links (`status=Riješeno`, `rijeseno=`) open the Resolved tab. The overview keeps open / urgent / on hold / resolved in 7 days, the attention queue (6), recent reports (6) and activity (8); team workload and the period selector moved out (Analytics covers trends).
+- Leads can report a fault themselves (`/admin/prijava`, the same form as workers).

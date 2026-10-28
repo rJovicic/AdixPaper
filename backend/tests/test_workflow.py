@@ -198,7 +198,7 @@ def test_reporter_is_notified_of_changes_they_can_see(client, admin, make_user, 
     from app.routers import kvarovi
 
     sent = []
-    monkeypatch.setattr(kvarovi, "_send_push_notifications", lambda title, body, url="/", user_ids=None: sent.append((body, url, user_ids)))
+    monkeypatch.setattr(kvarovi, "_send_push_notifications", lambda title, body, url="/", user_ids=None, tag=None: sent.append((body, url, user_ids)))
     worker_user, worker = make_user()
     kvar = report(client, worker, machine)
     sent.clear()  # the new-fault push to leads
