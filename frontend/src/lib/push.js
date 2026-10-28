@@ -17,14 +17,22 @@ export async function getPushKey() {
 
 export async function currentSubscription() {
   if (!pushSupported()) return null
-  const registration = await navigator.serviceWorker.ready
-  return registration.pushManager.getSubscription()
+  const registration = await navigator.serviceWorker.getRegistration()
+  return registration ? registration.pushManager.getSubscription() : null
+}
+
+/** The service worker that shows notifications; registered now if the page has not done it yet. */
+async function workerRegistration() {
+  const existing = await navigator.serviceWorker.getRegistration()
+  if (!existing) await navigator.serviceWorker.register('/sw.js')
+  return navigator.serviceWorker.ready
 }
 
 export async function enablePush(publicKey) {
+  // Asked first, while the tap still counts as the user's gesture (iOS requires it).
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') throw Object.assign(new Error('denied'), { code: 'denied' })
-  const registration = await navigator.serviceWorker.ready
+  const registration = await workerRegistration()
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(publicKey),

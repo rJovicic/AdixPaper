@@ -262,3 +262,19 @@ test('the account menu stays reachable for sign-out while the install card shows
   await expect(page.getByRole('button', { name: 'Odjava' })).toBeVisible()
   await context.close()
 })
+
+test('iPhone in Safari: the bell explains that notifications need the home-screen app and shows how', async ({ browser }) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1',
+  })
+  const page = await context.newPage()
+  await signIn(page, ADMIN)
+  await page.locator('button[aria-label^="Novi kvarovi"]:visible').click()
+  const panel = page.getByRole('region', { name: 'Nove prijave' })
+  await panel.getByRole('button', { name: /Obavijesti na iPhoneu/ }).click()
+  await expect(page.getByRole('dialog', { name: 'Instalirajte Adix Paper' }).getByText(/Dodaj na početni zaslon/)).toBeVisible()
+  await context.close()
+})
