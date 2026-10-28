@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
-import { AlertTriangle, BarChart3, Factory, LayoutGrid, Menu as MenuIcon, MoreHorizontal, PackageSearch, Search, Users, X } from 'lucide-react'
+import { AlertTriangle, BarChart3, Factory, LayoutGrid, Menu as MenuIcon, MoreHorizontal, PackageSearch, QrCode, Search, Users, X } from 'lucide-react'
+import { scanSupported } from '../lib/qr'
 import BrandLogo from './BrandLogo'
 import AccountMenu from './AccountMenu'
 import SearchPalette from './SearchPalette'
@@ -223,6 +224,11 @@ export default function AdminShell() {
           {overdue > 0 && <span aria-hidden="true" className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full bg-urgent ring-2 ring-brand-deep" />}
         </button>
         <div className="min-w-0 flex-1 pl-2 sm:pl-0"><Brand compact /></div>
+        {scanSupported() && (
+          <NavLink to="/admin/skeniraj" className="btn-icon h-11 w-11 text-stock hover:bg-white/10 hover:text-stock" aria-label={t('scan.headerButton')}>
+            <QrCode size={20} aria-hidden="true" />
+          </NavLink>
+        )}
         <button type="button" onClick={openSearch} className="btn-icon h-11 w-11 text-stock hover:bg-white/10 hover:text-stock" aria-label={t('search.title')}>
           <Search size={20} aria-hidden="true" />
         </button>

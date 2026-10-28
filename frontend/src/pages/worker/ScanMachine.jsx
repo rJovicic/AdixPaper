@@ -1,17 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { ArrowLeft, CameraOff, ListChecks } from 'lucide-react'
+import { CameraOff, ListChecks, X } from 'lucide-react'
 import { useI18n } from '../../i18n'
-import { machineIdFromCode, scanSupported } from '../../lib/qr'
+import { useAuth } from '../../auth/AuthProvider'
+import { createQrReader, machineIdFromCode, scanSupported } from '../../lib/qr'
 
-const SCAN_EVERY_MS = 250
+const SCAN_EVERY_MS = 200
 
-/** Camera view that reads a machine's QR label and opens the report form with that machine chosen. */
+/**
+ * Full-screen camera view that reads a machine's QR label inside the app. Workers land on the
+ * report form with that machine chosen, leads on its faults (both via /m/:id).
+ */
 export default function ScanMachine() {
   const { t } = useI18n()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const home = user?.rola === 'radnik' ? '/radnik' : '/admin'
+  const manual = user?.rola === 'radnik' ? '/radnik/prijava' : '/admin/oprema'
   const video = useRef(null)
   const [problem, setProblem] = useState(scanSupported() ? '' : 'unsupported')
+  const [starting, setStarting] = useState(true)
   const [foreign, setForeign] = useState(false)
 
   useEffect(() => {
@@ -23,32 +31,49 @@ export default function ScanMachine() {
     let stream = null
     let timer = null
     let stopped = false
-    const detector = new window.BarcodeDetector({ formats: ['qr_code'] })
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
-      .then(async (media) => {
+    let busy = false
+
+    const start = async () => {
+      try {
+        const [media, read] = await Promise.all([
+          navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }),
+          createQrReader(),
+        ])
         stream = media
-        if (stopped || !video.current) return
+        if (stopped || !video.current) {
+          media.getTracks().forEach((track) => track.stop())
+          return
+        }
         video.current.srcObject = media
         await video.current.play().catch(() => {})
+        setStarting(false)
         timer = window.setInterval(async () => {
-          if (!video.current || video.current.readyState < 2) return
+          if (busy || stopped || !video.current || video.current.readyState < 2) return
+          busy = true
           try {
-            const codes = await detector.detect(video.current)
-            if (!codes.length) return
-            const id = machineIdFromCode(codes[0].rawValue)
+            const text = await read(video.current)
+            if (!text) return
+            const id = machineIdFromCode(text)
             if (id) {
               stopped = true
               window.clearInterval(timer)
-              navigate(`/radnik/prijava?oprema=${id}`, { replace: true })
+              navigator.vibrate?.(40)
+              navigate(`/m/${id}`, { replace: true })
             } else {
               setForeign(true)
             }
           } catch {
             // A frame that cannot be decoded; try the next one.
+          } finally {
+            busy = false
           }
         }, SCAN_EVERY_MS)
-      })
-      .catch((error) => setProblem(error?.name === 'NotAllowedError' ? 'denied' : 'camera'))
+      } catch (error) {
+        setStarting(false)
+        setProblem(error?.name === 'NotAllowedError' ? 'denied' : 'camera')
+      }
+    }
+    start()
     return () => {
       stopped = true
       window.clearInterval(timer)
@@ -57,10 +82,10 @@ export default function ScanMachine() {
   }, [navigate])
 
   return (
-    <div className="-mx-4 -mt-5 flex min-h-[calc(100dvh-3.5rem)] flex-col bg-ink text-stock">
-      <div className="flex items-center gap-2 px-2 py-2">
-        <Link to="/radnik" className="btn-icon text-stock hover:bg-white/10 hover:text-stock" aria-label={t('fault.backToMine')}>
-          <ArrowLeft size={20} aria-hidden="true" />
+    <div className="fixed inset-0 z-[65] flex flex-col bg-ink text-stock">
+      <div className="flex items-center gap-2 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <Link to={home} className="btn-icon text-stock hover:bg-white/10 hover:text-stock" aria-label={t('common.close')}>
+          <X size={22} aria-hidden="true" />
         </Link>
         <h1 className="text-lg font-semibold">{t('scan.title')}</h1>
       </div>
@@ -74,20 +99,20 @@ export default function ScanMachine() {
           </div>
         ) : (
           <>
-            <video ref={video} muted playsInline className="absolute inset-0 h-full w-full object-cover" />
+            <video ref={video} muted playsInline autoPlay aria-label={t('scan.camera')} className="absolute inset-0 h-full w-full object-cover" />
             <span aria-hidden="true" className="relative aspect-square w-[min(68vw,18rem)] rounded-lg border-[3px] border-stock/90 shadow-[0_0_0_9999px_rgb(0_0_0/0.45)]" />
           </>
         )}
       </div>
 
-      <div className="space-y-3 px-4 py-4">
+      <div className="space-y-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
         {!problem && (
           <p role="status" className="text-center text-sm text-brand-on-deep">
-            {foreign ? t('scan.foreign') : t('scan.hint')}
+            {starting ? t('scan.starting') : foreign ? t('scan.foreign') : t('scan.hint')}
           </p>
         )}
-        <Link to="/radnik/prijava" className="btn-lg flex w-full items-center justify-center gap-2 rounded bg-white/10 font-semibold text-stock hover:bg-white/15">
-          <ListChecks size={19} aria-hidden="true" /> {t('scan.manual')}
+        <Link to={manual} className="btn-lg flex w-full items-center justify-center gap-2 rounded bg-white/10 font-semibold text-stock hover:bg-white/15">
+          <ListChecks size={19} aria-hidden="true" /> {user?.rola === 'radnik' ? t('scan.manual') : t('scan.manualLead')}
         </Link>
       </div>
     </div>

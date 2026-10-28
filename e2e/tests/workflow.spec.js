@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
 import { ADMIN, PHONE, apiToken, faultNumber, setupFixture, signIn } from './helpers'
 
@@ -127,17 +128,68 @@ test('overview says why a fault needs attention and opens it', async ({ page, re
   await expect(page.getByText('Nitko nije preuzeo')).toBeVisible()
 })
 
-test('the QR scan screen explains itself where the browser cannot read codes and offers the manual route', async ({ page, request }) => {
+// A fake back camera that shows one QR image, for browsers driven by tests. BarcodeDetector is
+// removed, as on iPhone, so the in-app JavaScript decoder is what reads it.
+async function fakeCamera(page, fixture, { deny = false } = {}) {
+  const png = `data:image/png;base64,${readFileSync(new URL(`../fixtures/${fixture}`, import.meta.url)).toString('base64')}`
+  await page.addInitScript(({ png, deny }) => {
+    delete window.BarcodeDetector
+    navigator.mediaDevices.getUserMedia = async () => {
+      if (deny) throw new DOMException('Permission denied', 'NotAllowedError')
+      const image = new Image()
+      image.src = png
+      await image.decode()
+      const canvas = document.createElement('canvas')
+      canvas.width = 640
+      canvas.height = 480
+      const context = canvas.getContext('2d')
+      const draw = () => {
+        context.fillStyle = '#777'
+        context.fillRect(0, 0, 640, 480)
+        context.drawImage(image, 170, 90, 300, 300)
+      }
+      draw()
+      setInterval(draw, 100)
+      return canvas.captureStream(10)
+    }
+  }, { png, deny })
+}
+
+const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.7 Mobile/15E148 Safari/604.1'
+
+test('iPhone: a worker scans a machine label inside the app and lands on the report with that machine', async ({ browser, request }) => {
   const { worker } = await setupFixture(request)
-  await page.setViewportSize(PHONE)
+  const page = await (await browser.newContext({ viewport: PHONE, isMobile: true, hasTouch: true, userAgent: IPHONE_UA })).newPage()
+  await fakeCamera(page, 'qr-machine-4242.png')
   await signIn(page, worker)
-  // Headless Chromium has no BarcodeDetector: no scan tile or tab, only the camera-app hint.
-  await expect(page.getByRole('link', { name: /Skeniraj QR kod/ })).toHaveCount(0)
-  await expect(page.getByText('Ili skenirajte QR oznaku na mašini kamerom mobitela.')).toBeVisible()
+  await page.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Skeniraj QR kod' }).click()
+  await expect(page).toHaveURL(/\/radnik\/prijava\?oprema=4242$/, { timeout: 10_000 })
+})
+
+test('a code that is not a machine label is named as such; camera refused offers the manual route', async ({ browser, request }) => {
+  const { worker } = await setupFixture(request)
+  const context = await browser.newContext({ viewport: PHONE, isMobile: true, hasTouch: true, userAgent: IPHONE_UA })
+  const page = await context.newPage()
+  await fakeCamera(page, 'qr-foreign.png')
+  await signIn(page, worker)
   await page.goto('/radnik/skeniraj')
-  await expect(page.getByRole('alert')).toContainText('Ovaj preglednik ne čita QR kodove')
-  await page.getByRole('link', { name: 'Ručno odaberi mašinu' }).click()
-  await expect(page).toHaveURL(/\/radnik\/prijava$/)
+  await expect(page.getByRole('status').filter({ hasText: 'Ovo nije QR oznaka mašine' })).toBeVisible({ timeout: 10_000 })
+  await expect(page).toHaveURL(/\/radnik\/skeniraj$/)
+
+  const denied = await context.newPage()
+  await fakeCamera(denied, 'qr-foreign.png', { deny: true })
+  await denied.goto('/radnik/skeniraj')
+  await expect(denied.getByRole('alert')).toContainText('Pristup kameri nije dopušten')
+  await denied.getByRole('link', { name: 'Ručno odaberi mašinu' }).click()
+  await expect(denied).toHaveURL(/\/radnik\/prijava$/)
+})
+
+test('a lead scans a label from the phone header and gets that machine\'s faults', async ({ browser }) => {
+  const page = await (await browser.newContext({ viewport: PHONE, isMobile: true, hasTouch: true, userAgent: IPHONE_UA })).newPage()
+  await fakeCamera(page, 'qr-machine-4242.png')
+  await signIn(page, ADMIN)
+  await page.getByRole('link', { name: 'Skeniraj QR oznaku mašine' }).click()
+  await expect(page).toHaveURL(/\/admin\/kvarovi\?oprema=4242$/, { timeout: 10_000 })
 })
 
 test('a report whose response is lost is not created twice when the worker sends it again', async ({ page, request }) => {
