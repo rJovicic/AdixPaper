@@ -1,0 +1,100 @@
+import { expect, test } from '@playwright/test'
+import { ADMIN, PHONE, apiToken, chooseMachine, reportFault, settle, setupFixture, signIn } from './helpers'
+
+// The redesigned shell and flows: the tab bar's "+", the stepped report, phone tabs on a fault, Profile.
+
+test('phone tab bar: "+" opens the report; the steps go back and forth without losing what was typed', async ({ page, request }) => {
+  const { machine, worker } = await setupFixture(request)
+  await page.setViewportSize(PHONE)
+  await signIn(page, worker)
+  const nav = page.getByRole('navigation', { name: 'Glavna navigacija' })
+  for (const name of ['Početna', 'Kvarovi', 'Prijavi kvar', 'Profil']) await expect(nav.getByRole('link', { name, exact: true })).toBeVisible()
+  await nav.getByRole('link', { name: 'Prijavi kvar' }).click()
+  await expect(page).toHaveURL(/\/radnik\/prijava$/)
+  await expect(nav).toBeHidden() // never above the keyboard
+
+  const steps = page.getByRole('list', { name: 'Koraci prijave' })
+  await expect(steps.locator('[aria-current="step"]')).toContainText('1')
+  await chooseMachine(page, machine.naziv)
+  await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await page.getByRole('button', { name: 'Dalje' }).click()
+  await expect(steps.locator('[aria-current="step"]')).toContainText('2')
+  await expect(page.getByRole('heading', { name: /Opišite kvar/ })).toBeFocused()
+  await page.getByLabel('Što se događa?').fill('Natrag i naprijed')
+  await page.getByRole('button', { name: 'Prethodni korak' }).click()
+  await expect(page.getByRole('radio', { name: new RegExp(machine.naziv) })).toBeChecked()
+  await page.getByRole('button', { name: 'Dalje' }).click()
+  await expect(page.getByLabel('Što se događa?')).toHaveValue('Natrag i naprijed')
+  await page.getByRole('button', { name: 'Dalje' }).click()
+  await expect(page.getByRole('radio', { name: /Normalno/ })).toBeChecked() // the default
+  await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Kvar je uspješno prijavljen' })).toBeFocused()
+  await page.getByRole('button', { name: 'Novi kvar' }).click()
+  await expect(steps.locator('[aria-current="step"]')).toContainText('1')
+  await expect(page.getByRole('radio', { name: new RegExp(machine.naziv) })).not.toBeChecked()
+})
+
+test('a scanned machine with no parts starts on the description step', async ({ page, request }) => {
+  const { headers, worker } = await setupFixture(request)
+  const bare = await (await request.post('/api/oprema', { headers, data: { naziv: `Bez dijelova ${Date.now()}`, tip: 'Test', lokacija: 'Hala E2E' } })).json()
+  await page.setViewportSize(PHONE)
+  await signIn(page, worker)
+  await page.goto(`/radnik/prijava?oprema=${bare.id}`)
+  await expect(page.getByLabel('Što se događa?')).toBeVisible()
+  await expect(page.getByRole('button', { name: new RegExp(bare.naziv) })).toBeVisible() // the chosen machine, to change it
+})
+
+test('a lead reports from the overview and lands on the new fault', async ({ page, request }) => {
+  const { machine } = await setupFixture(request)
+  await signIn(page, ADMIN)
+  await page.getByRole('main').getByRole('link', { name: 'Prijavi kvar' }).click()
+  await expect(page).toHaveURL(/\/admin\/prijava$/)
+  await reportFault(page, { machine: machine.naziv, component: 'Nož', headline: 'Voditelj prijavljuje', priority: 'Hitno' })
+  await page.getByRole('link', { name: 'Pogledaj kvar' }).click()
+  await expect(page).toHaveURL(/\/admin\/kvarovi\/\d+$/)
+  await expect(page.getByRole('heading', { name: 'Voditelj prijavljuje' })).toBeVisible()
+})
+
+test('phone: a fault shows one section at a time under tabs; wide screens show them all', async ({ page, request }) => {
+  const { machine, worker } = await setupFixture(request)
+  const token = await apiToken(request, worker)
+  const fault = await (await request.post('/api/kvarovi', { headers: { Authorization: `Bearer ${token}` }, data: { oprema_id: machine.id, naslov: 'Kartice E2E' } })).json()
+  await page.setViewportSize(PHONE)
+  await signIn(page, ADMIN)
+  await page.goto(`/admin/kvarovi/${fault.id}`)
+  await settle(page)
+
+  const tabs = page.getByRole('tablist', { name: 'Dijelovi kvara' })
+  await expect(tabs.getByRole('tab')).toHaveText(['Detalji', 'Aktivnost', 'Fotografije', 'Radovi'])
+  await expect(page.getByRole('button', { name: 'Preuzmi kvar' })).toBeVisible()
+  await expect(page.getByLabel('Što je napravljeno')).toBeHidden()
+
+  await tabs.getByRole('tab', { name: 'Radovi' }).click()
+  await expect(page.getByLabel('Što je napravljeno')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Preuzmi kvar' })).toBeHidden()
+  await tabs.getByRole('tab', { name: 'Aktivnost' }).click()
+  await expect(page.getByLabel('Komentar', { exact: true })).toBeVisible()
+  await tabs.getByRole('tab', { name: 'Fotografije' }).click()
+  await expect(page.getByRole('button', { name: /Dodaj fotografiju/ })).toBeVisible()
+
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await expect(tabs).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Preuzmi kvar' })).toBeVisible()
+  await expect(page.getByLabel('Što je napravljeno')).toBeVisible()
+  await expect(page.getByLabel('Komentar', { exact: true })).toBeVisible()
+})
+
+test('Profile holds language, password and sign-out; leads also reach the screens not on the tab bar', async ({ page }) => {
+  await page.setViewportSize(PHONE)
+  await signIn(page, ADMIN)
+  await page.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Profil' }).click()
+  await expect(page).toHaveURL(/\/admin\/profil$/)
+  for (const name of ['Rezervni dijelovi', 'Analize', 'Korisnici']) await expect(page.getByRole('link', { name })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Promijeni lozinku' })).toBeVisible()
+  await page.getByRole('button', { name: 'English' }).click()
+  await expect(page.getByRole('heading', { name: 'Profile and settings' })).toBeAttached()
+  await page.getByRole('button', { name: 'Hrvatski' }).click()
+  await page.getByRole('link', { name: 'Analize' }).click()
+  await expect(page.getByRole('heading', { name: 'Analize' })).toBeVisible()
+})

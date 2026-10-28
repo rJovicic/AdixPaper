@@ -16,6 +16,8 @@ import MyFaults from './pages/worker/MyFaults'
 import ReportFault from './pages/worker/ReportFault'
 import WorkerFault from './pages/worker/WorkerFault'
 import ScanMachine from './pages/worker/ScanMachine'
+import WorkerHome from './pages/worker/WorkerHome'
+import Profile from './pages/Profile'
 
 // Lead/admin screens (and the chart library) load only for leads, keeping the worker's phone bundle small.
 // After a deploy an old tab may request page files that no longer exist; reload once to get the new version.
@@ -65,7 +67,9 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/m/:id" element={<RequireRole><MachineLink /></RequireRole>} />
               <Route path="/radnik" element={<RequireRole roles={['radnik']}><WorkerShell /></RequireRole>}>
-                <Route index element={<MyFaults />} />
+                <Route index element={<WorkerHome />} />
+                <Route path="kvarovi" element={<MyFaults />} />
+                <Route path="profil" element={<Profile />} />
                 <Route path="prijava" element={<ReportFault />} />
                 <Route path="kvar/:id" element={<WorkerFault />} />
                 <Route path="skeniraj" element={<ScanMachine />} />
@@ -79,6 +83,7 @@ export default function App() {
                 <Route path="oprema" element={<Machines />} />
                 <Route path="rezervni-dijelovi" element={<SpareParts />} />
                 <Route path="analize" element={<Analytics />} />
+                <Route path="profil" element={<Profile />} />
                 <Route path="korisnici" element={<RequireRole roles={['admin']}><Users /></RequireRole>} />
                 <Route path="radnici" element={<Navigate to="/admin/korisnici" replace />} />
                 <Route path="*" element={<NotFound />} />

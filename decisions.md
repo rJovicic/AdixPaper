@@ -191,3 +191,16 @@
 - Decided by: the owner (resolved faults should not clutter the list; simpler overview), layout by Claude
 - What: `/admin/kvarovi` opens on Active (Novo, U rješavanju, Na čekanju) with tab counts that follow the shared filters; Resolved is a full history with search, period and "recently resolved" order. Old links (`status=Riješeno`, `rijeseno=`) open the Resolved tab. The overview keeps open / urgent / on hold / resolved in 7 days, the attention queue (6), recent reports (6) and activity (8); team workload and the period selector moved out (Analytics covers trends).
 - Leads can report a fault themselves (`/admin/prijava`, the same form as workers).
+
+## 2026-10-28 · Redesign to the owner's five-screen reference
+- Decided by: the owner (reference and "pixel-accurate"); interpretation by Claude
+- What: navy frame, action blue #1F56D0, cool ground, white cards, KPI cards with solid icon tiles, bottom tab bar with a raised "+", stepped report flow, phone tabs on fault detail, Profile/Settings screen. DESIGN.md rewritten.
+- Kept from the product, not the reference: "Mašine" (not "Strojevi"), three priorities (Hitno / Normalno / Nisko, not four), no location or "report as urgent" fields on the report (no such data; urgency is the priority step), the fault title shown in rows (the reference shows only the machine).
+- Rejected: a second floating "+" on the fault list (the bar already has one); hardcoded figures from the reference.
+- Rests on: the attached mockup images; owner's instruction to use real data only.
+
+## 2026-10-28 · Overview changes are computed from history
+- Decided by: Claude (owner: "no hardcoded stats")
+- What: `/api/dashboard/pregled` adds open, urgent and on-hold counts as of seven days ago (replayed from status/priority events: a fault's state then is the "old" value of its first change after that moment) and resolved today vs. yesterday in plant time.
+- Rejected: storing daily snapshots (a scheduler and a table for four numbers); comparing with "reported in the previous 7 days" (a different quantity under the same label).
+- Limit: a priority change before history was recorded (events exist since the timeline was introduced) counts with the current priority.

@@ -8,8 +8,8 @@
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#EDEFF2",
-  "theme_color": "#152C52",
+  "background_color": "#F4F6FA",
+  "theme_color": "#10265A",
   "categories": [
     "business",
     "productivity",

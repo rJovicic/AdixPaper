@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ADMIN, PHONE, apiToken, faultNumber, openAccountMenu, settle, setupFixture, signIn } from './helpers'
+import { ADMIN, PHONE, apiToken, faultNumber, openAccountMenu, reportFault, settle, setupFixture, signIn } from './helpers'
 
 // Real-time updates, new-fault alerts, the active/resolved split and the install prompt.
 // Each test opens separate browser contexts (a lead at a desk, a worker on a phone), so nothing
@@ -17,41 +17,36 @@ test('a report from a phone appears on the lead\'s overview at once, with one al
 
   const lead = await (await browser.newContext({ viewport: { width: 1366, height: 900 } })).newPage()
   await signIn(lead, ADMIN)
-  await lead.getByRole('heading', { name: 'Zahtijeva pažnju' }).waitFor()
-  await expect(lead.getByText('Uživo', { exact: true })).toBeVisible()
+  await lead.getByRole('heading', { name: 'Prioritetni kvarovi' }).waitFor()
+  await expect(lead.getByText('U stvarnom vremenu', { exact: true })).toBeVisible()
   const bell = lead.locator('button[aria-label^="Novi kvarovi"]:visible')
   const unreadBefore = Number(((await bell.getAttribute('aria-label')).match(/(\d+)$/) || [0, 0])[1])
-  const allTab = lead.getByRole('region', { name: 'Zahtijeva pažnju' }).getByRole('button', { name: /^Svi/ })
-  await expect(allTab).toHaveText(/\d+/)
-  const openBefore = Number((await allTab.textContent()).match(/(\d+)/)[1])
+  const openFigure = lead.getByRole('navigation', { name: 'Ključni pokazatelji' }).getByRole('link', { name: /Otvoreni kvarovi/ }).locator('.numeral')
+  await expect(openFigure).toHaveText(/^\d+$/)
+  const openBefore = Number(await openFigure.textContent())
   const title = `Uživo prijava ${Date.now().toString(36)}`
 
   const phone = await (await browser.newContext({ viewport: PHONE, hasTouch: true })).newPage()
   await signIn(phone, worker)
   await phone.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Prijavi kvar' }).click()
-  await phone.getByLabel('Mašina', { exact: true }).selectOption(String(machine.id))
-  await phone.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
-  await phone.getByLabel('Što se događa?').fill(title)
-  await phone.getByRole('button', { name: 'Pošalji prijavu' }).click()
-  await phone.waitForURL(/\/radnik$/)
-  const confirmation = phone.getByRole('status').filter({ hasText: /je prijavljen/ })
-  await expect(confirmation).toBeVisible()
-  const id = Number((await confirmation.getByRole('heading').textContent()).match(/#(\d+)/)[1])
+  await reportFault(phone, { machine: machine.naziv, component: 'Nož', headline: title })
+  const id = Number((await phone.getByText(/^#\d+$/).textContent()).slice(1))
 
   // The lead never reloads: the toast, the bell, the counters and the lists update by themselves.
   const toast = lead.getByRole('status').filter({ hasText: `Novi kvar #${id}` })
   await expect(toast).toBeVisible()
   await expect(toast).toHaveCount(1)
   await expect(bell).toHaveAttribute('aria-label', `Novi kvarovi, nepročitano: ${unreadBefore + 1}`)
-  const recent = lead.getByRole('region', { name: 'Nedavno prijavljeno' })
-  await expect(recent.getByText(title)).toHaveCount(1)
-  await expect(allTab).toHaveText(new RegExp(`${openBefore + 1}$`)) // the open count in the queue moved too
+  const activity = lead.getByRole('region', { name: 'Aktivnost uživo' })
+  const reported = activity.getByRole('link').filter({ hasText: faultNumber(id) })
+  await expect(reported).toHaveCount(1)
+  await expect(openFigure).toHaveText(String(openBefore + 1)) // the open count moved too
 
   // A resync (the tab came back from the background) must not announce it again or duplicate it.
   await lead.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
   await lead.waitForTimeout(800)
   await expect(lead.getByRole('status').filter({ hasText: `Novi kvar #${id}` })).toHaveCount(1)
-  await expect(recent.getByText(title)).toHaveCount(1)
+  await expect(reported).toHaveCount(1)
 
   // The bell lists it; opening it marks it read.
   await bell.click()
@@ -60,11 +55,12 @@ test('a report from a phone appears on the lead\'s overview at once, with one al
   await expect(bell).toHaveAttribute('aria-label', unreadBefore ? `Novi kvarovi, nepročitano: ${unreadBefore}` : 'Novi kvarovi')
 
   // Someone else takes, holds and resolves it: the worker's phone follows without a reload.
+  await phone.goto('/radnik/kvarovi') // from the confirmation screen; everything after this arrives live
   const card = phone.locator('a', { hasText: faultNumber(id) })
   await put(request, headers, id, { status: 'U rješavanju' })
   await expect(card.getByText('U rješavanju')).toBeVisible()
   await put(request, headers, id, { status: 'Na čekanju', razlog_cekanja: 'dijelovi' })
-  await expect(card.getByText('Čeka: Rezervni dijelovi')).toBeVisible()
+  await expect(card.getByText('Na čekanju')).toBeVisible()
   // The lead has this fault open; it follows too (nothing was being edited).
   await expect(lead.getByRole('complementary').getByText('Čeka: Rezervni dijelovi')).toBeVisible()
   await put(request, headers, id, { status: 'Riješeno', sto_je_uradjeno: 'Zamijenjen nož.' })
@@ -177,7 +173,6 @@ test('iPhone: a one-time install card explains Add to Home Screen; dismissed it 
   await page.waitForTimeout(3500)
   await expect(page.getByRole('complementary', { name: 'Instalirajte Adix Paper' })).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Više' }).click()
   await openAccountMenu(page)
   await page.getByRole('button', { name: 'Instaliraj aplikaciju' }).click()
   await expect(page.getByRole('dialog', { name: 'Instalirajte Adix Paper' })).toBeVisible()
@@ -210,7 +205,7 @@ test('Android: the card uses the browser\'s own install prompt', async ({ browse
 
 test('the web app manifest and icons are served for installation', async ({ request }) => {
   const manifest = await (await request.get('/manifest.json')).json()
-  expect(manifest).toMatchObject({ display: 'standalone', start_url: expect.stringMatching(/^\//), scope: '/', theme_color: '#152C52' })
+  expect(manifest).toMatchObject({ display: 'standalone', start_url: expect.stringMatching(/^\//), scope: '/', theme_color: '#10265A' })
   const purposes = manifest.icons.map((icon) => icon.purpose)
   expect(purposes).toContain('maskable')
   for (const icon of [...manifest.icons.map((item) => item.src), '/apple-touch-icon.png']) {
@@ -230,7 +225,9 @@ test('the report form on a phone: no bars covering fields, clear progress, and n
   await expect(page.getByText('Odabrano skeniranjem QR oznake na mašini.')).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Glavna navigacija' })).toBeHidden()
   await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByLabel('Što se događa?').fill('Dvostruki dodir E2E')
+  await page.getByRole('button', { name: 'Dalje' }).click()
 
   // Slow the server down so a second tap lands while the first is in flight.
   await page.route('**/api/kvarovi', async (route) => {
@@ -240,7 +237,7 @@ test('the report form on a phone: no bars covering fields, clear progress, and n
   const submit = page.getByRole('button', { name: 'Pošalji prijavu' })
   await submit.click()
   await expect(page.getByRole('button', { name: /Slanje/ })).toBeDisabled()
-  await page.waitForURL(/\/radnik$/)
+  await expect(page.getByRole('heading', { name: 'Kvar je uspješno prijavljen' })).toBeVisible()
   const list = await (await request.get(`/api/kvarovi?oprema_id=${machine.id}&q=${encodeURIComponent('Dvostruki dodir E2E')}`, { headers })).json()
   expect(list).toHaveLength(1)
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)

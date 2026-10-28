@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
-import { ADMIN, openAccountMenu, setupFixture, signIn, settle } from './helpers'
+import { ADMIN, chooseMachine, openAccountMenu, setupFixture, signIn, settle } from './helpers'
 
 async function axe(page) {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze()
@@ -39,9 +39,14 @@ test('no serious accessibility violations on worker screens', async ({ page, req
   await page.goto('/login')
   expect(await axe(page), 'login').toEqual([])
   await signIn(page, worker)
+  expect(await axe(page), 'worker home').toEqual([])
+  await page.goto('/radnik/kvarovi')
+  await settle(page)
   expect(await axe(page), 'my faults').toEqual([])
+  await page.goto('/radnik/profil')
+  expect(await axe(page), 'profile').toEqual([])
   await page.goto('/radnik/prijava')
-  await page.getByLabel('Mašina', { exact: true }).waitFor()
+  await page.getByRole('radiogroup', { name: 'Mašina' }).waitFor()
   expect(await axe(page), 'report form').toEqual([])
   await openAccountMenu(page)
   await page.getByRole('button', { name: 'Promijeni lozinku' }).click()
@@ -59,7 +64,7 @@ test('no serious accessibility violations on the machine-filtered fault list', a
 
 test('no serious accessibility violations on lead screens', async ({ page }) => {
   await signIn(page, ADMIN)
-  for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici']) {
+  for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici', '/admin/profil', '/admin/prijava']) {
     await page.goto(path)
     await settle(page)
     expect(await axe(page), path).toEqual([])
@@ -72,9 +77,9 @@ test('no serious accessibility violations on lead screens', async ({ page }) => 
 
 test('no horizontal scrolling at phone, tablet and desktop widths', async ({ page }) => {
   await signIn(page, ADMIN)
-  for (const width of [360, 768, 1280]) {
+  for (const width of [360, 390, 430, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 })
-    for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici']) {
+    for (const path of ['/admin', '/admin/analize', '/admin/kvarovi', '/admin/oprema', '/admin/rezervni-dijelovi', '/admin/korisnici', '/admin/profil', '/admin/prijava']) {
       await page.goto(path)
       await settle(page)
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
@@ -98,7 +103,7 @@ test('an open tab offers a reload after a new version is deployed', async ({ pag
 
 test('overview stays focused; analytics live on their own page', async ({ page }) => {
   await signIn(page, ADMIN)
-  await expect(page.getByRole('heading', { name: 'Zahtijeva pažnju' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Prioritetni kvarovi' })).toBeVisible()
   await expect(page.getByText('Kvarovi po mjesecima')).toHaveCount(0)
   await page.getByRole('link', { name: 'Analize' }).click()
   await expect(page.getByRole('heading', { name: 'Analize' })).toBeVisible()
@@ -135,14 +140,14 @@ test('no serious accessibility violations in the waiting dialog, the duplicate w
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/admin')
-  await page.getByRole('heading', { name: 'Zahtijeva pažnju' }).waitFor()
+  await page.getByRole('heading', { name: 'Prioritetni kvarovi' }).waitFor()
   await settle(page)
   expect(await axe(page), 'phone overview').toEqual([])
 
   const phone = await (await page.context().browser().newContext({ viewport: { width: 390, height: 844 } })).newPage()
   await signIn(phone, worker)
   await phone.goto('/radnik/prijava')
-  await phone.getByLabel('Mašina', { exact: true }).selectOption(String(machine.id))
+  await chooseMachine(phone, machine.naziv)
   await phone.getByText(/već je prijavljeno/).waitFor()
   expect(await axe(phone), 'report form with duplicate warning').toEqual([])
   const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)

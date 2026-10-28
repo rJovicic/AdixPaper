@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ADMIN, PHONE, openAccountMenu, setupFixture, signIn } from './helpers'
+import { ADMIN, PHONE, chooseMachine, openAccountMenu, reportFault, setupFixture, signIn } from './helpers'
 
 test.use({ viewport: PHONE })
 
@@ -9,18 +9,27 @@ test('worker reports a fault on a phone and can follow it', async ({ page, reque
   await expect(page.getByRole('heading', { name: 'Moji kvarovi' })).toBeVisible()
 
   await page.getByRole('main').getByRole('link', { name: 'Prijavi kvar' }).click()
-  await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
+  await expect(page.getByRole('list', { name: 'Koraci prijave' })).toBeVisible()
+  await page.getByRole('button', { name: 'Dalje' }).click()
   // Validation: field-level message and focus on the first invalid field.
-  await expect(page.getByLabel('Mašina', { exact: true })).toBeFocused()
+  await expect(page.getByRole('radio').first()).toBeFocused()
   await expect(page.getByText('Obavezno polje.').first()).toBeVisible()
 
-  await page.getByLabel('Mašina', { exact: true }).selectOption({ label: `${machine.naziv} — Hala E2E` })
+  await chooseMachine(page, machine.naziv)
+  await page.getByRole('button', { name: 'Dalje' }).click()
+  await expect(page.getByText('Obavezno polje.').first()).toBeVisible() // the part is required on this machine
   await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await page.getByRole('button', { name: 'Dalje' }).click()
+  await page.getByRole('button', { name: 'Dalje' }).click()
+  await expect(page.getByLabel('Što se događa?')).toBeFocused()
   await page.getByLabel('Što se događa?').fill('Nož ne reže do kraja')
+  await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByLabel(/Hitno/).check()
   await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
 
-  await expect(page.getByRole('status').filter({ hasText: /je prijavljen/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Kvar je uspješno prijavljen' })).toBeVisible()
+  await expect(page.getByText(machine.naziv)).toBeVisible()
+  await page.goto('/radnik')
   await expect(page).toHaveURL(/\/radnik$/)
   const card = page.getByRole('link', { name: /Nož ne reže do kraja/ })
   await expect(card).toBeVisible()
@@ -67,7 +76,7 @@ test('worker changes their own password; the old one stops working', async ({ pa
 
   // This device stays signed in with the new token.
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Moji kvarovi' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Promijeni lozinku' })).toBeVisible()
   expect((await request.post('/api/auth/login', { form: worker })).status()).toBe(401)
   expect((await request.post('/api/auth/login', { form: { ...worker, password: 'nova-lozinka-42' } })).ok()).toBeTruthy()
 })
@@ -101,22 +110,25 @@ test('scanning a machine QR label opens the report with that machine chosen, eve
   await page.getByRole('button', { name: /Prijavi se|Sign in/ }).click()
 
   await expect(page).toHaveURL(new RegExp(`/radnik/prijava\\?oprema=${machine.id}$`))
-  await expect(page.getByLabel('Mašina', { exact: true })).toHaveValue(String(machine.id))
+  await expect(page.getByRole('radio', { name: new RegExp(machine.naziv) })).toBeChecked()
   await expect(page.getByText('Odabrano skeniranjem QR oznake na mašini.')).toBeVisible()
 
-  // A half-written report survives a reload.
+  // A half-written report, and the step it is on, survive a reload.
   await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByLabel('Što se događa?').fill('Remen proklizava')
   await page.reload()
   await expect(page.getByLabel('Što se događa?')).toHaveValue('Remen proklizava')
-  await expect(page.getByLabel('Dio mašine')).toHaveValue(/\d+/)
+  await expect(page.getByRole('button', { name: new RegExp(`${machine.naziv}.*Nož`) })).toBeVisible()
 
+  await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
-  await expect(page).toHaveURL(/\/radnik$/)
+  await expect(page.getByRole('heading', { name: 'Kvar je uspješno prijavljen' })).toBeVisible()
+  await page.goto('/radnik')
   await expect(page.getByRole('link', { name: /Remen proklizava/ })).toContainText(machine.naziv)
   // The draft is gone after sending.
   await page.goto('/radnik/prijava')
-  await expect(page.getByLabel('Što se događa?')).toHaveValue('')
+  await expect(page.getByRole('radio', { name: new RegExp(machine.naziv) })).not.toBeChecked()
 })
 
 test('a lead scanning a machine QR label sees that machine\'s faults', async ({ page, request }) => {

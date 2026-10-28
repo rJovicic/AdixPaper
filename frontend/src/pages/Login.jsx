@@ -62,7 +62,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-brand-deep">
-      <div className="flex justify-end px-4 pt-4">
+      <div className="flex justify-end px-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <LanguageSwitch tone="deep" />
       </div>
       <main className="flex flex-1 items-start justify-center px-4 pb-10 pt-6 sm:items-center sm:pt-0">

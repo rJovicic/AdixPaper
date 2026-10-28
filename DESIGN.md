@@ -1,52 +1,50 @@
 ---
 name: Adix Paper
-description: Fault and maintenance log for a paper-converting plant — the reel-label system.
+description: Fault and maintenance log for a paper-converting plant — the plant-floor console system.
 colors:
-  reel-core: "#EDEFF2"
-  label-stock: "#FFFFFF"
-  ink: "#15181D"
-  ink-secondary: "#474E59"
-  ink-tertiary: "#636B77"
-  rule: "#D6DAE0"
-  rule-strong: "#858C97"
-  logo-blue: "#2A59A2"
-  logo-blue-hover: "#224B8A"
-  shell-deep: "#152C52"
-  blue-wash: "#E7EDF7"
-  on-shell-quiet: "#B8C6DE"
+  ground: "#F4F6FA"
+  card: "#FFFFFF"
+  ink: "#0F172A"
+  ink-secondary: "#475569"
+  ink-tertiary: "#5B6779"
+  rule: "#E4E8F0"
+  rule-strong: "#8691A3"
+  action-blue: "#1F56D0"
+  action-blue-hover: "#1847B3"
+  navy: "#10265A"
+  blue-wash: "#E8EFFC"
+  on-navy-quiet: "#B9C7E6"
   urgent: "#B42318"
-  urgent-wash: "#FEF3F2"
-  warning: "#B54708"
-  warning-wash: "#FFFAEB"
+  urgent-mark: "#D92D20"
+  urgent-wash: "#FEF1F0"
+  warning: "#A64900"
+  warning-mark: "#F5A623"
+  warning-wash: "#FFF7E6"
   success: "#067647"
-  success-wash: "#ECFDF3"
+  success-mark: "#16A36A"
+  success-wash: "#EAFAF1"
   new: "#5925DC"
-  new-wash: "#F4F3FF"
+  new-mark: "#7A5AF8"
+  new-wash: "#F4F2FF"
   neutral: "#475467"
-  neutral-wash: "#F2F4F7"
-  wordmark-grey: "#949597"
+  neutral-mark: "#98A2B3"
+  neutral-wash: "#F1F4F8"
+  info-wash: "#EEF3FE"
 typography:
-  reel-number:
-    fontFamily: "Archivo Variable, system-ui, sans-serif"
-    fontSize: "2.75rem"
-    fontWeight: 800
-    lineHeight: 1
-    letterSpacing: "-0.01em"
-  figure:
-    fontFamily: "Archivo Variable, system-ui, sans-serif"
-    fontSize: "2.5rem"
-    fontWeight: 800
-    lineHeight: 1
-    letterSpacing: "-0.01em"
-  page-title:
+  greeting:
     fontFamily: "Archivo Variable, system-ui, sans-serif"
     fontSize: "1.75rem"
     fontWeight: 600
     lineHeight: 1.2
     letterSpacing: "-0.01em"
-  section-title:
+  figure:
     fontFamily: "Archivo Variable, system-ui, sans-serif"
-    fontSize: "1.125rem"
+    fontSize: "1.75rem"
+    fontWeight: 700
+    lineHeight: 1
+  card-title:
+    fontFamily: "Archivo Variable, system-ui, sans-serif"
+    fontSize: "1rem"
     fontWeight: 600
     lineHeight: 1.4
   body:
@@ -56,7 +54,7 @@ typography:
     lineHeight: 1.5
   table:
     fontFamily: "Archivo Variable, system-ui, sans-serif"
-    fontSize: "0.9375rem"
+    fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.45
   meta:
@@ -64,16 +62,18 @@ typography:
     fontSize: "0.8125rem"
     fontWeight: 400
     lineHeight: 1.4
-  field-label:
+  pill:
     fontFamily: "Archivo Variable, system-ui, sans-serif"
     fontSize: "0.75rem"
     fontWeight: 600
-    lineHeight: 1.33
-    letterSpacing: "0.06em"
+    lineHeight: 1.25
 rounded:
-  sm: "3px"
-  md: "6px"
-  lg: "10px"
+  sm: "6px"
+  md: "8px"
+  icon-tile: "10px"
+  card: "14px"
+  xl: "18px"
+  pill: "9999px"
 spacing:
   xs: "4px"
   sm: "8px"
@@ -84,204 +84,152 @@ spacing:
   3xl: "32px"
 components:
   button-primary:
-    backgroundColor: "{colors.logo-blue}"
-    textColor: "{colors.label-stock}"
+    backgroundColor: "{colors.action-blue}"
+    textColor: "{colors.card}"
     rounded: "{rounded.md}"
-    padding: "0 16px"
-    height: "40px"
-  button-primary-hover:
-    backgroundColor: "{colors.logo-blue-hover}"
-  button-primary-active:
-    backgroundColor: "{colors.shell-deep}"
+    height: "44px"
   button-primary-large:
-    backgroundColor: "{colors.logo-blue}"
-    textColor: "{colors.label-stock}"
+    backgroundColor: "{colors.action-blue}"
+    textColor: "{colors.card}"
     rounded: "{rounded.md}"
     height: "52px"
   button-secondary:
-    backgroundColor: "{colors.label-stock}"
+    backgroundColor: "{colors.card}"
     textColor: "{colors.ink}"
     rounded: "{rounded.md}"
-    padding: "0 16px"
-    height: "40px"
-  button-danger:
-    backgroundColor: "{colors.urgent}"
-    textColor: "{colors.label-stock}"
-    rounded: "{rounded.md}"
-    height: "40px"
-  input:
-    backgroundColor: "{colors.label-stock}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-    padding: "8px 12px"
     height: "44px"
-  surface:
-    backgroundColor: "{colors.label-stock}"
-    rounded: "{rounded.lg}"
-  shell-rail:
-    backgroundColor: "{colors.shell-deep}"
-    textColor: "{colors.on-shell-quiet}"
-    width: "256px"
+  card:
+    backgroundColor: "{colors.card}"
+    rounded: "{rounded.card}"
+  rail:
+    backgroundColor: "{colors.navy}"
+    textColor: "{colors.on-navy-quiet}"
+    width: "248px"
   nav-item-active:
-    backgroundColor: "{colors.label-stock}"
-    textColor: "{colors.shell-deep}"
+    backgroundColor: "{colors.action-blue}"
+    textColor: "{colors.card}"
     rounded: "{rounded.md}"
-    height: "44px"
+    height: "46px"
+  fab:
+    backgroundColor: "{colors.action-blue}"
+    textColor: "{colors.card}"
+    rounded: "{rounded.pill}"
+    size: "56px"
 ---
 
 # Design System: Adix Paper
 
 ## Overview
 
-**North star: the reel label.** Every jumbo reel that leaves a paper machine carries a label — one unmistakable number, ruled fields, one ink. AdixPaper treats each fault the same way: a big condensed number, small uppercase field labels over values in hairline-ruled cells, and the logo blue as the only brand ink. It is a working tool (Impeccable "Operate" mode): the world contributes type, palette, density and one signature move; navigation, tables, forms and dialogs are standard web controls.
+**North star: the plant-floor console.** A deep navy frame (the rail on desktop, the header bar on phones) holds a cool, light working surface. White cards carry the work, and one saturated action blue says "do this". State lives in pale pills, each with a dot and a word. The owner's five-screen reference of 2026-10-28 is the visual authority. It covers the desktop admin dashboard, mobile home, mobile fault list, the stepped report flow and mobile fault detail. This system is that reference, extended to every other screen.
 
-It replaces three competing looks (blue gradient login, black-and-amber admin, pastel badge pills) with one system, keeping the brand's confirmed asset — the Adix Paper logo and its blue.
+Operate mode: people come here to finish a task, so familiar patterns win over expression. Brand shows up in the navy frame, the white Adix Paper mark on it, and the precision of the figures.
 
-Light theme only: workers use phones on a brightly lit production floor and leads use desktops in the workshop office.
+Light theme only. Workers use phones on a brightly lit production floor, and leads use desktops in the workshop office.
 
 **Key characteristics**
-- One brand ink (`logo-blue`), a deep-blue shell, everything else neutral until a state needs colour.
-- State is a tinted pill with a dot and a word in a semantic tone — never colour alone.
-- Numbers are set condensed and heavy, with tabular figures.
-- Hairline rules group information; shadows are minimal and only lift surfaces.
+- The navy frame is the only dark surface. Everything inside it is light.
+- One action colour (`action-blue`). A solid blue button is always the next step.
+- KPI cards lead with a solid icon tile in their state colour, a bold figure, and an honest change against a stated reference.
+- Fault rows lead with a round priority marker, then the machine and number, what is wrong, the pills and when it was reported.
+- Phones get a bottom tab bar with a raised round "+" in the centre: reporting a fault is always one thumb away.
 
 ## Colors
 
-### Primary
-- **Logo Blue `#2A59A2`** — primary buttons, links, focus rings, selection, active tab underline, the "resolved" chart series. Sampled from `adix-paper-logo.png`.
-- **Shell Deep `#152C52`** — the navigation rail and the phone top bar. Text on it is white or `on-shell-quiet #B8C6DE` (8:1).
-- **Blue Wash `#E7EDF7`** — selected radio cards, hovered rows, menu focus.
+All tokens live in `frontend/src/index.css :root` as RGB channels and reach Tailwind through `tailwind.config.js` (`ground`, `stock`, `ink`, `rule`, `brand`, `urgent`, `warn`, `ok`, `new`, `slate`, `info`).
+
+### Frame and action
+- **Navy `#10265A`** (`brand-deep`): the rail, the phone header, the theme colour and the iOS status bar (`black-translucent`, so headers pad by `env(safe-area-inset-top)` through `.pt-safe`). Quiet text on it is `#B9C7E6`, at 8.6:1.
+- **Action blue `#1F56D0`** (`brand`): primary buttons, the active rail item, the FAB, selected pill tabs and chips, links, focus rings, the "in progress" state. White on it is 6.4:1, and on blue wash it is 5.5:1.
+- **Blue wash `#E8EFFC`**: hovered rows, selected list rows and menu focus.
 
 ### Neutral
-- **Reel Core `#EDEFF2`** — page ground. **Label Stock `#FFFFFF`** — every surface.
-- **Ink `#15181D`** (17.8:1) for text and numerals; **Ink Secondary `#474E59`** (8.4:1) for supporting text; **Ink Tertiary `#636B77`** (5.4:1 on stock, 4.7:1 on ground) for metadata and placeholders.
-- **Rule `#D6DAE0`** for hairlines; **Rule Strong `#858C97`** (3.4:1) for control borders — meets the 3:1 non-text contrast rule.
+- **Ground `#F4F6FA`** is the page. **Card `#FFFFFF`** is every surface.
+- **Ink `#0F172A`** is for text and figures. **Ink secondary `#475569`** (7.6:1) is for supporting text. **Ink tertiary `#5B6779`** (5.7:1 on white, 5.3:1 on ground) is for metadata, column heads and placeholders.
+- **Rule `#E4E8F0`** is for hairlines. **Rule strong `#8691A3`** (3.2:1) is for control borders.
 
-### State: semantic colour, always with a dot and a word
-Owner's brief of 2026-10-28 (supersedes "logo colours only"): navy shell, light surfaces, logo-blue actions and **semantic state colours**. Tokens live in `frontend/src/index.css :root` (`--urgent*`, `--warn*`, `--ok*`, `--new*`, `--slate*`, `--info-wash`); components use them through `Badge` / `TONES` in `components/ui/Marks.jsx`; charts use the same hex values from `lib/stateColors.js`.
-
-| Tone | Text on white / on wash | Dot | Used for |
+### State: semantic colour, always with a dot or icon and a word
+| Tone | Text on white / wash | Mark (dots, tiles, badges) | Used for |
 |---|---|---|---|
-| danger | `#B42318` 6.6:1 / 6.1:1 on `#FEF3F2` | `#D92D20` | Urgent priority, overdue, broken machine, errors, destructive |
-| warning | `#B54708` 5.4:1 / 5.2:1 on `#FFFAEB` | `#F79009` | On hold (any reason), due soon, waiting > 24 h, machine in service |
-| info | `#2A59A2` 6.9:1 / 6.3:1 on `#EFF4FF` | logo blue | In progress |
-| new | `#5925DC` 7.7:1 / 7.0:1 on `#F4F3FF` | `#7A5AF8` | New, untaken |
-| success | `#067647` 5.7:1 / 5.4:1 on `#ECFDF3` | `#17B26A` | Resolved, active machine/user, success toasts |
-| neutral | `#475467` 7.7:1 / 7.0:1 on `#F2F4F7` | `#98A2B3` (hollow for low/inactive) | Normal and low priority, decommissioned, inactive |
+| danger | `#B42318` / 6.0:1 on `#FEF1F0` | `#D92D20` (4.8:1 with white) | Urgent priority, overdue, count badges, errors, sign out |
+| warning | `#A64900` / 5.5:1 on `#FFF7E6` | `#F5A623` | Normal priority, on hold, due soon |
+| info | `#1F56D0` / 5.7:1 on `#EEF3FE` | action blue | In progress |
+| new | `#5925DC` / 7.0:1 on `#F4F2FF` | `#7A5AF8` | New, untaken |
+| success | `#067647` / 5.3:1 on `#EAFAF1` | `#16A36A` | Resolved, good change |
+| neutral | `#475467` / 7.0:1 on `#F1F4F8` | `#98A2B3` (hollow dot for low) | Low priority, inactive |
 
-States render as a **pill**: tinted ground, 1 px tinted border, 6 px dot, the word in the tone's text colour (`.badge`). Attention reasons and the waiting tag are dot + coloured text without the pill, so a row never carries more than two pills.
+Icon tiles in amber and green carry white icons below 3:1. That is allowed only because the tile is decorative (`aria-hidden`) and its label sits beside it.
 
-### Named Rules
-- **Semantic, not decorative.** Colour appears only where a state is meant; surfaces stay white/grey, actions stay logo blue. No gradients on surfaces.
-- **Shape-and-word Rule.** Every status/priority shows a marker *and* its word, so it survives greyscale and colour blindness. Dot colours are never the only signal.
+### Named rules
+- **Shape-and-word rule.** Every status and priority shows a marker and its word, so it survives greyscale and colour blindness.
+- **Honest change rule.** A KPI shows its change only when there is a real reference, and it names that reference: "od prošlog tjedna" (open, urgent and on-hold counts as they stood seven days ago, replayed from the status and priority history) or "od jučer" (resolved today vs. yesterday, plant time). The direction is coloured by whether it is good news, and screen readers hear it in words: "2 manje od prošlog tjedna". Worker figures have no reference, so they show no change.
 
 ## Typography
 
-One family: **Archivo Variable** (self-hosted via `@fontsource-variable/archivo`, `wdth` + `wght` axes, Latin-Ext for Croatian diacritics). Normal width for UI; condensed (`wdth 72`, weight 800) for numerals via the `.numeral` class.
+There is one family: **Archivo Variable**, self-hosted, at normal width. Figures use `.numeral` (weight 700, tabular, lining).
 
-### Hierarchy
 | Role | Size / weight | Use |
 |---|---|---|
-| reel-number | 2.75 rem / 800 condensed | Fault number on detail headers |
-| figure | 2.5 rem / 800 condensed | Dashboard counts |
-| page-title | 1.5–1.75 rem / 600 | One `h1` per page |
-| section-title | 1–1.125 rem / 600 | Panel and form section headings |
-| body | 1 rem / 400, 1.5 | Default; never below 16 px for prose or inputs |
-| table | 0.9375 rem | Dense lead tables |
-| meta | 0.8125 rem | Timestamps, secondary lines |
-| field-label | 0.75 rem / 600, uppercase, +0.06 em | The label grid and table headers only |
-
-Headings use `text-wrap: balance`, paragraphs `pretty`. Prose is capped at ~75 ch.
+| greeting / page title | 1.5 rem on phones, 1.75 rem wider / 600 | The one `h1`: "Dobar dan, Robert" on home screens, the section name elsewhere |
+| figure | 1.5 rem on phones, 1.75 rem wider / 700 | KPI values |
+| card title | 1 rem / 600 | Card headers ("Prioritetni kvarovi", "Aktivnost uživo") |
+| body | 1 rem / 400 | Default text. Inputs are never below 16 px, so iOS does not zoom |
+| table | 0.875 rem | Lead tables |
+| meta | 0.8125 rem | Times, secondary lines, field labels (sentence case, ink tertiary) |
+| pill | 0.75 rem / 600 | Status and priority pills inside rows |
 
 ## Layout
 
-- **Spacing:** Tailwind's 4 px scale; groups tight (8–12 px), sections generous (24–32 px). More space above a heading than below.
-- **Shell:** desktop (≥ 1024 px) — fixed 256 px deep-blue rail with nav, language, notifications, account. Below 1024 px — sticky top bar + drawer (native `<dialog>`). Content max width 72 rem (lead) / 42 rem (worker).
-- **Breakpoints:** `xs 420`, `sm 640`, `md 768`, `lg 1024`, `xl 1280`. Tables appear at `md`; below it, lists render as label cards.
-- **Overview (Pregled):** a period switch (Today · 7 days · 30 days · This month; it only affects "Resolved"); six figure cards (tinted icon tile per tone: open blue, urgent and overdue red, untaken violet, waiting amber, resolved green) — Open · Urgent · Overdue · Untaken · Waiting for parts · Resolved in period — each a link to a list that returns the same count; "Needs attention" (up to 10 open faults, most pressing reason first, then time left) with a **Why** column in words, All / Untaken / Mine toggles; beside it from `xl` "My faults" and "Team workload" (open faults per lead with hairline bars, untaken first, each row opens that person's list); "Recent activity" under the queue. Phones: figures, queue, my faults, workload, activity. Refreshes every minute while visible.
-- **Analytics (Analize):** period switch (30 days · This month · 90 days · This year); one ruled strip of eight figures, each with the same figure for the preceding period ("prije: …"); "How these are calculated" lists every definition. Then machines (table ≥ md, cards below), faults by month (reported slate, resolved green), reported faults by status (CSS conic-gradient donut with total and legend; no focusable SVG), recurring faults, waiting by reason (amber bars), spare parts used, reports by priority (red / slate bars). Missing data shows "—", never 0.
-- Charts load only on Analytics. Durations under 10 h show hours and minutes; longer ones show whole hours.
-- **Login:** navy ground, white card with the logo, HR/EN switch on the navy bar.
-- **Worker home:** greeting, a large blue "Report fault" tile and — only where the browser can read QR codes (`BarcodeDetector`, e.g. Android Chrome) — a "Scan QR code" tile and tab that open a full-screen camera view (`/radnik/skeniraj`). Elsewhere the hint "scan the label with the phone camera" stays. The tab bar's "Report" is a raised round button.
-- **Fault detail:** the status panel shows a progress stepper (Reported → Taken → On hold → Resolved, green when done, blue ring for current, amber for on hold) with time and person per step. Main column (label block with machine · location, part, reporter, reported, taken by, response due, started, time open / resolved; description; photos) + 18.5 rem side column (status panel with actions and waiting reason, sticky on desktop and first on phones; machine history from `lg`). "Put on hold" opens a reason dialog (radio cards). A save refused as stale shows a red-ruled notice with "Load latest".
-- **Phone navigation:** workers get a bottom tab bar (My faults · Report fault), hidden on the report form so it never rides above the keyboard; leads below 640 px get Overview · Faults (overdue count) · Machines · More (opens the drawer; active on screens without a tab). Fixed bars use `.pb-safe` for the home indicator.
+- **Shell, desktop (≥ 1024 px):** a 248 px navy rail with the white lockup, nav items (Početna, Kvarovi with a red count of overdue faults, Mašine, Rezervni dijelovi, Korisnici [admin only], Analize, Postavke) and the account row at the foot. A 68 px white top bar holds search (opens the Ctrl/⌘ K palette), the bell, the HR/EN switch and the avatar, which opens Profile. Content is at most 80 rem wide, with 32 px gutters.
+- **Shell, phones and tablets (< 1024 px):** a navy header with the white mark and "ADIX PAPER", then QR scan (where a camera exists), search, the bell and the avatar. A white bottom bar holds Početna · Kvarovi · (+) · Mašine · Profil for leads, and Početna · Kvarovi · (+) · Skeniraj · Profil for workers. The "+" is a 56 px raised blue circle that opens the report flow. The bar hides on the report form and the scanner, so it never rides above the keyboard or the camera. The worker app uses the same bar at every width.
+- **Dashboard (lead home):** the greeting and "Evo pregleda trenutnog stanja na lokaciji.", with "Prijavi kvar" at the right (full width on phones). Four KPI cards come next: Otvoreni kvarovi (blue wrench), Hitni (red warning), Na čekanju (amber pause), Riješeno danas (green check). They sit in a 2 × 2 grid on phones and a single row from 1024 px, and each opens the list behind its number. Below them, "Prioritetni kvarovi" shows the five most pressing open faults. From 768 px it is a table (machine with #number and title, priority, status, reported "Danas 08:42", owner, chevron); on phones it is a list of fault rows. Beside it from 1280 px, or under it on narrower screens, sits "Aktivnost uživo": time, a dot in the event's state colour, the event, machine · #number, and the person. It is marked "U stvarnom vremenu" while the live connection is up.
+- **Worker home:** the greeting, a full-width "Prijavi kvar", and four figures (open, in progress, on hold, resolved in 7 days) computed from the worker's own faults. "Moji kvarovi" shows the five newest active ones, with "Pogledaj sve".
+- **Fault lists (lead Kvarovi, worker Kvarovi):** pill tabs Aktivni (n) / Riješeni (n). On phones they are followed by search, a Filters sheet, and priority chips (Svi · Hitno · Normalno · Nisko). Lists use fault rows on phones and a table from 768 px.
+- **Report flow (three steps and a confirmation):** a stepper (1 Mašina · 2 Opis · 3 Prioritet). Step 1 is a searchable list of large machine rows (radios), the part when the machine has parts, and the "already reported" notice. Step 2 is what is wrong, details, and up to five photos. Step 3 is the priority, as radio cards with a sentence each. A sticky "Dalje" or "Pošalji prijavu" bar sits at the foot. The confirmation shows a green check, the number, machine and priority, then "Pogledaj kvar", "Novi kvar" and the push card. A scanned machine with no parts starts on step 2. The draft and its step survive a reload, and the idempotency key prevents duplicates.
+- **Fault detail:** an identity card (priority marker, machine and #number, title, pills, time left, "Prijavljeno: Danas 14:40", attention reasons). On phones, tabs follow it: Detalji (fields, description, status panel with actions) · Aktivnost (timeline) · Fotografije · Radovi (the resolution form). From 1024 px every section is shown, with the status panel and machine history in an 18.5 rem side column.
+- **Profile (Postavke):** who is signed in, then this device (language, notifications, install), then More (lead screens not on the tab bar), then account (change password, sign out).
+- **Breakpoints:** `xs 420`, `sm 640`, `md 768`, `lg 1024`, `xl 1280`. Verified without horizontal scrolling at 360, 390, 430, 768, 1024 and 1440 px.
 
-## Elevation & Depth
+## Elevation and depth
 
-Flat by default; hairlines carry structure.
-- `shadow-label` `0 1px 2px rgb(20 23 28/.06), 0 1px 1px rgb(20 23 28/.04)` — every surface.
-- `shadow-lift` — hovered cards, menus, toasts, comboboxes.
-- `shadow-dialog` — dialogs; backdrop `ink` at 45 %.
+- `shadow-label` — every card: a 1 px contact shadow plus a soft 14 px navy-tinted shadow.
+- `shadow-lift` — hovered cards, menus, toasts.
+- `shadow-dialog` — dialogs and the bell panel.
+- `shadow-fab` — the raised "+", tinted with the action blue.
 
 ## Shapes
 
-Radii are small, like die-cut label corners: 3 px (markers, chips), 6 px (buttons, inputs), 10 px (surfaces, dialogs). State pills are fully rounded with a 6 px dot.
+Cards 14 px, icon tiles 10 px, buttons and inputs 8 px, chips and pills fully round, avatars round. Priority markers are 40 px circles with a white icon: red warning for urgent, amber wrench for normal, slate arrow for low.
 
 ## Components
 
-### Buttons
-Primary (logo blue), secondary (white, rule-strong border), quiet (text), danger (urgent), icon (40 × 40, always with `aria-label`). Heights 40 px; `btn-lg` 52 px for the worker's main actions. Disabled at 55 % opacity with `not-allowed` cursor. Labels name the action ("Pošalji prijavu", "Označi riješenim"), never "OK".
-
-### Inputs / Fields
-`Field` wires label, hint and error to the control (`aria-describedby`, `aria-invalid`). 44 px minimum height, 16 px text (no iOS zoom), rule-strong border, blue focus border + 2 px ring; invalid → urgent border. Errors appear under the field with a red square marker and focus moves to the first invalid field on submit (`lib/focus.js` `focusFirstInvalid`, which waits for the error markers to render). Optional fields are marked "(neobavezno)" rather than required ones starred.
-
-### Radio cards
-For choices that need a sentence (urgency on the report form, role on the user form): 52 px rows, radio + marker + label + hint; selected = blue border on blue wash.
-
-### Cards / Containers
-`surface`: white stock, 1 px rule border, 10 px radius, `shadow-label`. Never nested.
-
-### Navigation
-Rail items 44 px tall; active = logo-blue fill with white semibold text (as in the references); `aria-current` from `NavLink`. The overdue count sits beside "Kvarovi" as a small red badge. Skip link to `#main` on every shell.
-
-### Search (Ctrl/⌘ K)
-The rail's search field (or Ctrl/⌘ K anywhere) opens a dialog: combobox + listbox, ↑ ↓ Enter Esc. Empty query lists open faults by risk; a number finds that fault; text matches title, machine and part, and machines.
-
-### Account menu
-A disclosure with name and role, HR/EN switch, push toggle (leads, when VAPID is set), change password and sign out. Rail row on desktop, initials button in the worker's top bar.
-
-### Time left
-`DueTag` (clock + time, red when overdue, deep blue when ≥ 75 % used) over a 3 px `DueBar` hairline showing the share of the response window used (logo blue, red when overdue). On overview rows and in "My faults".
-
-### Attention reasons and waiting
-`AttentionReasons` renders the server's reasons as marker + words, most pressing first: overdue and urgent in red (filled square), due soon in deep blue (half square), untaken in deep blue (hollow blue square), long wait in ink-secondary (hollow grey square). Overdue/due-soon times are recomputed from the clock. `WaitingTag` shows "Waiting: spare parts · 2 d" for faults on hold. Both follow the Shape-and-word Rule.
-
-### Segmented control
-`Segmented` for a few exclusive choices (periods): ruled white group, selected = logo-blue fill; fills the width on phones.
-
-### Photos
-`Photos`: 4:3 thumbnails in a 3–4 column grid, a secondary "Add photo" button, full view in a dialog with remove (confirmed). Fetched as blobs with the session token; never public URLs.
-
-### Signature: the label block
-`FaultNumber` (condensed numeral, grey `#`) + `LabelFields` (ruled 2- or 4-column `dl` with uppercase field labels). Used on fault detail headers and the worker fault view. Fault cards carry the number beside the title and a ruled STATUS | PRIORITY | DUE strip; an overdue card gets an urgent border and tinted strip. Tables and dashboard rows lead with the number.
-
-The printed **machine QR label** (Machines → QR oznake) carries the same identity: logo-blue "ADIX PAPER" kicker, machine name in bold, type · location in ink-secondary, the call to action "Kvar? Skenirajte kod." in shell-deep, dashed cut lines. PDFs use Liberation Sans (metric twin of Helvetica) because reportlab cannot embed the WOFF2 Archivo.
-
-### Feedback
-- Toasts (`aria-live`): success 5 s, info with link 12 s, errors 9 s with `role="alert"`.
-- Empty states say what will appear and offer the next action; error states name the problem and offer "Pokušaj ponovno".
-- Destructive or hard-to-reverse actions use `ConfirmDialog` with a specific consequence sentence.
-- Loading: skeleton rows with `aria-busy`.
+- **Buttons:** primary (blue), secondary (white, light border), quiet, danger, icon (always labelled). Standard height is 44 px; `btn-lg` is 52 px for the main action on phones.
+- **Pill tabs** (`.pill-track` + `.pill-tab`): a tinted track. The selected tab is filled blue with white text, and the count follows in brackets.
+- **Chips** (`.chip`): pale and round. When pressed they turn blue (`aria-pressed`).
+- **Kpi** (`components/ui/Kpi.jsx`): icon tile, label, figure, `Delta` and reference. On phones the icon and label share the top line and the figure sits under them.
+- **FaultRow** (`components/FaultRow.jsx`): the one fault row, used on dashboard phones, both fault lists and worker home.
+- **BottomNav** (`components/BottomNav.jsx`): four tabs and the FAB, with an optional count badge (red, 4.8:1).
+- **Avatar** (`components/ui/Avatar.jsx`): initials. Navy on light surfaces, outlined white on navy.
+- **Badge / StatusMark / PriorityMark / PriorityTile** (`components/ui/Marks.jsx`): see the state table above.
+- **Fields, dialogs, toasts, empty and error states, search palette, account menu, photos, timeline:** unchanged in behaviour and restyled through the tokens. Dialogs become full-screen sheets on phones.
 
 ## Do's and Don'ts
 
-### Do:
-- Lead with what needs action; put totals and charts after it.
-- Pair every state colour with a marker shape and a word.
-- Use the team's words: *mašina*, *kvar*, *Raspisano*.
-- Translate every new string in both `src/i18n/hr.js` and `en.js`; `npm run check:i18n` enforces parity.
-- Define components at module level (ESLint `react/no-unstable-nested-components`).
+### Do
+- Put the next action in solid blue, and only one solid blue button per area.
+- Name the reference for every change, and compute it from real history.
+- Use the team's words: *mašina*, *kvar*, *preuzeti*.
+- Add every string to both `src/i18n/hr.js` and `en.js`. `npm run check:i18n` enforces parity and flags unused keys.
 
-### Don't:
-- Add eyebrows/kickers above headings, gradient text, glows, or coloured side borders.
-- Use colour as the only signal, or colour where no state is meant.
-- Introduce a second typeface or a second accent colour.
-- Use `alert()`/`confirm()`; use toasts and `ConfirmDialog`.
+### Don't
+- Add a second dark surface, gradients, glows or a second accent colour.
+- Use colour as the only signal, or invent a number to fill a card.
+- Put a bar above the phone keyboard on a form.
 
 ## Accessibility
 
-Target WCAG 2.2 AA. Verified by axe-core in the e2e suite on every screen (0 serious/critical). All text ≥ 4.5:1, control borders ≥ 3:1, visible 2 px focus outline, keyboard-operable menus/combobox/dialogs (native `<dialog>` traps focus and closes on Escape), 44 px touch targets, `lang` attribute follows the language switch, reduced motion disables entrance animations and skeleton pulses.
+The target is WCAG 2.2 AA. The e2e suite runs axe-core on every screen, including the new home screens, profile and the report steps. Text is at least 4.5:1, control borders at least 3:1, and every screen has a visible 2 px focus ring. Touch targets are at least 44 px, and the tab bar items are 56 px tall. The report stepper is an ordered list with `aria-current="step"`, and each step's heading takes focus. The machine list is a native radio group. Fault-detail tabs are a `tablist` on phones. Reduced motion disables entrance animations and pulses.
 
 ## Motion
 
-One motion vocabulary: `enter-rise` (260 ms, `cubic-bezier(0.16, 1, 0.3, 1)`, 12 px rise) for dialogs, toasts and the login card; `enter-fade` (200 ms) for menus and the drawer. Colour/border transitions 150 ms. Everything is disabled under `prefers-reduced-motion`.
+`enter-rise` (260 ms) is for dialogs, toasts and the confirmation screen. `enter-fade` (200 ms) is for menus and the bell. Colour transitions take 150 ms. All motion is off under `prefers-reduced-motion`.

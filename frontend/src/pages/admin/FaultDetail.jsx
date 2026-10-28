@@ -13,10 +13,13 @@ import Timeline from '../../components/Timeline'
 import Photos from '../../components/Photos'
 import Dialog from '../../components/ui/Dialog'
 import RadioCards from '../../components/ui/RadioCards'
-import { AttentionReasons, DueTag, FaultNumber, LabelFields, PriorityMark, StatusMark, WaitingTag } from '../../components/ui/Marks'
+import { AttentionReasons, DueTag, FaultNumber, LabelFields, PriorityMark, PriorityTile, StatusMark, WaitingTag } from '../../components/ui/Marks'
+import { useReportedAt } from '../../components/FaultRow'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 
 const get = (path) => api.get(path).then((response) => response.data)
+const TABS = ['details', 'activity', 'photos', 'work']
+const TAB_KEYS = { details: 'fault.tabDetails', activity: 'fault.tabActivity', photos: 'fault.tabPhotos', work: 'fault.tabWork' }
 let rowKey = 0
 
 function formFromFault(fault) {
@@ -184,6 +187,9 @@ export default function FaultDetail() {
   const [saving, setSaving] = useState('')
   const [conflict, setConflict] = useState(false)
   const [waitingDialog, setWaitingDialog] = useState(null)
+  // Phones: one section at a time under tabs. Wide screens show every section; the tabs are hidden there.
+  const [tab, setTab] = useState('details')
+  const reportedAt = useReportedAt()
   const formRef = useRef(null)
 
   useEffect(() => {
@@ -315,47 +321,72 @@ export default function FaultDetail() {
   const busy = Boolean(saving)
   const peopleNames = Object.fromEntries(assignees.map((user) => [user.id, `${user.ime} ${user.prezime}`]))
   const otherFaults = (history.data || []).filter((other) => other.id !== item.id).slice(0, 6)
+  const panelClass = (id) => (tab === id ? '' : 'max-lg:hidden')
 
   return (
     <div>
       {back}
-      {/* Phones show the actions first; this line says which fault they act on (the h1 follows in the card). */}
-      <p aria-hidden="true" className="-mt-1 mb-3 flex min-w-0 items-baseline gap-2 lg:hidden">
-        <FaultNumber id={item.id} size="sm" />
-        <span className="truncate text-lg font-semibold leading-snug">{item.naslov}</span>
-      </p>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_18.5rem]">
         <div className="min-w-0 space-y-6">
           <article className="surface overflow-hidden">
-            <header className="border-b border-rule px-5 py-4">
-              <FaultNumber id={item.id} size="lg" />
-              <h1 className="mt-2 text-xl font-semibold leading-snug sm:text-2xl">{item.naslov}</h1>
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                <StatusMark status={item.status} />
-                <PriorityMark priority={item.prioritet} />
-                <DueTag fault={item} />
+            <header className="flex gap-3.5 px-4 py-4 sm:px-5">
+              <PriorityTile priority={item.prioritet} className="mt-0.5" />
+              <div className="min-w-0 flex-1">
+                <p className="flex min-w-0 items-baseline gap-2 text-sm font-semibold text-ink-2">
+                  <span className="truncate">{item.oprema?.naziv}</span>
+                  <FaultNumber id={item.id} size="sm" className="shrink-0 text-base" />
+                </p>
+                <h1 className="mt-0.5 text-xl font-semibold leading-snug sm:text-2xl">{item.naslov}</h1>
+                <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                  <PriorityMark priority={item.prioritet} />
+                  <StatusMark status={item.status} />
+                  <DueTag fault={item} className="ml-1" />
+                </div>
+                <p className="mt-2 text-meta text-ink-3">{t('fault.reportedWhen', { when: reportedAt(item.datum_prijave) })}</p>
+                <AttentionReasons fault={item} max={5} skip={['hitno']} withTime={false} className="mt-2" />
               </div>
-              <AttentionReasons fault={item} max={5} skip={['hitno']} withTime={false} className="mt-2" />
             </header>
-            <LabelFields
-              items={[
-                { label: t('fault.machine'), value: [item.oprema?.naziv, item.oprema?.lokacija].filter(Boolean).join(' · ') },
-                { label: t('fault.component'), value: item.komponenta?.naziv || t('fault.componentGeneral') },
-                { label: t('fault.reportedBy'), value: item.prijavio ? `${item.prijavio.ime} ${item.prijavio.prezime}` : '—' },
-                { label: t('fault.reportedAt'), value: format.dateTime(item.datum_prijave) },
-                { label: t('fault.assignee'), value: item.voditelj ? `${item.voditelj.ime} ${item.voditelj.prezime}` : t('fault.unassigned') },
-                { label: t('fault.deadline'), value: item.status === 'Riješeno' ? '—' : format.dateTime(item.rok) },
-                { label: t('fault.startedAt'), value: format.dateTime(item.datum_pocetka) },
-                item.status === 'Riješeno'
-                  ? { label: t('fault.resolvedAt'), value: format.dateTime(item.datum_rjesavanja) }
-                  : { label: t('fault.timeOpen'), value: format.duration((Date.now() - new Date(item.datum_prijave)) / 60000) },
-              ]}
-            />
-            <div className="px-5 py-4">
-              <h2 className="field-label">{t('fault.description')}</h2>
-              <p className="mt-1 max-w-[75ch] whitespace-pre-wrap break-words">{item.opis || <span className="text-ink-3">{t('fault.noDescription')}</span>}</p>
+            <div role="tablist" aria-label={t('fault.sections')} className="flex overflow-x-auto border-t border-rule px-2 lg:hidden">
+              {TABS.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  id={`fault-tab-${id}`}
+                  aria-selected={tab === id}
+                  aria-controls={`fault-panel-${id}`}
+                  onClick={() => setTab(id)}
+                  className={`-mb-px min-h-[2.875rem] flex-1 whitespace-nowrap border-b-2 px-3 text-sm font-semibold transition-colors ${
+                    tab === id ? 'border-brand text-brand' : 'border-transparent text-ink-3 hover:text-ink'
+                  }`}
+                >
+                  {t(TAB_KEYS[id])}
+                </button>
+              ))}
             </div>
-            <Photos faultId={item.id} canAdd canDelete={() => true} onChanged={events.reload} className="border-t border-rule px-5 py-4" />
+            <div id="fault-panel-details" role="tabpanel" aria-labelledby="fault-tab-details" className={panelClass('details')}>
+              <LabelFields
+                items={[
+                  { label: t('fault.machine'), value: [item.oprema?.naziv, item.oprema?.lokacija].filter(Boolean).join(' · ') },
+                  { label: t('fault.component'), value: item.komponenta?.naziv || t('fault.componentGeneral') },
+                  { label: t('fault.reportedBy'), value: item.prijavio ? `${item.prijavio.ime} ${item.prijavio.prezime}` : '—' },
+                  { label: t('fault.reportedAt'), value: format.dateTime(item.datum_prijave) },
+                  { label: t('fault.assignee'), value: item.voditelj ? `${item.voditelj.ime} ${item.voditelj.prezime}` : t('fault.unassigned') },
+                  { label: t('fault.deadline'), value: item.status === 'Riješeno' ? '—' : format.dateTime(item.rok) },
+                  { label: t('fault.startedAt'), value: format.dateTime(item.datum_pocetka) },
+                  item.status === 'Riješeno'
+                    ? { label: t('fault.resolvedAt'), value: format.dateTime(item.datum_rjesavanja) }
+                    : { label: t('fault.timeOpen'), value: format.duration((Date.now() - new Date(item.datum_prijave)) / 60000) },
+                ]}
+              />
+              <div className="px-4 py-4 sm:px-5">
+                <h2 className="field-label">{t('fault.description')}</h2>
+                <p className="mt-1 max-w-[75ch] whitespace-pre-wrap break-words">{item.opis || <span className="text-ink-3">{t('fault.noDescription')}</span>}</p>
+              </div>
+            </div>
+            <div id="fault-panel-photos" role="tabpanel" aria-labelledby="fault-tab-photos" className={panelClass('photos')}>
+              <Photos faultId={item.id} canAdd canDelete={() => true} onChanged={events.reload} className="border-t border-rule px-4 py-4 sm:px-5" />
+            </div>
           </article>
 
           {conflict && (
@@ -373,7 +404,10 @@ export default function FaultDetail() {
 
           <form
             ref={formRef}
-            className="surface"
+            id="fault-panel-work"
+            role="tabpanel"
+            aria-labelledby="fault-tab-work"
+            className={`surface ${panelClass('work')}`}
             noValidate
             onSubmit={(event) => {
               event.preventDefault()
@@ -511,7 +545,7 @@ export default function FaultDetail() {
               </Field>
             </div>
 
-            <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] flex flex-wrap items-center justify-end gap-3 border-t border-rule bg-stock/95 sm:bottom-0 px-5 py-3 backdrop-blur-sm">
+            <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] flex flex-wrap items-center justify-end gap-3 rounded-b-lg border-t border-rule bg-stock/95 lg:bottom-0 px-5 py-3 backdrop-blur-sm">
               {dirty && <span role="status" className="mr-auto text-sm font-medium text-warn">{t('common.unsavedChanges')}</span>}
               <button type="submit" className="btn-primary" disabled={busy || !dirty}>
                 <Save size={17} aria-hidden="true" />
@@ -520,14 +554,16 @@ export default function FaultDetail() {
             </div>
           </form>
 
-          {events.error ? (
-            <div className="surface"><ErrorState error={events.error} onRetry={events.reload} /></div>
-          ) : (
-            <Timeline faultId={item.id} events={events.data || []} canInternal onAdded={events.reload} people={peopleNames} />
-          )}
+          <div id="fault-panel-activity" role="tabpanel" aria-labelledby="fault-tab-activity" className={panelClass('activity')}>
+            {events.error ? (
+              <div className="surface"><ErrorState error={events.error} onRetry={events.reload} /></div>
+            ) : (
+              <Timeline faultId={item.id} events={events.data || []} canInternal onAdded={events.reload} people={peopleNames} />
+            )}
+          </div>
         </div>
 
-        <div className="order-first space-y-6 lg:sticky lg:top-6 lg:order-none">
+        <div className={`space-y-6 lg:sticky lg:top-[5.75rem] ${panelClass('details')}`}>
           <aside className="surface p-4" aria-label={t('fault.status')}>
             <p className="field-label">{t('fault.status')}</p>
             <p className="mt-1.5"><StatusMark status={item.status} /></p>

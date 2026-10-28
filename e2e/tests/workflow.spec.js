@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
-import { ADMIN, PHONE, apiToken, faultNumber, setupFixture, signIn } from './helpers'
+import { ADMIN, PHONE, apiToken, chooseMachine, faultNumber, setupFixture, signIn } from './helpers'
 
 // A real 4×3 PNG: the server decodes and re-encodes every photo.
 const PNG = Buffer.from(
@@ -94,18 +94,19 @@ test('worker is told about open faults on the machine, can still report, and att
   await signIn(page, worker)
   await page.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Prijavi kvar' }).click()
   await expect(page.getByRole('navigation', { name: 'Glavna navigacija' })).toBeHidden()
-  await page.getByLabel('Mašina', { exact: true }).selectOption(String(machine.id))
+  await chooseMachine(page, machine.naziv)
   await expect(page.getByText('Na ovoj mašini već je prijavljeno otvorenih kvarova: 1')).toBeVisible()
   await expect(page.getByText('Već poznat kvar')).toBeVisible()
 
   await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByLabel('Što se događa?').fill('Nož se zaglavljuje')
   await page.locator('input[type=file]').setInputFiles({ name: 'kvar.png', mimeType: 'image/png', buffer: PNG })
-  await expect(page.getByRole('img', { name: 'Odabrana fotografija' })).toBeVisible()
+  await expect(page.getByRole('img', { name: 'Odabrana fotografija 1' })).toBeVisible()
+  await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
 
-  await page.waitForURL(/\/radnik$/)
-  await page.locator('a', { hasText: 'Nož se zaglavljuje' }).click()
+  await page.getByRole('link', { name: 'Pogledaj kvar' }).click()
   await expect(page.getByRole('button', { name: /Otvori fotografiju/ })).toBeVisible()
   await page.getByRole('button', { name: /Otvori fotografiju/ }).click()
   await expect(page.getByRole('dialog').getByRole('img', { name: /Fotografija kvara/ })).toBeVisible()
@@ -118,9 +119,9 @@ test('overview says why a fault needs attention and opens it', async ({ page, re
   await signIn(page, ADMIN)
   await page.goto('/admin')
   // The queue holds the most pressing few; on a shared test database others may outrank this one.
-  const queue = page.getByRole('region', { name: 'Zahtijeva pažnju' })
-  const first = queue.getByRole('listitem').first()
-  await expect(first.getByText(/Kasni|Hitno|Nitko nije preuzeo|Rok za|Čeka|U roku/).first()).toBeVisible()
+  const queue = page.getByRole('region', { name: 'Prioritetni kvarovi' })
+  const first = queue.getByRole('row').nth(1)
+  await expect(first.getByText(/Hitno|Normalno|Nisko/).first()).toBeVisible()
   await first.getByRole('link').click()
   await expect(page).toHaveURL(/\/admin\/kvarovi\/\d+$/)
 
@@ -162,7 +163,7 @@ test('iPhone: a worker scans a machine label inside the app and lands on the rep
   const page = await (await browser.newContext({ viewport: PHONE, isMobile: true, hasTouch: true, userAgent: IPHONE_UA })).newPage()
   await fakeCamera(page, 'qr-machine-4242.png')
   await signIn(page, worker)
-  await page.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Skeniraj QR kod' }).click()
+  await page.getByRole('navigation', { name: 'Glavna navigacija' }).getByRole('link', { name: 'Skeniraj' }).click()
   await expect(page).toHaveURL(/\/radnik\/prijava\?oprema=4242$/, { timeout: 10_000 })
 })
 
@@ -197,9 +198,11 @@ test('a report whose response is lost is not created twice when the worker sends
   await page.setViewportSize(PHONE)
   await signIn(page, worker)
   await page.goto('/radnik/prijava')
-  await page.getByLabel('Mašina', { exact: true }).selectOption(String(machine.id))
+  await chooseMachine(page, machine.naziv)
   await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByLabel('Što se događa?').fill('Izgubljen odgovor')
+  await page.getByRole('button', { name: 'Dalje' }).click()
 
   // The first POST reaches the server, but the phone never sees the answer (dropped Wi-Fi).
   let dropped = false
@@ -215,7 +218,7 @@ test('a report whose response is lost is not created twice when the worker sends
   await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
   await expect(page.getByRole('alert')).toBeVisible()
   await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
-  await page.waitForURL(/\/radnik$/)
+  await expect(page.getByRole('heading', { name: 'Kvar je uspješno prijavljen' })).toBeVisible()
 
   const token = await apiToken(request, worker)
   const mine = await (await request.get('/api/kvarovi', { headers: { Authorization: `Bearer ${token}` } })).json()

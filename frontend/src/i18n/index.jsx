@@ -70,6 +70,7 @@ export function I18nProvider({ children }) {
     const number = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 })
     const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
     const timeOnly = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' })
+    const dayMonth = new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit' })
 
     const safe = (formatter) => (value) => {
       if (value === null || value === undefined || value === '') return '—'
@@ -96,6 +97,7 @@ export function I18nProvider({ children }) {
         return dateOnly.format(date)
       },
       time: safe(timeOnly),
+      dayMonth: safe(dayMonth),
       number: (value) => (value === null || value === undefined || value === '' ? '—' : number.format(Number(value))),
       duration: (minutes) => {
         const total = Math.max(0, Math.round(Number(minutes) || 0))
