@@ -55,7 +55,7 @@ Method: 48 screenshots of every screen and the main dialogs at 1440 × 900 and 3
 
 Not adopted from the references, deliberately: tabs on fault detail (one scrolling workspace keeps the resolve-validation focus behaviour), machine photos (no such data), separate manager/technician fields, a notifications centre and a settings page (account menu covers language, password, push, sign-out).
 
-Still open (owner) — details in [PRE_PRODUCTION_CHECKLIST.md](PRE_PRODUCTION_CHECKLIST.md) §3: confirm the 2026-10-28 move to Amsterdam was intentional (A2-24, region now EU), backups and a tested restore (A2-23), Wait for CI, staging on PostgreSQL 18 with synthetic data, monitoring (A2-27), QR validation and `PUBLIC_URL` (A2-26), employee privacy notice (A2-25), repository visibility. Photo retention: 12 months after resolution, implemented in a separate PR (R7), shipped in `dry-run`.
+Still open (owner) — details in [PRE_PRODUCTION_CHECKLIST.md](PRE_PRODUCTION_CHECKLIST.md) §3: region: Amsterdam, confirmed by the owner (A2-24 closed); backups declined by the owner (A2-23, risk accepted); Wait for CI, staging on PostgreSQL 18 with synthetic data, monitoring (A2-27), QR scan check (`PUBLIC_URL` set, A2-26), employee privacy notice (A2-25), repository visibility. Photo retention: 12 months after resolution, implemented in a separate PR (R7), deployed in `dry-run`; switch to `delete` later.
 
 ## 1. Executive summary
 
@@ -124,7 +124,7 @@ Remaining UX opportunities are in the backlog (§6): notifying workers when thei
 | **Data region** | **Open — owner decision.** App and Postgres run in `us-west2` (verified). For EU employees' personal data this is a third-country transfer (GDPR Ch. V; check Railway's DPA/SCCs) and adds ~150 ms per request from Croatia. Railway offers an EU region; moving needs a `pg_dump`/restore and a short downtime window |
 | **Employee privacy notice (GDPR Art. 13)** | **Open — owner/legal.** The app processes names, phone numbers, emails, sign-in times and who reported or handled what. Employees need a notice: controller (Cupup / Delt papir), purpose, legal basis, retention, rights. The text must come from the company; this audit did not draft legal text |
 | Retention rule for faults and deactivated users | **Open — owner.** Deactivated users are kept (the record needs their names); decide how long |
-| `PUBLIC_URL` set before printing QR labels | **Open — owner.** `https://adixpaper-production.up.railway.app` (or the final domain) |
+| `PUBLIC_URL` set before printing QR labels | **Done 2026-10-28:** `https://adixpaper-production.up.railway.app` |
 | Custom domain + HTTPS | Optional. Railway domain works with HTTPS; a domain must be set before QR labels are printed, or the labels must be reprinted |
 | Web Push (`VAPID_*`) | Optional. In-app alerts work without it |
 | Error alerting | **Open (recommended).** Railway logs only; add Railway alerts on deploy failure / 5xx, or Sentry |

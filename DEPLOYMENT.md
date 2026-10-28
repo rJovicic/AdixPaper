@@ -57,7 +57,7 @@ Before merging a release, work through [PRE_PRODUCTION_CHECKLIST.md](PRE_PRODUCT
 - Seeding on every start is idempotent: the two companies as suppliers, the parts catalogue (only into an empty table), and the first admin (only if none exists).
 - There is no migration tool yet. Additive changes are safe; renames or type changes need Alembic first (AUDIT.md backlog A2-28). Columns added so far on startup: `kvarovi.komponenta_id`, `rezervni_dijelovi.zaliha`, `korisnici.sesije_od` (2026-10-27; sessions issued before a user's last password change are rejected), and in the command-center release `kvarovi.razlog_cekanja`, `kvarovi.cekanje_od`, `kvarovi.verzija` (`NOT NULL DEFAULT 1`), `kvarovi.azurirano`, `kvarovi.klijent_kljuc` (report idempotency key, unique index `ix_kvarovi_klijent_kljuc`), plus indexes `ix_kvarovi_status`, `ix_kvarovi_datum_prijave`, `ix_kvar_dogadjaji_kreiran`. The new table `kvar_prilozi` (photos) is created by `create_all`. Verified against a database created by the previous release: the app starts, columns and indexes appear, existing rows get `verzija = 1`.
 - **Photos live in Postgres** (`kvar_prilozi.sadrzaj`, re-encoded JPEG, typically 150–400 kB, at most 6 per fault). Watch the Postgres volume size on Railway; at 50 photos a week that is roughly 1 GB a year. Backups include them. Photos are removed 12 months after the fault is resolved (below).
-- Enable **Railway Postgres backups** (Postgres service → Backups) and test one restore before relying on production data. As of 2026-10-27 this could not be verified through the read-only API.
+- **Backups: none.** The owner decided on 2026-10-28 not to enable Railway Postgres backups. Recommended anyway (Postgres service → Backups, Daily + Weekly, cents a month): without them, deleted or damaged data cannot be recovered, and a deployment rollback restores code only.
 
 ## Photo retention
 
@@ -71,7 +71,7 @@ Owner's rule (2026-10-28): a fault's photos are removed **12 calendar months aft
 
 ## Region and personal data
 
-App, Postgres and its volume run in **Amsterdam (`europe-west4-drams3a`)** since 2026-10-28 07:54 UTC (verified read-only: same volume, clean restart on existing data, domain unchanged). They ran in `us-west2` before. The change was made under the owner's Railway account, outside this repository's work; **the owner still has to confirm it was intentional**. Railway is a US company even in the EU region, so keep its data processing agreement on file. The database holds personal data of employees (names, contact details, sign-in times, who reported or handled each fault, photos).
+App, Postgres and its volume run in **Amsterdam (`europe-west4-drams3a`)** since 2026-10-28 07:54 UTC (verified read-only: same volume, clean restart on existing data, domain unchanged). They ran in `us-west2` before. The owner made the move on purpose (confirmed 2026-10-28). Railway is a US company even in the EU region, so keep its data processing agreement on file. The database holds personal data of employees (names, contact details, sign-in times, who reported or handled each fault, photos).
 
 ## Deploying
 

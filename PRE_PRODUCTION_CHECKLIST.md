@@ -18,13 +18,13 @@ Owner decisions (2026-10-28):
 |---|---|
 | Project / environment | `zucchini-insight` / `production` (the only environment) [V] |
 | Services | `AdixPaper` (Dockerfile build per `railway.toml`, 1 replica) and `Postgres` (`postgres-ssl:18`, **PostgreSQL 18.6**) [V] |
-| Region | **Amsterdam (`europe-west4-drams3a`) since 2026-10-28 07:54 UTC** for both services and the volume [V]. The change was made under the owner's Railway account, not by this work. **Owner to confirm it was intentional.** Verified: same volume, clean Postgres shutdown and restart on existing data, disk use unchanged (0.32 GB), app serving normally afterwards. |
+| Region | **Amsterdam (`europe-west4-drams3a`) since 2026-10-28 07:54 UTC** for both services and the volume [V]. **Moved by the owner, intentional (confirmed 2026-10-28).** Verified: same volume, clean Postgres shutdown and restart on existing data, disk use unchanged (0.32 GB), app serving normally afterwards. |
 | Volume | `postgres-volume`, 5000 MB allocated, about 0.32 GB used, not publicly exposed (no TCP proxy) [V] |
 | Domain | `adixpaper-production.up.railway.app`, unchanged after the move; no custom domain [V] |
-| Variables (names only) | `ACCESS_TOKEN_EXPIRE_MINUTES`, `ADMIN_PASSWORD`, `ADMIN_USERNAME`, `DATABASE_URL`, `SECRET_KEY`; `PUBLIC_URL` and `VAPID_*` unset [V] |
-| Backups | Not visible through the API; **assume none** until checked [A] |
+| Variables (names only) | `ACCESS_TOKEN_EXPIRE_MINUTES`, `ADMIN_PASSWORD`, `ADMIN_USERNAME`, `DATABASE_URL`, `PUBLIC_URL` (= `https://adixpaper-production.up.railway.app`, set 2026-10-28), `SECRET_KEY`; `VAPID_*` unset [V] |
+| Backups | **None, by owner's decision (2026-10-28).** Data mistakes cannot be undone; a code rollback does not restore data |
 | Alerts | No project webhooks [V] |
-| Live code | `ab992b2` (PR #2). The command-center release is **not** deployed [V] |
+| Live code | `main` with PR #3 and PR #4 (deployed 2026-10-28 08:36 UTC by owner's decision, without a prior backup); previous deployment `5dfcd364` (`ab992b2`) is the rollback target [V] |
 | Startup incident | During the move the app started before `postgres.railway.internal` resolved, exited, and recovered on restart [V]. Fixed in this release: startup now waits for the database (§4). |
 | GitHub repo | **Public**; it includes the spare-parts catalogue with prices and stock (552 of 668 parts) [V] |
 
@@ -42,15 +42,15 @@ Owner decisions (2026-10-28):
 
 | # | Task | Cost | Status |
 |---|---|---|---|
-| 1 | **Confirm the 07:54 move to Amsterdam was intentional**; check in the app that fault, machine and user counts look right | — | Open |
-| 2 | 🔒 **Backups**: Postgres → Backups → enable Daily + Weekly; take one manual backup before merging | Billed like volumes, incremental (worst case at today's size ≈ $0.60/month — calculation, not a quote) | Open |
+| 1 | Confirm the 07:54 move to Amsterdam was intentional | — | **Done** (owner moved it) |
+| 2 | 🔒 **Backups**: Postgres → Backups → enable Daily + Weekly | Billed like volumes, incremental (≈ $0.60/month at today's size — calculation, not a quote) | **Declined by owner (2026-10-28).** Recommendation stands: without backups a bad delete or a damaged volume is permanent |
 | 3 | 🔒 **Wait for CI** on the `AdixPaper` service (Settings → Source) before merging | None | Open |
 | 4 | 🔒 **Staging on PostgreSQL 18, synthetic data** (§5). Optional now that CI covers PostgreSQL 18; useful for a hands-on review and the backup-restore drill | Extra service usage (≈ $1.5–2.5/month if left running; cents for a few days — calculation from measured usage × published prices; confirm plan) | Open |
 | 5 | 🔒 **Monitoring** (§6) | None for the free options | Open |
-| 6 | **QR validation** (read-only), then 🔒 set `PUBLIC_URL` (§7) | None | Open |
+| 6 | Set `PUBLIC_URL`, then scan one printed label with iPhone and Android before printing all (§7) | None | `PUBLIC_URL` **set** 2026-10-28; scan check open |
 | 7 | **Employee privacy notice** text (company/legal) and the 12-month photo rule in it (§8) | — | Open |
 | 8 | 🔒 **Repository visibility**: decide whether to make the repo private (it publishes supplier prices and stock) | Private repos have limited free Actions minutes — check the GitHub plan | Open |
-| 9 | 🔒 Merge the command-center PR, then (later) the photo-retention PR. The retention PR ships in `dry-run`: check the logged count, then 🔒 set `PHOTO_RETENTION_MODE=delete` | — | Open |
+| 9 | Merge the command-center and photo-retention PRs; after a few days set `PHOTO_RETENTION_MODE=delete` | — | Merged and deployed 2026-10-28; switch to `delete` agreed for later (first run: 0 photos due) |
 
 ## 4. Database startup (in this release)
 
@@ -93,12 +93,12 @@ Railway shows Postgres's normal `LOG` lines as "error", so don't alert on log se
 
 ## 7. QR labels with the current domain
 
-- `PUBLIC_URL` is unset, so labels encode the request's own address.
+- `PUBLIC_URL=https://adixpaper-production.up.railway.app` (set 2026-10-28), so every label encodes that address regardless of how the PDF was requested.
 - Reproduced locally with production's start flags: through Railway's edge (sending `X-Forwarded-Proto: https`) labels decode to `https://adixpaper-production.up.railway.app/m/<id>`; without that header they would say `http://`.
 
 Steps:
 1. **Read-only check:** as admin, open Machines → QR labels for one machine in production. Scan it with an iPhone and an Android phone, signed out. It must open sign-in, then the report form with the machine chosen.
-2. 🔒 Set `PUBLIC_URL=https://adixpaper-production.up.railway.app` to remove the header dependency (one redeploy).
+2. Done: `PUBLIC_URL` is set.
 3. Print all labels only after the scan works. A domain change later means reprinting.
 
 ## 8. Employee privacy (internal tool, proportionate)

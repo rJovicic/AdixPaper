@@ -172,3 +172,11 @@
 - Decided by: the owner (12 months after resolution); mechanics by Claude (default)
 - What: an hourly check in the app process runs the rule once a day (Europe/Zagreb). No cron service (cost), no external scheduler. Default `dry-run`; `delete` is an explicit, owner-approved variable change. Only photos go; faults and timelines stay, with a timeline entry.
 - Why in-app: one replica, no extra service; the advisory lock keeps it correct if replicas are ever added. Revisit if the app moves to several services.
+
+## 2026-10-28 · Owner decisions after the command-center release
+- Decided by: the owner
+- Region: the move to Amsterdam (07:54 UTC) was the owner's, intentional.
+- Backups: not enabled. Claude recommended Daily + Weekly backups (cents a month) and a manual backup before the release; the owner declined. Consequence: data loss or a bad delete cannot be undone; rollback restores code only.
+- Release: PR #3 and PR #4 merged and deployed 2026-10-28 for hands-on testing in production.
+- `PUBLIC_URL=https://adixpaper-production.up.railway.app` set, so printed QR labels always carry the production address. A domain change later means reprinting labels.
+- Photo deletion: stays `dry-run` for a few days, then `delete`.
