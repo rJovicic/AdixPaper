@@ -26,6 +26,14 @@ Branch `claude/command-center-redesign`. Details, phases and verification: [IMPL
 
 Verification at the end of this pass: ruff clean; **pytest 79 passed** on PostgreSQL 16 and on SQLite; ESLint 0, i18n parity OK, production build OK; `npm audit --omit=dev` 0, `pip-audit` 0; **Playwright 30 passed** against the production build served by FastAPI on Postgres (axe 0 serious/critical on every screen checked, no horizontal overflow at 360/768/1280). Not verified: Docker image build (no daemon here; CI builds it), the deployed environment, real phones (iOS Safari camera/file picker, push on iOS home-screen apps), real users.
 
+### Reliability and release safety (2026-10-28, after the Railway review)
+
+| ID | Finding | Resolution | Evidence |
+|---|---|---|---|
+| R4 | During the region move (07:54 UTC) the app started before `postgres.railway.internal` resolved and exited; recovery relied on the 5-retry restart policy | Startup waits for the database with backoff (`DB_STARTUP_TIMEOUT_SECONDS`, default 90 s) | `tests/test_startup.py`: the real app started against a port that opens 3 s later becomes healthy; with the wait removed the same test fails |
+| R5 | A report whose response was lost (weak Wi-Fi) created a duplicate when the worker sent it again | Idempotency key per report draft (`kvarovi.klijent_kljuc`, unique); a retry returns the fault already saved; another user's key → 409 | pytest + e2e that drops the first response in the browser |
+| R6 | Nothing tested PostgreSQL 18 (production) or the upgrade of a database created by the previous release | CI: backend tests on 16 and 18, e2e on 18, `upgrade` job (release on `main` creates and seeds, this branch upgrades, `e2e/upgrade-check.py` verifies) | CI; upgrade also run locally on 16 |
+
 ### Visual QA against the reference images (2026-10-28)
 
 Method: 48 screenshots of every screen and the main dialogs at 1440 × 900 and 390 × 844 (Playwright on the production build, Postgres, realistic local demo data incl. overdue, on-hold, resolved, comments and a photo), compared with the four reference boards. Re-captured after each round.
@@ -46,7 +54,7 @@ Method: 48 screenshots of every screen and the main dialogs at 1440 × 900 and 3
 
 Not adopted from the references, deliberately: tabs on fault detail (one scrolling workspace keeps the resolve-validation focus behaviour), machine photos (no such data), separate manager/technician fields, a notifications centre and a settings page (account menu covers language, password, push, sign-out).
 
-Still open (owner): backups and a tested restore (A2-23), EU data region (A2-24), employee privacy notice (A2-25), `PUBLIC_URL` before printing labels (A2-26), error alerting (A2-27), photo retention.
+Still open (owner) — details in [PRE_PRODUCTION_CHECKLIST.md](PRE_PRODUCTION_CHECKLIST.md) §3: confirm the 2026-10-28 move to Amsterdam was intentional (A2-24, region now EU), backups and a tested restore (A2-23), Wait for CI, staging on PostgreSQL 18 with synthetic data, monitoring (A2-27), QR validation and `PUBLIC_URL` (A2-26), employee privacy notice (A2-25), repository visibility. Photo retention: 12 months after resolution, implemented in a separate PR.
 
 ## 1. Executive summary
 

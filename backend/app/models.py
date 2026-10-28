@@ -175,6 +175,9 @@ class Kvar(Base):
     verzija = Column(Integer, default=1, server_default="1", nullable=False)
     # Last change a worker can see (status, assignee, public comment): drives their "updated" badge.
     azurirano = Column(DateTime(timezone=True), nullable=True)
+    # Key the reporting device sends with a new report. A retry after a lost response carries the
+    # same key and gets the fault already created instead of a duplicate.
+    klijent_kljuc = Column(String(64), nullable=True, unique=True, index=True)
 
     oprema = relationship("Oprema", back_populates="kvarovi")
     komponenta = relationship("KomponentaOpreme", back_populates="kvarovi")

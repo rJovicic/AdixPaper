@@ -41,22 +41,23 @@ The Dockerfile has two stages: `node:22-alpine` runs `npm ci && npm run build` i
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` | no | Enable Web Push: leads hear about new faults, workers about status, assignee and public-comment changes on their own faults. Without them the "notifications" toggle is hidden; in-app alerts and the worker's "updated" badge still work. Generate with `npx web-push generate-vapid-keys`. |
 | `PUBLIC_URL` | before printing QR labels | Origin printed into machine QR codes, e.g. `https://adixpaper-production.up.railway.app` (or the final domain). Without it the origin of the request that generates the PDF is used. Labels printed for one origin must be reprinted if the domain changes. |
 | `CORS_ORIGINS` | no | Only if another origin must call the API. |
+| `DB_STARTUP_TIMEOUT_SECONDS` | no | Default `90`. On startup the app waits this long for the database (retrying with backoff 1→10 s) before exiting, so a Postgres restart or a not-yet-resolvable private hostname does not use up the platform's restarts. Keep it below the 120 s deploy health-check timeout. |
 
 `RAILWAY_ENVIRONMENT_NAME` is set by Railway and switches the app into production mode (secret required). `APP_ENV=production` does the same elsewhere.
 
 ## Database
 
-Before merging a release, work through [PRE_PRODUCTION_CHECKLIST.md](PRE_PRODUCTION_CHECKLIST.md) (backups, region, `PUBLIC_URL`, alerting, staging). Production Postgres is **PostgreSQL 18** (`postgres-ssl:18`, verified 2026-10-28); CI tests on 16.
+Before merging a release, work through [PRE_PRODUCTION_CHECKLIST.md](PRE_PRODUCTION_CHECKLIST.md) (backups, region, `PUBLIC_URL`, alerting, staging). Production Postgres is **PostgreSQL 18** (`postgres-ssl:18`, verified 2026-10-28). CI runs the backend tests on 16 and 18, the browser tests on 18, and an `upgrade` job that starts this branch on a database created by the release on `main` (PostgreSQL 18).
 
 - Schema is created on startup (`Base.metadata.create_all`) plus idempotent additive column checks in `backend/app/bootstrap.py`. Startup never drops or rewrites data.
 - Seeding on every start is idempotent: the two companies as suppliers, the parts catalogue (only into an empty table), and the first admin (only if none exists).
-- There is no migration tool yet. Additive changes are safe; renames or type changes need Alembic first (AUDIT.md backlog A2-28). Columns added so far on startup: `kvarovi.komponenta_id`, `rezervni_dijelovi.zaliha`, `korisnici.sesije_od` (2026-10-27; sessions issued before a user's last password change are rejected), and in the command-center release `kvarovi.razlog_cekanja`, `kvarovi.cekanje_od`, `kvarovi.verzija` (`NOT NULL DEFAULT 1`), `kvarovi.azurirano`, plus indexes `ix_kvarovi_status`, `ix_kvarovi_datum_prijave`, `ix_kvar_dogadjaji_kreiran`. The new table `kvar_prilozi` (photos) is created by `create_all`. Verified against a database created by the previous release: the app starts, columns and indexes appear, existing rows get `verzija = 1`.
+- There is no migration tool yet. Additive changes are safe; renames or type changes need Alembic first (AUDIT.md backlog A2-28). Columns added so far on startup: `kvarovi.komponenta_id`, `rezervni_dijelovi.zaliha`, `korisnici.sesije_od` (2026-10-27; sessions issued before a user's last password change are rejected), and in the command-center release `kvarovi.razlog_cekanja`, `kvarovi.cekanje_od`, `kvarovi.verzija` (`NOT NULL DEFAULT 1`), `kvarovi.azurirano`, `kvarovi.klijent_kljuc` (report idempotency key, unique index `ix_kvarovi_klijent_kljuc`), plus indexes `ix_kvarovi_status`, `ix_kvarovi_datum_prijave`, `ix_kvar_dogadjaji_kreiran`. The new table `kvar_prilozi` (photos) is created by `create_all`. Verified against a database created by the previous release: the app starts, columns and indexes appear, existing rows get `verzija = 1`.
 - **Photos live in Postgres** (`kvar_prilozi.sadrzaj`, re-encoded JPEG, typically 150–400 kB, at most 6 per fault). Watch the Postgres volume size on Railway; at 50 photos a week that is roughly 1 GB a year. Backups include them. No retention rule exists yet (owner decision, AUDIT.md).
 - Enable **Railway Postgres backups** (Postgres service → Backups) and test one restore before relying on production data. As of 2026-10-27 this could not be verified through the read-only API.
 
 ## Region and personal data
 
-App and Postgres run in **`us-west2`** (verified 2026-10-27). The database holds personal data of EU employees (names, contact details, sign-in times, who reported or handled each fault). That is a transfer to a third country under GDPR Chapter V: confirm that Railway's DPA/SCCs cover it, or move both services to Railway's EU region. Moving also cuts ~150 ms of latency per request from Croatia. A move means a new Postgres in the EU region, `pg_dump` → `pg_restore`, repointing `DATABASE_URL` and a short maintenance window; it is the owner's decision (AUDIT.md A2-24).
+App, Postgres and its volume run in **Amsterdam (`europe-west4-drams3a`)** since 2026-10-28 07:54 UTC (verified read-only: same volume, clean restart on existing data, domain unchanged). They ran in `us-west2` before. The change was made under the owner's Railway account, outside this repository's work; **the owner still has to confirm it was intentional**. Railway is a US company even in the EU region, so keep its data processing agreement on file. The database holds personal data of employees (names, contact details, sign-in times, who reported or handled each fault, photos).
 
 ## Deploying
 
@@ -79,6 +80,7 @@ To deploy manually: Railway → AdixPaper → Deployments → Redeploy.
 |---|---|---|
 | Deploy fails health check, logs show `SECRET_KEY must be set` | Variable missing | Set `SECRET_KEY`, redeploy |
 | Health check returns 503 | Database unreachable | Check Postgres service is online and `DATABASE_URL` references it |
+| Logs show `Database not reachable yet (attempt N)` after a deploy or restart | Postgres is starting or its private hostname is not resolvable yet | Normally resolves on its own within seconds. If it ends with `giving up`, check the Postgres service, then redeploy the app |
 | `502 connection dial timeout` at the edge | No process listening on `$PORT` | Ensure the builder is Dockerfile and root directory is empty (this was the original outage) |
 | Cannot sign in as admin | Admin existed before `ADMIN_*` changed | Set `ADMIN_RESET_PASSWORD=true`, redeploy, sign in, set it back to `false` |
 | Logs show `Too many failed sign-in attempts` (429) | Throttle: 10 failures per IP+username, or 20 per username from any IP, per 15 min | Wait, or restart the service to clear it |

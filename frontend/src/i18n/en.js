@@ -620,5 +620,6 @@ export default {
     'Kvar može imati najviše 6 fotografija': 'A fault can have at most 6 photos.',
     'Fotografija nije pronađena': 'Photo not found.',
     'Nemate ovlasti za ovu radnju': 'You are not allowed to do this.',
+    'Ključ prijave već je iskorišten': 'This report was already sent from another account. Start a new report.',
   },
 }

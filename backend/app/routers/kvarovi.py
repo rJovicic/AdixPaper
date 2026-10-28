@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, BackgroundTasks, Qu
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, or_
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -601,6 +602,16 @@ def get_kvar(kvar_id: int, db: Session = Depends(get_db), current_user: Korisnik
     return _kvar_for(kvar, current_user)
 
 
+def _fault_for_key(db: Session, key: Optional[str], user: Korisnik) -> Optional[Kvar]:
+    """The fault this user already created with this report key; 409 if another user's."""
+    if not key:
+        return None
+    existing = db.query(Kvar).filter(Kvar.klijent_kljuc == key).first()
+    if existing is not None and existing.prijavio_id != user.id:
+        raise HTTPException(status_code=409, detail="Ključ prijave već je iskorišten")
+    return existing
+
+
 @router.post("", response_model=KvarOut, status_code=201)
 def create_kvar(
     data: KvarCreate,
@@ -620,6 +631,11 @@ def create_kvar(
         if not komponenta:
             raise HTTPException(status_code=404, detail="Komponenta nije pronađena za odabranu opremu")
 
+    if data.klijent_kljuc:
+        existing = _fault_for_key(db, data.klijent_kljuc, current_user)
+        if existing is not None:
+            return _kvar_for(_load_kvar(existing.id, db), current_user)
+
     kvar = Kvar(
         oprema_id=data.oprema_id,
         komponenta_id=data.komponenta_id,
@@ -627,10 +643,19 @@ def create_kvar(
         naslov=data.naslov,
         opis=data.opis,
         prioritet=data.prioritet,
-        status=StatusKvaraEnum.novo
+        status=StatusKvaraEnum.novo,
+        klijent_kljuc=data.klijent_kljuc,
     )
     db.add(kvar)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        # The same report arrived twice at once: the other request won the unique key.
+        db.rollback()
+        existing = _fault_for_key(db, data.klijent_kljuc, current_user)
+        if existing is None:
+            raise
+        return _kvar_for(_load_kvar(existing.id, db), current_user)
     _add_event(
         db,
         kvar,

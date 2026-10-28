@@ -230,3 +230,20 @@ def test_periods_start_at_plant_midnight_across_a_dst_change():
     assert period_start("7d", now) == datetime(2026, 10, 20, 22, 0, tzinfo=timezone.utc)
     assert period_start("danas", now) == datetime(2026, 10, 26, 23, 0, tzinfo=timezone.utc)
     assert period_start("x", now) is None
+
+
+def test_a_retried_report_with_the_same_key_does_not_create_a_duplicate(client, make_user, machine):
+    _, worker = make_user()
+    _, other = make_user()
+    body = {"oprema_id": machine["id"], "naslov": "Retry kvar", "prioritet": "Normalno", "klijent_kljuc": "a1b2c3d4-retry-key"}
+    first = client.post("/api/kvarovi", json=body, headers=worker)
+    again = client.post("/api/kvarovi", json=body, headers=worker)
+    assert first.status_code == 201 and again.status_code == 201
+    assert again.json()["id"] == first.json()["id"]
+    assert sum(1 for k in client.get("/api/kvarovi", headers=worker).json() if k["naslov"] == "Retry kvar") == 1
+    # Another user cannot reuse (or read through) someone else's key.
+    assert client.post("/api/kvarovi", json=body, headers=other).status_code == 409
+    assert client.post("/api/kvarovi", json={**body, "klijent_kljuc": "bad key!"}, headers=worker).status_code == 422
+    # Reports without a key still work.
+    no_key = {k: v for k, v in body.items() if k != "klijent_kljuc"}
+    assert client.post("/api/kvarovi", json=no_key, headers=worker).status_code == 201

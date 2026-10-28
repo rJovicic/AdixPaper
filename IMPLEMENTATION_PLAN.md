@@ -96,6 +96,10 @@ Known limitations introduced/kept:
 
 Owner asked for semantic status colours and verification against the references. Screenshots of every screen at 1440 and 390 px were compared with the reference boards; gaps V1–V11 and their fixes are in `AUDIT.md` ("Visual QA against the reference images"). After the pass: pytest 79 (Postgres + SQLite), Playwright 31 (axe clean, no overflow), lint/i18n/build clean.
 
+## 3c. Reliability pass (2026-10-28)
+
+Startup waits for the database (R4), report idempotency key (R5), PostgreSQL 18 and upgrade jobs in CI (R6) — see `AUDIT.md`. Local results: pytest 84 on PostgreSQL 16 (83 + 1 Postgres-only skip on SQLite), Playwright 32, upgrade check OK on 16. Photo retention is a separate PR stacked on this branch.
+
 ## 4. Next task
 
 The agreed scope is implemented. Remaining items need the owner or a real environment:

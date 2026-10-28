@@ -12,7 +12,13 @@ import { ErrorState, LoadingRows } from '../../components/ui/States'
 import { StatusMark } from '../../components/ui/Marks'
 import { uploadPhoto } from '../../lib/photo'
 
-const EMPTY = { oprema_id: '', komponenta_id: '', naslov: '', opis: '', prioritet: 'Normalno' }
+const EMPTY = { oprema_id: '', komponenta_id: '', naslov: '', opis: '', prioritet: 'Normalno', kljuc: '' }
+
+/** One key per report: a retry after a lost response returns the fault already saved instead of a duplicate. */
+function newKey() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+}
 
 // A half-written report survives a reload or an expired session (sign in, come back, carry on).
 const draftKey = (userId) => `adix.reportDraft.${userId}`
@@ -78,7 +84,8 @@ export default function ReportFault() {
   // Set when the worker arrived by scanning a machine's QR label.
   const scanned = /^\d+$/.test(params.get('oprema') || '') ? params.get('oprema') : ''
   const [form, setForm] = useState(() => {
-    const draft = readDraft(user?.id)
+    const stored = readDraft(user?.id)
+    const draft = stored.kljuc ? stored : { ...stored, kljuc: newKey() }
     if (!scanned || draft.oprema_id === scanned) return scanned ? { ...draft, oprema_id: scanned } : draft
     return { ...draft, oprema_id: scanned, komponenta_id: '' }
   })
@@ -150,6 +157,7 @@ export default function ReportFault() {
         naslov: form.naslov.trim(),
         opis: form.opis.trim() || null,
         prioritet: form.prioritet,
+        klijent_kljuc: form.kljuc,
       })
       writeDraft(user?.id, EMPTY)
       if (photo) {

@@ -135,3 +135,33 @@ test('the QR scan screen explains itself where the browser cannot read codes and
   await page.getByRole('link', { name: 'Ručno odaberi mašinu' }).click()
   await expect(page).toHaveURL(/\/radnik\/prijava$/)
 })
+
+test('a report whose response is lost is not created twice when the worker sends it again', async ({ page, request }) => {
+  const { machine, worker } = await setupFixture(request)
+  await page.setViewportSize(PHONE)
+  await signIn(page, worker)
+  await page.goto('/radnik/prijava')
+  await page.getByLabel('Mašina', { exact: true }).selectOption(String(machine.id))
+  await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await page.getByLabel('Što se događa?').fill('Izgubljen odgovor')
+
+  // The first POST reaches the server, but the phone never sees the answer (dropped Wi-Fi).
+  let dropped = false
+  await page.route('**/api/kvarovi', async (route) => {
+    if (route.request().method() === 'POST' && !dropped) {
+      dropped = true
+      await route.fetch()
+      await route.abort('internetdisconnected')
+      return
+    }
+    await route.continue()
+  })
+  await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
+  await expect(page.getByRole('alert')).toBeVisible()
+  await page.getByRole('button', { name: 'Pošalji prijavu' }).click()
+  await page.waitForURL(/\/radnik$/)
+
+  const token = await apiToken(request, worker)
+  const mine = await (await request.get('/api/kvarovi', { headers: { Authorization: `Bearer ${token}` } })).json()
+  expect(mine.filter((fault) => fault.naslov === 'Izgubljen odgovor')).toHaveLength(1)
+})

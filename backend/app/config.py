@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # build serves frontend and API from one origin, so this is normally empty.
     CORS_ORIGINS: str = ""
     FRONTEND_DIST: str = str(DEFAULT_FRONTEND_DIST)
+    # How long startup waits for the database (e.g. while Railway restarts Postgres or its
+    # private hostname is not resolvable yet) before giving up and letting the platform restart us.
+    DB_STARTUP_TIMEOUT_SECONDS: float = 90
     # Public origin printed into machine QR codes, e.g. https://adixpaper-production.up.railway.app.
     # Defaults to the origin the request came in on.
     PUBLIC_URL: str = ""

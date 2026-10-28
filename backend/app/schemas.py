@@ -214,6 +214,8 @@ class KvarCreate(CleanModel):
     naslov: ShortText = Field(min_length=1)
     opis: Optional[LongText] = None
     prioritet: PrioritetEnum = PrioritetEnum.normalno
+    # Idempotency key from the reporting device (see Kvar.klijent_kljuc).
+    klijent_kljuc: Optional[Annotated[str, Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9-]+$")]] = None
 
 
 class KvarRezervniDioInput(CleanModel):
