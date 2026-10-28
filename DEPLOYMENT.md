@@ -46,6 +46,8 @@ The Dockerfile has two stages: `node:22-alpine` runs `npm ci && npm run build` i
 
 ## Database
 
+Before merging a release, work through [PRE_PRODUCTION_CHECKLIST.md](PRE_PRODUCTION_CHECKLIST.md) (backups, region, `PUBLIC_URL`, alerting, staging). Production Postgres is **PostgreSQL 18** (`postgres-ssl:18`, verified 2026-10-28); CI tests on 16.
+
 - Schema is created on startup (`Base.metadata.create_all`) plus idempotent additive column checks in `backend/app/bootstrap.py`. Startup never drops or rewrites data.
 - Seeding on every start is idempotent: the two companies as suppliers, the parts catalogue (only into an empty table), and the first admin (only if none exists).
 - There is no migration tool yet. Additive changes are safe; renames or type changes need Alembic first (AUDIT.md backlog A2-28). Columns added so far on startup: `kvarovi.komponenta_id`, `rezervni_dijelovi.zaliha`, `korisnici.sesije_od` (2026-10-27; sessions issued before a user's last password change are rejected), and in the command-center release `kvarovi.razlog_cekanja`, `kvarovi.cekanje_od`, `kvarovi.verzija` (`NOT NULL DEFAULT 1`), `kvarovi.azurirano`, plus indexes `ix_kvarovi_status`, `ix_kvarovi_datum_prijave`, `ix_kvar_dogadjaji_kreiran`. The new table `kvar_prilozi` (photos) is created by `create_all`. Verified against a database created by the previous release: the app starts, columns and indexes appear, existing rows get `verzija = 1`.

@@ -19,6 +19,7 @@ Interface in Croatian (default) and English. Production: <https://adixpaper-prod
 | [PRODUCT.md](PRODUCT.md) | Users, journeys, principles, acceptance criteria |
 | [DESIGN.md](DESIGN.md) | Design system: tokens, components, accessibility |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Railway setup, variables, verification, troubleshooting |
+| [PRE_PRODUCTION_CHECKLIST.md](PRE_PRODUCTION_CHECKLIST.md) | Before merging PR #3: backups, region, QR domain, retention, privacy, alerting, staging |
 | [AUDIT.md](AUDIT.md) | Audit findings, launch checklist, backlog and verdict |
 | [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Command-center pass: gaps, phases, progress, verification |
 | [decisions.md](decisions.md) | Decisions someone might want to revisit |
