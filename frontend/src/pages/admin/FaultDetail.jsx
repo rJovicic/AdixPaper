@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { ArrowLeft, CheckCircle2, PackagePlus, Pause, Play, RotateCcw, Save, SearchX, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, History, PackagePlus, Pause, Play, RotateCcw, RotateCw, Save, SearchX, Trash2 } from 'lucide-react'
 import { api, errorKind, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
@@ -9,7 +9,10 @@ import { useToast } from '../../components/ui/Toast'
 import Field from '../../components/ui/Field'
 import PartPicker from '../../components/ui/PartPicker'
 import Timeline from '../../components/Timeline'
-import { DueTag, FaultNumber, LabelFields, PriorityMark, StatusMark } from '../../components/ui/Marks'
+import Photos from '../../components/Photos'
+import Dialog from '../../components/ui/Dialog'
+import RadioCards from '../../components/ui/RadioCards'
+import { AttentionReasons, DueTag, FaultNumber, LabelFields, PriorityMark, StatusMark, WaitingTag } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 
 const get = (path) => api.get(path).then((response) => response.data)
@@ -60,11 +63,99 @@ function changedFields(form, initialForm) {
   return Object.fromEntries(Object.entries(next).filter(([field, value]) => JSON.stringify(value) !== JSON.stringify(before[field])))
 }
 
+/**
+ * Where the fault is in its life: reported → taken → (on hold) → resolved. Steps with a timestamp are done;
+ * the first step without one is current. Text carries the state, the dots only reinforce it.
+ */
+function Progress({ fault }) {
+  const { t, format, waitingReason } = useI18n()
+  const name = (person) => (person ? `${person.ime} ${person.prezime}` : null)
+  const steps = [
+    { key: 'reported', label: t('fault.stepReported'), at: fault.datum_prijave, who: name(fault.prijavio) },
+    { key: 'taken', label: t('fault.stepTaken'), at: fault.datum_pocetka, who: name(fault.voditelj) },
+    fault.status === 'Na čekanju' && { key: 'waiting', label: t('fault.stepWaiting'), at: fault.cekanje_od, who: fault.razlog_cekanja ? waitingReason(fault.razlog_cekanja) : null, tone: 'warning' },
+    { key: 'resolved', label: t('fault.stepResolved'), at: fault.datum_rjesavanja, who: null },
+  ].filter(Boolean)
+  const current = fault.status === 'Na čekanju' ? 'waiting' : steps.find((step) => !step.at)?.key
+  return (
+    <ol className="mt-4" aria-label={t('fault.progress')}>
+      {steps.map((step, index) => {
+        const done = Boolean(step.at) && step.key !== current
+        const isCurrent = step.key === current
+        const dot = isCurrent
+          ? step.tone === 'warning' ? 'border-warn-mark bg-warn-mark' : 'border-brand bg-stock ring-4 ring-brand/15'
+          : done ? 'border-ok-mark bg-ok-mark' : 'border-rule-strong bg-stock'
+        return (
+          <li key={step.key} className="relative flex gap-3 pb-3.5 last:pb-0">
+            {index < steps.length - 1 && <span aria-hidden="true" className={`absolute bottom-0 left-[0.4375rem] top-4 w-0.5 ${done ? 'bg-ok-mark/60' : 'bg-rule'}`} />}
+            <span aria-hidden="true" className={`relative mt-1 h-4 w-4 shrink-0 rounded-full border-2 ${dot}`} />
+            <span className="min-w-0">
+              <span className={`block text-sm ${isCurrent ? 'font-semibold text-ink' : done ? 'font-medium text-ink' : 'text-ink-3'}`}>
+                {step.label}
+                {isCurrent && <span className="sr-only"> ({t('fault.stepCurrent')})</span>}
+              </span>
+              {(step.at || step.who) && (
+                <span className="block text-meta text-ink-2">{[step.at ? format.dateTime(step.at) : null, step.who].filter(Boolean).join(' · ')}</span>
+              )}
+            </span>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+const WAITING_REASONS = ['dijelovi', 'vanjski_servis', 'odobrenje', 'proizvodnja', 'ostalo']
+
+/** Asks why the fault goes on hold (or changes the reason); the reason is required by the server. */
+function WaitingDialog({ current, changing, busy, onConfirm, onClose }) {
+  const { t, waitingReason } = useI18n()
+  const [reason, setReason] = useState(current || '')
+  const [error, setError] = useState('')
+  const confirm = () => {
+    if (!reason) {
+      setError(t('waiting.required'))
+      return
+    }
+    onConfirm(reason)
+  }
+  return (
+    <Dialog
+      title={t('waiting.dialogTitle')}
+      description={t('waiting.dialogBody')}
+      onClose={onClose}
+      busy={busy}
+      size="sm"
+      footer={
+        <>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>{t('common.cancel')}</button>
+          <button type="button" className="btn-primary" onClick={confirm} disabled={busy || (changing && reason === current)}>
+            <Pause size={17} aria-hidden="true" />
+            {busy ? t('common.saving') : changing ? t('common.saveChanges') : t('waiting.confirm')}
+          </button>
+        </>
+      }
+    >
+      <RadioCards
+        legend={t('waiting.label')}
+        name="razlog-cekanja"
+        value={reason}
+        onChange={(value) => {
+          setReason(value)
+          setError('')
+        }}
+        error={error}
+        options={WAITING_REASONS.map((value) => ({ value, label: waitingReason(value), hint: t(`waiting.hints.${value}`) }))}
+      />
+    </Dialog>
+  )
+}
+
 const ACTIONS = {
   Novo: [{ status: 'U rješavanju', key: 'fault.actionTake', icon: Play, primary: true }],
   'U rješavanju': [
     { status: 'Riješeno', key: 'fault.actionResolve', icon: CheckCircle2, primary: true },
-    { status: 'Na čekanju', key: 'fault.actionPause', icon: Pause },
+    { status: 'Na čekanju', key: 'fault.actionPause', icon: Pause, asksReason: true },
   ],
   'Na čekanju': [
     { status: 'U rješavanju', key: 'fault.actionResume', icon: Play, primary: true },
@@ -84,11 +175,14 @@ export default function FaultDetail() {
   const people = useAsync(() => get('/korisnici/radnici/lista').then((list) => asArray(list).filter((user) => user.rola !== 'radnik')), [])
   const machineId = fault.data?.oprema_id
   const components = useAsync(() => (machineId ? get(`/oprema/${machineId}/komponente`).then(asArray) : []), [machineId])
+  const history = useAsync(() => (machineId ? get(`/kvarovi?oprema_id=${machineId}&limit=7`).then(asArray) : []), [machineId])
 
   const [form, setForm] = useState(null)
   const [initial, setInitial] = useState(null)
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState('')
+  const [conflict, setConflict] = useState(false)
+  const [waitingDialog, setWaitingDialog] = useState(null)
   const formRef = useRef(null)
 
   useEffect(() => {
@@ -97,6 +191,7 @@ export default function FaultDetail() {
     setForm(next)
     setInitial(next)
     setErrors({})
+    setConflict(false)
     document.title = `${t('fault.number', { id: fault.data.id })} · ${t('app.name')}`
   }, [fault.data]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -132,27 +227,43 @@ export default function FaultDetail() {
     return next
   }
 
-  const save = async (status) => {
+  /** Saves changed fields (and a status change). Sends the loaded version: a stale save gets 409. */
+  const save = async (status, extra = {}) => {
     const next = validate()
     if (status === 'Riješeno' && !form.sto_je_uradjeno.trim()) next.sto_je_uradjeno = t('fault.workDoneRequired')
     setErrors(next)
     if (Object.keys(next).length) {
       focusFirstInvalid(formRef)
-      return
+      return false
     }
-    setSaving(status || 'form')
-    const payload = { ...changedFields(form, initial), ...(status ? { status } : {}) }
+    setSaving(status || (extra.razlog_cekanja ? 'Na čekanju' : 'form'))
+    const payload = { ...changedFields(form, initial), ...(status ? { status } : {}), ...extra, verzija: fault.data.verzija }
     try {
       const { data } = await api.put(`/kvarovi/${id}`, payload)
       fault.setData(data)
       events.reload()
+      history.reload()
       toast.success(status ? t('fault.statusChanged', { status: statusLabel(status) }) : t('common.saved'))
+      return true
     } catch (error) {
+      if (error?.response?.status === 409) setConflict(true)
       setErrors(fieldErrors(error, i18n))
       toast.error(errorMessage(error, i18n))
+      return false
     } finally {
       setSaving('')
     }
+  }
+
+  const reloadLatest = () => {
+    fault.reload()
+    events.reload()
+  }
+
+  const confirmWaiting = async (reason) => {
+    const changing = waitingDialog === 'change'
+    const saved = await save(changing ? undefined : 'Na čekanju', { razlog_cekanja: reason })
+    if (saved) setWaitingDialog(null)
   }
 
   const back = (
@@ -181,6 +292,8 @@ export default function FaultDetail() {
   const assignees = people.data || []
   const componentOptions = (components.data || []).filter((component) => component.aktivna || String(component.id) === form.komponenta_id)
   const busy = Boolean(saving)
+  const peopleNames = Object.fromEntries(assignees.map((user) => [user.id, `${user.ime} ${user.prezime}`]))
+  const otherFaults = (history.data || []).filter((other) => other.id !== item.id).slice(0, 6)
 
   return (
     <div>
@@ -196,24 +309,41 @@ export default function FaultDetail() {
                 <PriorityMark priority={item.prioritet} />
                 <DueTag fault={item} />
               </div>
+              <AttentionReasons fault={item} max={5} skip={['hitno']} withTime={false} className="mt-2" />
             </header>
             <LabelFields
               items={[
-                { label: t('fault.machine'), value: item.oprema?.naziv },
-                { label: t('fault.location'), value: item.oprema?.lokacija || '—' },
+                { label: t('fault.machine'), value: [item.oprema?.naziv, item.oprema?.lokacija].filter(Boolean).join(' · ') },
                 { label: t('fault.component'), value: item.komponenta?.naziv || t('fault.componentGeneral') },
                 { label: t('fault.reportedBy'), value: item.prijavio ? `${item.prijavio.ime} ${item.prijavio.prezime}` : '—' },
                 { label: t('fault.reportedAt'), value: format.dateTime(item.datum_prijave) },
                 { label: t('fault.assignee'), value: item.voditelj ? `${item.voditelj.ime} ${item.voditelj.prezime}` : t('fault.unassigned') },
+                { label: t('fault.deadline'), value: item.status === 'Riješeno' ? '—' : format.dateTime(item.rok) },
                 { label: t('fault.startedAt'), value: format.dateTime(item.datum_pocetka) },
-                { label: t('fault.resolvedAt'), value: format.dateTime(item.datum_rjesavanja) },
+                item.status === 'Riješeno'
+                  ? { label: t('fault.resolvedAt'), value: format.dateTime(item.datum_rjesavanja) }
+                  : { label: t('fault.timeOpen'), value: format.duration((Date.now() - new Date(item.datum_prijave)) / 60000) },
               ]}
             />
             <div className="px-5 py-4">
               <h2 className="field-label">{t('fault.description')}</h2>
               <p className="mt-1 max-w-[75ch] whitespace-pre-wrap break-words">{item.opis || <span className="text-ink-3">{t('fault.noDescription')}</span>}</p>
             </div>
+            <Photos faultId={item.id} canAdd canDelete={() => true} onChanged={events.reload} className="border-t border-rule px-5 py-4" />
           </article>
+
+          {conflict && (
+            <div role="alert" className="surface flex flex-wrap items-start gap-3 border-urgent/50 bg-urgent-wash/60 px-5 py-4">
+              <AlertTriangle size={20} aria-hidden="true" className="mt-0.5 shrink-0 text-urgent" />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-ink">{t('fault.conflictTitle')}</p>
+                <p className="mt-0.5 text-ink-2">{t('fault.conflictBody')}</p>
+              </div>
+              <button type="button" className="btn-secondary" onClick={reloadLatest}>
+                <RotateCw size={16} aria-hidden="true" /> {t('fault.conflictReload')}
+              </button>
+            </div>
+          )}
 
           <form
             ref={formRef}
@@ -355,7 +485,7 @@ export default function FaultDetail() {
               </Field>
             </div>
 
-            <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-3 border-t border-rule bg-stock/95 px-5 py-3 backdrop-blur-sm">
+            <div className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] flex flex-wrap items-center justify-end gap-3 border-t border-rule bg-stock/95 sm:bottom-0 px-5 py-3 backdrop-blur-sm">
               {dirty && <span role="status" className="mr-auto text-sm font-medium text-warn">{t('common.unsavedChanges')}</span>}
               <button type="submit" className="btn-primary" disabled={busy || !dirty}>
                 <Save size={17} aria-hidden="true" />
@@ -367,30 +497,80 @@ export default function FaultDetail() {
           {events.error ? (
             <div className="surface"><ErrorState error={events.error} onRetry={events.reload} /></div>
           ) : (
-            <Timeline faultId={item.id} events={events.data || []} canInternal onAdded={events.reload} />
+            <Timeline faultId={item.id} events={events.data || []} canInternal onAdded={events.reload} people={peopleNames} />
           )}
         </div>
 
-        <aside className="surface order-first p-4 lg:sticky lg:top-6 lg:order-none" aria-label={t('fault.status')}>
-          <p className="field-label">{t('fault.status')}</p>
-          <p className="mt-1.5"><StatusMark status={item.status} className="text-base font-semibold" /></p>
-          <div className="mt-4 grid gap-2">
-            {(ACTIONS[item.status] || []).map((action) => (
-              <button
-                key={action.status}
-                type="button"
-                disabled={busy}
-                onClick={() => save(action.status)}
-                className={action.primary ? 'btn-primary w-full' : 'btn-secondary w-full'}
-              >
-                <action.icon size={17} aria-hidden="true" />
-                {saving === action.status ? t('common.saving') : t(action.key)}
-              </button>
-            ))}
-          </div>
-          {dirty && <p className="mt-3 text-meta text-ink-2">{t('common.unsavedChanges')}</p>}
-        </aside>
+        <div className="order-first space-y-6 lg:sticky lg:top-6 lg:order-none">
+          <aside className="surface p-4" aria-label={t('fault.status')}>
+            <p className="field-label">{t('fault.status')}</p>
+            <p className="mt-1.5"><StatusMark status={item.status} /></p>
+            <Progress fault={item} />
+            {item.status === 'Na čekanju' && (
+              <div className="mt-3 rounded border border-warn-mark/30 bg-warn-wash px-3 py-2">
+                <WaitingTag fault={item} />
+                <button type="button" className="link mt-1 block text-sm" disabled={busy} onClick={() => setWaitingDialog('change')}>{t('fault.changeReason')}</button>
+              </div>
+            )}
+            <div className="mt-4 grid gap-2">
+              {(ACTIONS[item.status] || []).map((action) => (
+                <button
+                  key={action.status}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => (action.asksReason ? setWaitingDialog('pause') : save(action.status))}
+                  className={action.primary ? 'btn-primary w-full' : 'btn-secondary w-full'}
+                >
+                  <action.icon size={17} aria-hidden="true" />
+                  {saving === action.status ? t('common.saving') : t(action.key)}
+                </button>
+              ))}
+            </div>
+            {dirty && <p className="mt-3 text-meta text-ink-2">{t('fault.unsavedWithAction')}</p>}
+          </aside>
+
+          <section aria-labelledby="machine-history-title" className="surface hidden lg:block">
+            <header className="flex items-center gap-2 border-b border-rule px-4 py-3">
+              <History size={16} aria-hidden="true" className="text-ink-3" />
+              <h2 id="machine-history-title" className="text-sm font-semibold">{t('fault.machineHistory')}</h2>
+            </header>
+            {history.loading && !history.data ? (
+              <LoadingRows rows={2} />
+            ) : otherFaults.length === 0 ? (
+              <p className="px-4 py-3 text-sm text-ink-3">{t('fault.machineHistoryEmpty')}</p>
+            ) : (
+              <ul className="divide-y divide-rule">
+                {otherFaults.map((other) => (
+                  <li key={other.id}>
+                    <Link to={`/admin/kvarovi/${other.id}`} className="block px-4 py-2.5 transition-colors hover:bg-brand-wash/50">
+                      <span className="flex min-w-0 items-baseline gap-2">
+                        <FaultNumber id={other.id} size="sm" className="text-base" />
+                        <span className="truncate text-sm font-medium">{other.naslov}</span>
+                      </span>
+                      <span className="mt-0.5 flex items-center justify-between gap-2">
+                        <StatusMark status={other.status} className="text-meta" />
+                        <span className="text-meta text-ink-3 tabular">{format.date(other.datum_prijave)}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="border-t border-rule p-3">
+              <Link to={`/admin/kvarovi?oprema=${item.oprema_id}`} className="btn-quiet btn-sm w-full">{t('fault.machineHistoryAll')}</Link>
+            </div>
+          </section>
+        </div>
       </div>
+      {waitingDialog && (
+        <WaitingDialog
+          current={item.razlog_cekanja}
+          changing={waitingDialog === 'change'}
+          busy={busy}
+          onConfirm={confirmWaiting}
+          onClose={() => setWaitingDialog(null)}
+        />
+      )}
     </div>
   )
 }

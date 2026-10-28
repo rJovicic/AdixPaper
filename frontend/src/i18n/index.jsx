@@ -68,6 +68,8 @@ export function I18nProvider({ children }) {
     const money = new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
     const moneyRound = new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
     const number = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 })
+    const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+    const timeOnly = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' })
 
     const safe = (formatter) => (value) => {
       if (value === null || value === undefined || value === '') return '—'
@@ -82,6 +84,18 @@ export function I18nProvider({ children }) {
       dateLong: safe(dateLong),
       money: (value) => money.format(Number(value || 0)),
       moneyRound: (value) => moneyRound.format(Number(value || 0)),
+      /** "5 min ago", "yesterday", then the date: for activity feeds. */
+      ago: (value, now = Date.now()) => {
+        const date = new Date(value)
+        if (Number.isNaN(date.getTime())) return '—'
+        const minutes = Math.round((date.getTime() - now) / 60000)
+        if (minutes > -1) return t('time.justNow')
+        if (minutes > -60) return relative.format(minutes, 'minute')
+        if (minutes > -24 * 60) return relative.format(Math.round(minutes / 60), 'hour')
+        if (minutes > -7 * 24 * 60) return relative.format(Math.round(minutes / 1440), 'day')
+        return dateOnly.format(date)
+      },
+      time: safe(timeOnly),
       number: (value) => (value === null || value === undefined || value === '' ? '—' : number.format(Number(value))),
       duration: (minutes) => {
         const total = Math.max(0, Math.round(Number(minutes) || 0))
@@ -99,11 +113,12 @@ export function I18nProvider({ children }) {
     const priority = (value) => lookup(dictionary, `priority.${value}`) ?? value
     const role = (value) => lookup(dictionary, `roles.${value}`) ?? value
     const machineStatus = (value) => lookup(dictionary, `machineStatus.${value}`) ?? value
+    const waitingReason = (value) => lookup(dictionary, `waiting.reasons.${value}`) ?? value
 
     // The API answers in Croatian; English users get the matching translation when one exists.
     const backend = (message) => (lang === 'hr' ? message : dictionary.backend?.[message] ?? message)
 
-    return { lang, setLang, locale, t, format, status, priority, role, machineStatus, backend }
+    return { lang, setLang, locale, t, format, status, priority, role, machineStatus, waitingReason, backend }
   }, [lang, setLang])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>

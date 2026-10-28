@@ -117,3 +117,34 @@ test('no serious accessibility violations with search and the account menu open'
   await page.getByRole('button', { name: 'Odjava' }).waitFor()
   expect(await axe(page), 'account menu').toEqual([])
 })
+
+test('no serious accessibility violations in the waiting dialog, the duplicate warning and the phone overview', async ({ page, request }) => {
+  const { machine, worker, headers } = await setupFixture(request)
+  const workerToken = (await (await request.post('/api/auth/login', { form: worker })).json()).access_token
+  const fault = await (await request.post('/api/kvarovi', {
+    headers: { Authorization: `Bearer ${workerToken}` },
+    data: { oprema_id: machine.id, naslov: 'Axe kvar', prioritet: 'Hitno' },
+  })).json()
+  await request.put(`/api/kvarovi/${fault.id}`, { headers, data: { status: 'U rješavanju' } })
+
+  await signIn(page, ADMIN)
+  await page.goto(`/admin/kvarovi/${fault.id}`)
+  await page.getByRole('button', { name: 'Stavi na čekanje' }).click()
+  await page.getByRole('dialog', { name: 'Zašto kvar čeka?' }).getByLabel(/Rezervni dijelovi/).waitFor()
+  expect(await axe(page), 'waiting dialog').toEqual([])
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/admin')
+  await page.getByRole('heading', { name: 'Opterećenje tima' }).waitFor()
+  await page.waitForLoadState('networkidle')
+  expect(await axe(page), 'phone overview').toEqual([])
+
+  const phone = await (await page.context().browser().newContext({ viewport: { width: 390, height: 844 } })).newPage()
+  await signIn(phone, worker)
+  await phone.goto('/radnik/prijava')
+  await phone.getByLabel('Mašina', { exact: true }).selectOption(String(machine.id))
+  await phone.getByText(/već je prijavljeno/).waitFor()
+  expect(await axe(phone), 'report form with duplicate warning').toEqual([])
+  const overflow = await phone.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+  expect(overflow, 'report form overflow').toBeLessThanOrEqual(0)
+})

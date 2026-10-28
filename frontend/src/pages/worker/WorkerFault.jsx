@@ -5,7 +5,10 @@ import { api, errorKind } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
 import Timeline from '../../components/Timeline'
-import { DueTag, FaultNumber, LabelFields, PriorityMark, StatusMark } from '../../components/ui/Marks'
+import Photos from '../../components/Photos'
+import { useAuth } from '../../auth/AuthProvider'
+import { markSeen } from '../../lib/seen'
+import { DueTag, FaultNumber, LabelFields, PriorityMark, StatusMark, WaitingTag } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 
 export default function WorkerFault() {
@@ -13,6 +16,11 @@ export default function WorkerFault() {
   const { t, format } = useI18n()
   const fault = useAsync(() => api.get(`/kvarovi/${id}`).then((response) => response.data), [id])
   const events = useAsync(() => api.get(`/kvarovi/${id}/dogadjaji`).then((response) => asArray(response.data)), [id])
+
+  const { user } = useAuth()
+  useEffect(() => {
+    if (fault.data) markSeen(user?.id, fault.data.id)
+  }, [fault.data, user?.id])
 
   useEffect(() => {
     if (fault.data) document.title = `${t('fault.number', { id: fault.data.id })} · ${t('app.name')}`
@@ -54,6 +62,7 @@ export default function WorkerFault() {
               <StatusMark status={item.status} />
               <PriorityMark priority={item.prioritet} />
               <DueTag fault={item} />
+              <WaitingTag fault={item} />
             </div>
           </header>
           <LabelFields
@@ -70,6 +79,13 @@ export default function WorkerFault() {
             <h2 className="field-label">{t('fault.description')}</h2>
             <p className="mt-1 whitespace-pre-wrap break-words text-ink">{item.opis || <span className="text-ink-3">{t('fault.noDescription')}</span>}</p>
           </div>
+          <Photos
+            faultId={item.id}
+            canAdd={!resolved}
+            canDelete={(photo) => !resolved && photo.korisnik?.id === user?.id}
+            onChanged={events.reload}
+            className="border-t border-rule px-5 py-4"
+          />
           {resolved && item.sto_je_uradjeno && (
             <div className="border-t border-rule bg-brand-wash/60 px-5 py-4">
               <h2 className="field-label">{t('fault.workDone')}</h2>

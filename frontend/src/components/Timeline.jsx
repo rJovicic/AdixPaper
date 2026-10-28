@@ -4,17 +4,9 @@ import { api, errorMessage } from '../api/client'
 import { useI18n } from '../i18n'
 import { useToast } from './ui/Toast'
 import Field from './ui/Field'
+import { eventTitle } from '../lib/events'
 
-function eventTitle(event, i18n) {
-  const { t, status, priority } = i18n
-  const data = event.podaci || {}
-  const base = t(`fault.events.${event.tip}`)
-  if (event.tip === 'status' && data.old && data.new) return `${base}: ${t('fault.eventChange', { from: status(data.old), to: status(data.new) })}`
-  if (event.tip === 'prioritet' && data.old && data.new) return `${base}: ${t('fault.eventChange', { from: priority(data.old), to: priority(data.new) })}`
-  return base.startsWith('fault.') ? event.naslov : base
-}
-
-export default function Timeline({ faultId, events, canInternal = false, onAdded }) {
+export default function Timeline({ faultId, events, canInternal = false, onAdded, people }) {
   const i18n = useI18n()
   const { t, format } = i18n
   const toast = useToast()
@@ -68,7 +60,7 @@ export default function Timeline({ faultId, events, canInternal = false, onAdded
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.9375rem] font-semibold text-ink">
-                    {eventTitle(item, i18n)}
+                    {eventTitle(item, i18n, people)}
                     {item.interno && (
                       <span className="inline-flex items-center gap-1 rounded-sm bg-ground px-1.5 py-0.5 text-label font-semibold uppercase text-ink-2">
                         <Lock size={11} aria-hidden="true" /> {t('fault.internal')}

@@ -1,10 +1,12 @@
 """Idempotent database initialisation that runs once on application startup."""
 import csv
 import logging
+import time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from sqlalchemy import func, inspect, text
+from sqlalchemy.exc import OperationalError
 
 from .auth import set_password
 from .config import settings
@@ -16,6 +18,38 @@ logger = logging.getLogger("adixpaper")
 SEED_FILE = Path(__file__).resolve().parent / "seed_data" / "spareparts.csv"
 
 
+def wait_for_database(timeout: float | None = None, sleep=time.sleep, clock=time.monotonic) -> int:
+    """Block until the database answers `SELECT 1`, retrying with backoff (1 s doubling to 10 s).
+
+    A redeploy can start the app before Postgres accepts connections or before its private
+    hostname resolves (seen on Railway on 2026-10-28). Failing at once spends one of the
+    platform's limited restarts; waiting here rides out the gap. Returns the number of
+    attempts. Raises the last error once `timeout` seconds have passed.
+    """
+    timeout = settings.DB_STARTUP_TIMEOUT_SECONDS if timeout is None else timeout
+    deadline = clock() + timeout
+    delay = 1.0
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            with engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+            if attempt > 1:
+                logger.info("Database reachable after %s attempts", attempt)
+            return attempt
+        except OperationalError as error:
+            remaining = deadline - clock()
+            if remaining <= 0:
+                logger.error("Database still unreachable after %s attempts; giving up", attempt)
+                raise
+            # The first line only: the full message can include the host but never the password.
+            reason = str(error.orig if getattr(error, "orig", None) else error).splitlines()[0]
+            logger.warning("Database not reachable yet (attempt %s): %s; retrying in %.0f s", attempt, reason, min(delay, remaining))
+            sleep(min(delay, remaining))
+            delay = min(delay * 2, 10.0)
+
+
 def ensure_additive_schema():
     """Add columns introduced after the first release to databases created before them."""
     inspector = inspect(engine)
@@ -24,12 +58,23 @@ def ensure_additive_schema():
     dijelovi_info = {c["name"]: c for c in inspector.get_columns("rezervni_dijelovi")} if "rezervni_dijelovi" in table_names else {}
     dijelovi_columns = set(dijelovi_info)
     korisnici_columns = {c["name"] for c in inspector.get_columns("korisnici")} if "korisnici" in table_names else set()
+    timestamp = "TIMESTAMP WITH TIME ZONE" if engine.dialect.name == "postgresql" else "DATETIME"
     with engine.begin() as connection:
         if kvarovi_columns and "komponenta_id" not in kvarovi_columns:
             connection.execute(text("ALTER TABLE kvarovi ADD COLUMN komponenta_id INTEGER"))
+        # 2026-10-27: waiting reason, optimistic-concurrency version, last visible change.
+        if kvarovi_columns and "razlog_cekanja" not in kvarovi_columns:
+            connection.execute(text("ALTER TABLE kvarovi ADD COLUMN razlog_cekanja VARCHAR(30)"))
+        if kvarovi_columns and "cekanje_od" not in kvarovi_columns:
+            connection.execute(text(f"ALTER TABLE kvarovi ADD COLUMN cekanje_od {timestamp}"))
+        if kvarovi_columns and "verzija" not in kvarovi_columns:
+            connection.execute(text("ALTER TABLE kvarovi ADD COLUMN verzija INTEGER NOT NULL DEFAULT 1"))
+        if kvarovi_columns and "azurirano" not in kvarovi_columns:
+            connection.execute(text(f"ALTER TABLE kvarovi ADD COLUMN azurirano {timestamp}"))
+        if kvarovi_columns and "klijent_kljuc" not in kvarovi_columns:
+            connection.execute(text("ALTER TABLE kvarovi ADD COLUMN klijent_kljuc VARCHAR(64)"))
         if korisnici_columns and "sesije_od" not in korisnici_columns:
-            column_type = "TIMESTAMP WITH TIME ZONE" if engine.dialect.name == "postgresql" else "DATETIME"
-            connection.execute(text(f"ALTER TABLE korisnici ADD COLUMN sesije_od {column_type}"))
+            connection.execute(text(f"ALTER TABLE korisnici ADD COLUMN sesije_od {timestamp}"))
         if dijelovi_columns and "zaliha" not in dijelovi_columns:
             connection.execute(text("ALTER TABLE rezervni_dijelovi ADD COLUMN zaliha NUMERIC(10, 2)"))
         # Supplier became optional on spare parts (2026-10-27). SQLite cannot alter
@@ -37,6 +82,13 @@ def ensure_additive_schema():
         supplier = dijelovi_info.get("dobavljac_id")
         if supplier and not supplier["nullable"] and engine.dialect.name == "postgresql":
             connection.execute(text("ALTER TABLE rezervni_dijelovi ALTER COLUMN dobavljac_id DROP NOT NULL"))
+        # Indexes for the overview, the paged fault list and the activity feed (names match create_all).
+        if kvarovi_columns:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_kvarovi_status ON kvarovi (status)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_kvarovi_datum_prijave ON kvarovi (datum_prijave)"))
+            connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_kvarovi_klijent_kljuc ON kvarovi (klijent_kljuc)"))
+        if "kvar_dogadjaji" in table_names:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_kvar_dogadjaji_kreiran ON kvar_dogadjaji (kreiran)"))
 
 
 def seed_initial_suppliers():
@@ -184,6 +236,7 @@ def reset_user_password_from_env():
 
 
 def run():
+    wait_for_database()
     Base.metadata.create_all(bind=engine)
     ensure_additive_schema()
     seed_initial_suppliers()

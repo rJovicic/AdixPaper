@@ -31,7 +31,9 @@ Built around this plant's own machines, components and spare-parts catalogue (66
 ## Operating Context
 
 - Fault priorities and response windows: **Hitno / Urgent — 2 h**, **Normalno / Normal — 8 h**, **Nisko / Low — 48 h**, measured from the moment of reporting until the fault is resolved.
-- Fault states: **Novo → U rješavanju → (Na čekanju) → Riješeno**. A resolved fault can be reopened.
+- Fault states: **Novo → U rješavanju → (Na čekanju) → Riješeno**. A resolved fault can be reopened. Putting a fault on hold requires a reason — spare parts, outside service, approval, machine availability (production), other — and records since when; the time on hold per reason feeds Analytics.
+- A fault needs attention when it is **overdue**, **due soon** (last quarter of its window), **urgent**, **untaken**, or **on hold for more than 24 h**. The server computes these reasons once (`Kvar.razlozi_paznje`); the overview and lists show them in words.
+- One person handles a fault (`voditelj_id`, shown as "Preuzeo"). Leads are the technicians; there is no separate manager/technician split. Every reassignment is in the timeline.
 - Every change to a fault (status, priority, assignee, component, resolution details, parts) is written to the fault's timeline; leads can add internal notes workers do not see.
 - Reports leave the system as Excel (faults; spare-part usage grouped by supplier, one sheet per supplier) and PDF.
 - Leads are alerted to new faults in the open app (polling) and, when VAPID keys are configured, by Web Push.
@@ -43,9 +45,11 @@ Built around this plant's own machines, components and spare-parts catalogue (66
 - Interface languages: Croatian (default) and English, switchable by each user; the choice is remembered on the device. Data entered by users (machine names, fault text) is not translated.
 - Domain enum values are stored in Croatian (`Hitno`, `U rješavanju`, …) and translated for display only.
 - Accounts are created by an admin; there is no self-registration and no email-based password reset. Every user can change their own password, which signs out their other devices.
-- No photo upload (a `foto_url` column exists but is unused; the API ignores client values).
+- Photos: up to 6 per fault, added by the reporter (while open) or by leads. Stored re-encoded (max 1600 px, EXIF/GPS removed). `foto_url` stays unused.
 - A fault can be resolved only once "work done" is filled in.
-- Workers see status, assignee, work done and public comments of their own faults; never costs, material, parts or internal notes.
+- Workers see status, assignee, waiting reason, work done, photos and public comments of their own faults; never costs, material, parts or internal notes.
+- While reporting, a worker sees the open faults already on that machine (number, title, status, part, time — no names) and may still report.
+- Two leads saving the same fault: the second save, made from an older version, is refused (409) and the page offers to load the latest. Nothing is overwritten silently.
 - Each machine can have a printed QR label linking to `/m/<id>`.
 - Single plant timezone; single currency (EUR).
 
@@ -72,10 +76,10 @@ Built around this plant's own machines, components and spare-parts catalogue (66
 1. Worker signs in once on their phone (session lasts 8 h) and lands on **My faults**.
 2. Taps **Report fault** → picks machine → picks component (when the machine has components) → writes a short title and optional detail → picks urgency → sends. Or scans the QR label on the machine, which opens the form with the machine already chosen. A half-written report survives a reload or an expired session.
 3. Sees confirmation and the new fault at the top of their list with status **Novo**.
-4. Lead is alerted (in-app notice within ~20 s; push if enabled), opens the fault, **takes it** (status → U rješavanju, lead becomes assignee unless someone already is, start time recorded). "Assigned to me" in the fault list is the lead's own queue.
+4. Lead is alerted (in-app notice within ~20 s; push if enabled), sees it in **Needs attention** with the reason ("untaken", "urgent"), opens the fault, **takes it** (status → U rješavanju, lead becomes assignee unless someone already is, start time recorded). If parts are missing, the lead puts it **on hold** with the reason. "Assigned to me" in the fault list is the lead's own queue.
 5. Lead records work done, downtime, cost and spare parts, marks it **Riješeno** (work done is required).
-6. Worker opens their fault and sees the status, who handled it, and the public timeline/comments.
-7. Admin reviews the dashboard and exports the month's faults and spare-part usage.
+6. Worker sees an **Updated** badge (and a push, if enabled), opens their fault and sees the status, who handled it, why it waits, and the public timeline/comments.
+7. Admin reviews Analytics for a period (time to take, time to resolve, share on time, downtime, cost, waiting by reason, recurring faults) and exports the month's faults and spare-part usage.
 
 ## Accessibility & Inclusion
 
@@ -88,7 +92,9 @@ WCAG 2.2 AA: keyboard operable, visible focus, 4.5:1 text contrast, labelled for
 | Worker can report a fault on a 390 px phone | From sign-in, a new fault is submitted in ≤ 6 interactions after reaching My faults; confirmation and the new list entry appear without reload |
 | Invalid input never reaches the server silently | Submitting without machine or title shows field-level messages and focuses the first invalid field |
 | Worker sees progress | A worker can open any of their faults and see status, assignee and public comments; internal notes are never shown |
-| Lead sees what needs action | Dashboard's first viewport shows open, urgent and overdue counts and the open faults ordered by response-window risk |
+| Lead sees what needs action | Overview's first viewport shows open, urgent, overdue, untaken, waiting-for-parts and resolved-in-period counts, each linking to a list with the same count, and the faults needing attention with the reason in words |
+| Hold has a reason | Putting a fault on hold without a reason is refused; the reason is visible to leads and the reporter |
+| No silent overwrite | Saving a fault that changed since the page loaded shows a conflict notice and keeps the other person's change |
 | Lead closes a fault with parts | Status, work done, minutes, cost and ≥ 1 spare part are saved in one save; the timeline records each change |
 | Failures are recoverable | Every list, form and export shows an error with a retry/next step when the API fails; no unhandled promise rejections |
 | No lockout | An admin cannot deactivate or demote their own account |
@@ -102,8 +108,7 @@ WCAG 2.2 AA: keyboard operable, visible focus, 4.5:1 text contrast, labelled for
 ## Open Questions
 
 - How many workers share a phone, and is a 480-minute session right for shared devices?
-- Should workers be able to attach a photo of the fault?
 - Are the response windows (2 h / 8 h / 48 h) the agreed internal targets, or placeholders?
 - Should the dashboard separate the two companies (Cupup / Delt)?
-- Should workers see open faults already reported on a machine (duplicate warning), given that they otherwise see only their own reports?
+- How long should photos be kept (storage grows ~1 GB/year at 50 photos a week)?
 - Must production data stay in the EU (the service currently runs in Railway `us-west2`)?

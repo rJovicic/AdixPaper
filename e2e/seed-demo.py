@@ -78,4 +78,5 @@ call("PUT", f"/api/kvarovi/{created[3]['id']}", {"status": "Riješeno", "sto_je_
                                                  "trajanje_min": 45, "troskovi": "35.00",
                                                  "utroseni_dijelovi": [{"rezervni_dio_id": part["id"], "kolicina": "1"}]}, admin)
 call("POST", f"/api/kvarovi/{created[1]['id']}/komentari", {"tekst": "Naručen novi ventil, stiže sutra.", "interno": False}, admin)
+call("PUT", f"/api/kvarovi/{created[1]['id']}", {"status": "Na čekanju", "razlog_cekanja": "dijelovi"}, admin)
 print("Demo data ready:", len(created), "faults")

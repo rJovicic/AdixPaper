@@ -4,6 +4,7 @@ import time
 from collections import defaultdict, deque
 
 from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # The SPA is self-contained (bundled JS/CSS/fonts); inline styles are used by charts.
@@ -13,16 +14,33 @@ CONTENT_SECURITY_POLICY = (
     "manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 )
 DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+# The largest legitimate body is a 12 MB photo plus multipart framing. Checked before the body is read:
+# Starlette would otherwise spool any upload to disk before the endpoint's own size check runs.
+MAX_BODY_BYTES = 13 * 1024 * 1024
+TOO_LARGE = "Fotografija je prevelika (najviše 12 MB)"
+
+
+def body_too_large(request: Request) -> bool:
+    if request.method not in ("POST", "PUT", "PATCH"):
+        return False
+    length = request.headers.get("content-length")
+    if length is None:
+        # Uploads must declare their size; JSON bodies without a length are left to the parser.
+        return request.headers.get("content-type", "").startswith("multipart/")
+    return not length.isdigit() or int(length) > MAX_BODY_BYTES
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
+        if body_too_large(request):
+            response = JSONResponse({"detail": TOO_LARGE}, status_code=413)
+        else:
+            response = await call_next(request)
         headers = response.headers
         headers.setdefault("X-Content-Type-Options", "nosniff")
         headers.setdefault("X-Frame-Options", "DENY")
         headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        headers.setdefault("Permissions-Policy", "camera=(self), microphone=(), geolocation=()")
         if not request.url.path.startswith(DOCS_PATHS):
             # Swagger UI loads assets from a CDN, so it is exempt from the strict policy.
             headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)

@@ -7,9 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import text
 
-from . import bootstrap
+from . import bootstrap, retention
 from .config import settings
-from .database import engine
+from .database import SessionLocal, engine
 from .security import SecurityHeadersMiddleware
 from .routers import auth, korisnici, oprema, dashboard, kvarovi, notifikacije, rezervni_dijelovi
 
@@ -17,7 +17,12 @@ from .routers import auth, korisnici, oprema, dashboard, kvarovi, notifikacije, 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     bootstrap.run()
+    scheduler = retention.RetentionScheduler() if settings.PHOTO_RETENTION_SCHEDULER else None
+    if scheduler:
+        scheduler.start()
     yield
+    if scheduler:
+        scheduler.stop()
 
 
 app = FastAPI(
@@ -57,6 +62,17 @@ def health():
         logging.getLogger("adixpaper").exception("Health check: database unreachable")
         return JSONResponse({"status": "error", "database": "unreachable"}, status_code=503)
     return {"status": "ok"}
+
+
+@app.get("/health/jobs", include_in_schema=False)
+def health_jobs():
+    """Background job health for an uptime check: 503 after repeated failures or no run for 48 h."""
+    db = SessionLocal()
+    try:
+        healthy, body = retention.health(db)
+    finally:
+        db.close()
+    return JSONResponse(body, status_code=200 if healthy else 503)
 
 
 # --- Frontend (single-page app) -------------------------------------------------

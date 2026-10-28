@@ -22,6 +22,20 @@ class Settings(BaseSettings):
     # build serves frontend and API from one origin, so this is normally empty.
     CORS_ORIGINS: str = ""
     FRONTEND_DIST: str = str(DEFAULT_FRONTEND_DIST)
+    # How long startup waits for the database (e.g. while Railway restarts Postgres or its
+    # private hostname is not resolvable yet) before giving up and letting the platform restart us.
+    DB_STARTUP_TIMEOUT_SECONDS: float = 90
+    # Photo retention (app/retention.py): photos are removed 12 calendar months after the fault
+    # was resolved, in plant time. "off" = kill switch, "dry-run" = count and log only (default,
+    # so a first deploy deletes nothing), "delete" = remove.
+    PHOTO_RETENTION_MODE: str = "dry-run"
+    # At most this many photos are removed per run; the rest wait for the next day.
+    PHOTO_RETENTION_MAX_PER_RUN: int = 200
+    # Plant-local hour after which the daily run happens.
+    PHOTO_RETENTION_HOUR: int = 3
+    PHOTO_RETENTION_SCHEDULER: bool = True  # tests turn the background thread off
+    # Optional Discord/Slack-compatible webhook for repeated background-job failures.
+    ALERT_WEBHOOK_URL: str = ""
     # Public origin printed into machine QR codes, e.g. https://adixpaper-production.up.railway.app.
     # Defaults to the origin the request came in on.
     PUBLIC_URL: str = ""

@@ -61,13 +61,13 @@ export default function Login() {
   const notice = reason === 'expired' ? t('login.expired') : reason === 'signedOut' ? t('login.signedOut') : ''
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex min-h-dvh flex-col bg-brand-deep">
       <div className="flex justify-end px-4 pt-4">
-        <LanguageSwitch />
+        <LanguageSwitch tone="deep" />
       </div>
       <main className="flex flex-1 items-start justify-center px-4 pb-10 pt-6 sm:items-center sm:pt-0">
         <div className="enter-rise w-full max-w-[25rem]">
-          <section aria-labelledby="login-title" className="surface overflow-hidden">
+          <section aria-labelledby="login-title" className="overflow-hidden rounded-lg bg-stock shadow-dialog">
             <header className="flex items-center gap-4 border-b border-rule px-6 py-5">
               <BrandLogo size="lg" />
               <div className="min-w-0">
@@ -139,7 +139,7 @@ export default function Login() {
               <p className="text-sm text-ink-2">{t('login.help')}</p>
             </form>
           </section>
-          <p className="mt-5 text-center text-meta text-ink-3">{t('app.companies')}</p>
+          <p className="mt-5 text-center text-meta text-brand-on-deep">{t('app.companies')}</p>
         </div>
       </main>
     </div>

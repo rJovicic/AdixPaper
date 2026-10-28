@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 from pydantic_core import PydanticCustomError
-from typing import Annotated, Optional, List
+from typing import Annotated, Literal, Optional, List
 from datetime import date, datetime
 from decimal import Decimal
 from .models import RolaEnum, StatusOpremaEnum, TvrtkaEnum, PrioritetEnum, StatusKvaraEnum
@@ -205,12 +205,17 @@ class OpremaWithStats(OpremaOut):
 
 
 # --- KVAR ---
+RazlogCekanja = Literal["dijelovi", "vanjski_servis", "odobrenje", "proizvodnja", "ostalo"]
+
+
 class KvarCreate(CleanModel):
     oprema_id: int
     komponenta_id: Optional[int] = None
     naslov: ShortText = Field(min_length=1)
     opis: Optional[LongText] = None
     prioritet: PrioritetEnum = PrioritetEnum.normalno
+    # Idempotency key from the reporting device (see Kvar.klijent_kljuc).
+    klijent_kljuc: Optional[Annotated[str, Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9-]+$")]] = None
 
 
 class KvarRezervniDioInput(CleanModel):
@@ -231,6 +236,10 @@ class KvarVoditeljUpdate(CleanModel):
     datum_rjesavanja: Optional[datetime] = None
     prioritet: Optional[PrioritetEnum] = None
     utroseni_dijelovi: Optional[List[KvarRezervniDioInput]] = None
+    # Required when the status becomes "Na čekanju"; ignored otherwise.
+    razlog_cekanja: Optional[RazlogCekanja] = None
+    # The version the client last loaded. When sent and stale, the save is rejected with 409.
+    verzija: Optional[Annotated[int, Field(ge=1)]] = None
 
 
 class KvarKomentarCreate(CleanModel):
@@ -347,6 +356,13 @@ class KvarOut(BaseModel):
     prijavio: Optional[KorisnikMini] = None
     voditelj: Optional[KorisnikMini] = None
     utroseni_dijelovi: List[KvarRezervniDioOut] = []
+    razlog_cekanja: Optional[str] = None
+    cekanje_od: Optional[datetime] = None
+    verzija: int = 1
+    azurirano: Optional[datetime] = None
+    rok: Optional[datetime] = None
+    razlozi_paznje: List[str] = []
+    broj_priloga: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -368,6 +384,37 @@ class KvarListOut(BaseModel):
     komponenta: Optional[KomponentaMini] = None
     prijavio: Optional[KorisnikMini] = None
     voditelj: Optional[KorisnikMini] = None
+    razlog_cekanja: Optional[str] = None
+    cekanje_od: Optional[datetime] = None
+    azurirano: Optional[datetime] = None
+    rok: Optional[datetime] = None
+    razlozi_paznje: List[str] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class KvarNaMasiniOut(BaseModel):
+    """An open fault on a machine, as anyone reporting on that machine may see it (duplicate warning):
+    no reporter, assignee or internal details."""
+    id: int
+    naslov: str
+    status: StatusKvaraEnum
+    datum_prijave: datetime
+    komponenta: Optional[KomponentaMini] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class KvarPrilogOut(BaseModel):
+    id: int
+    kvar_id: int
+    naziv: str
+    mime: str
+    velicina: int
+    sirina: Optional[int] = None
+    visina: Optional[int] = None
+    kreiran: datetime
+    korisnik: Optional[KorisnikMini] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -456,3 +503,118 @@ class SparePartUsageSummary(BaseModel):
     dobavljac: Optional[str] = None
     kolicina: float
     trosak: float
+
+
+# --- PREGLED (overview) ---
+class PregledKpi(BaseModel):
+    otvoreni: int
+    hitni: int
+    kasni: int
+    nedodijeljeni: int
+    novi: int
+    u_rjesavanju: int
+    na_cekanju: int
+    ceka_dijelove: int
+    prijavljeni_u_periodu: int
+    rijeseni_u_periodu: int
+
+
+class PregledOpterecenje(BaseModel):
+    korisnik: KorisnikMini
+    otvoreni: int
+    u_rjesavanju: int
+    na_cekanju: int
+    kasni: int
+
+
+class PregledAktivnost(BaseModel):
+    id: int
+    kvar_id: int
+    kvar_naslov: str
+    tip: str
+    naslov: str
+    opis: Optional[str] = None
+    podaci: Optional[dict] = None
+    interno: bool
+    kreiran: datetime
+    korisnik: Optional[KorisnikMini] = None
+
+
+class Pregled(BaseModel):
+    od: datetime
+    do: datetime
+    kpi: PregledKpi
+    opterecenje: List[PregledOpterecenje]
+    aktivnosti: List[PregledAktivnost]
+
+
+# --- ANALITIKA ---
+class AnalitikaSazetak(BaseModel):
+    """Headline figures for one period. Durations in minutes; None when there is nothing to average."""
+    prijavljeno: int
+    rijeseno: int
+    vrijeme_do_rjesenja_min: Optional[float] = None
+    vrijeme_do_preuzimanja_min: Optional[float] = None
+    vrijeme_popravka_min: Optional[float] = None
+    sla_u_roku: int
+    sla_postotak: Optional[float] = None
+    zastoj_min: int
+    zastoj_evidentiran: int
+    trosak_rada: float
+    trosak_dijelova: float
+
+
+class AnalitikaMasina(BaseModel):
+    oprema_id: int
+    naziv: str
+    lokacija: Optional[str] = None
+    kvarovi: int
+    zastoj_min: int
+    trosak: float
+    vrijeme_do_rjesenja_min: Optional[float] = None
+    mtbf_sati: Optional[float] = None
+
+
+class AnalitikaCekanje(BaseModel):
+    razlog: str
+    broj: int
+    ukupno_min: int
+    trenutno: int
+
+
+class AnalitikaPonavljanje(BaseModel):
+    oprema_id: int
+    oprema: str
+    komponenta: Optional[str] = None
+    kvarovi: int
+    zadnji: datetime
+
+
+class AnalitikaDio(BaseModel):
+    naziv: str
+    sifra: Optional[str] = None
+    kolicina: float
+    trosak: float
+
+
+class AnalitikaPrioritet(BaseModel):
+    prioritet: str
+    broj: int
+
+
+class AnalitikaStatus(BaseModel):
+    status: str
+    broj: int
+
+
+class Analitika(BaseModel):
+    od: datetime
+    do: datetime
+    sazetak: AnalitikaSazetak
+    prethodno: AnalitikaSazetak
+    masine: List[AnalitikaMasina]
+    cekanje: List[AnalitikaCekanje]
+    ponavljanja: List[AnalitikaPonavljanje]
+    dijelovi: List[AnalitikaDio]
+    po_prioritetu: List[AnalitikaPrioritet]
+    po_statusu: List[AnalitikaStatus] = []

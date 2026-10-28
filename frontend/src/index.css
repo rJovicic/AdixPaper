@@ -5,10 +5,11 @@
 @tailwind utilities;
 
 /*
- * Reel-label palette, from the two colours of the Adix Paper logo: its blue and its
- * wordmark grey. One red, only for urgent, overdue and errors. No other hues.
+ * Reel-label palette: the logo blue carries action and the shell; state carries semantic colour
+ * (owner's brief, 2026-10-28): red urgent/overdue, amber waiting/due soon, blue in progress,
+ * violet new, green resolved/active, slate neutral. Every state is a dot + a word, never colour alone.
  * Values are RGB channels so Tailwind can apply alpha.
- * Contrast (WCAG): every text pair >= 4.5:1, control borders >= 3:1. See DESIGN.md.
+ * Contrast (WCAG): every text pair >= 4.5:1 on white and on its wash, control borders >= 3:1. See DESIGN.md.
  */
 :root {
   --ground: 237 239 242;      /* #EDEFF2 reel-core grey */
@@ -18,20 +19,28 @@
   --ink-3: 99 107 119;        /* #636B77 */
   --rule: 214 218 224;        /* #D6DAE0 hairlines */
   --rule-strong: 133 140 151; /* #858C97 control borders, 3.4:1 */
-  --brand: 42 89 162;         /* #2A59A2 logo blue */
+  --brand: 42 89 162;         /* #2A59A2 logo blue: actions, links, in progress */
   --brand-hover: 34 75 138;   /* #224B8A */
   --brand-deep: 21 44 82;     /* #152C52 shell rail */
   --brand-wash: 231 237 247;  /* #E7EDF7 selection */
   --brand-on-deep: 184 198 222; /* #B8C6DE quiet text on rail */
-  --urgent: 180 35 24;        /* #B42318 */
-  --urgent-wash: 252 235 233;
-  --grey: 148 149 151;        /* #949597 logo wordmark grey: resolved, inactive */
-  /* "Due soon", "unsaved" and success use the logo blues, not amber or green. */
-  --warn: 21 44 82;           /* #152C52 */
-  --warn-mark: 42 89 162;     /* #2A59A2 */
-  --warn-wash: 231 237 247;
-  --ok: 42 89 162;            /* #2A59A2 */
-  --ok-wash: 231 237 247;
+  --urgent: 180 35 24;        /* #B42318 text 6.6:1 */
+  --urgent-mark: 217 45 32;   /* #D92D20 */
+  --urgent-wash: 254 243 242; /* #FEF3F2 */
+  --grey: 148 149 151;        /* #949597 logo wordmark grey */
+  --warn: 181 71 8;           /* #B54708 amber text 5.4:1 */
+  --warn-mark: 247 144 9;     /* #F79009 */
+  --warn-wash: 255 250 235;   /* #FFFAEB */
+  --ok: 6 118 71;             /* #067647 green text 5.7:1 */
+  --ok-mark: 23 178 106;      /* #17B26A */
+  --ok-wash: 236 253 243;     /* #ECFDF3 */
+  --new: 89 37 220;           /* #5925DC violet text 7.7:1 */
+  --new-mark: 122 90 248;     /* #7A5AF8 */
+  --new-wash: 244 243 255;    /* #F4F3FF */
+  --info-wash: 239 244 255;   /* #EFF4FF */
+  --slate: 71 84 103;         /* #475467 */
+  --slate-mark: 152 162 179;  /* #98A2B3 */
+  --slate-wash: 242 244 247;  /* #F2F4F7 */
 
   color-scheme: light;
   -webkit-tap-highlight-color: transparent;
@@ -96,11 +105,6 @@
     @apply rounded-lg border border-rule bg-stock shadow-label;
   }
 
-  /* In progress: a half-filled logo-blue square (filled = new, hollow = on hold, grey = resolved). */
-  .mark-half {
-    border: 1.5px solid rgb(var(--brand));
-    background: linear-gradient(90deg, rgb(var(--brand)) 50%, transparent 50%);
-  }
 
   /* Time used of the response window: a hairline, logo blue, red once overdue. */
   .due-bar {
@@ -110,7 +114,18 @@
     @apply block h-full rounded-full bg-brand;
   }
   .due-bar[data-late] > i {
-    @apply bg-urgent;
+    @apply bg-urgent-mark;
+  }
+  .due-bar[data-soon] > i {
+    @apply bg-warn-mark;
+  }
+
+  /* State pill: tinted ground, a dot and the word. Tones: see Marks.jsx. */
+  .badge {
+    @apply inline-flex items-center gap-1.5 self-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[0.8125rem] font-semibold leading-5;
+  }
+  .badge > .dot {
+    @apply h-1.5 w-1.5 shrink-0 rounded-full;
   }
 
   .btn {
@@ -170,6 +185,10 @@
 @layer utilities {
   .safe-bottom {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  /* Fixed bottom bars: clear the home indicator on iPhones, nothing elsewhere. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 

@@ -7,6 +7,10 @@ Fault and maintenance log for the Cupup d.o.o and Delt papir d.o.o paper-convert
 - **Administrators** also manage users, machines and their parts, the spare-parts catalogue, and export Excel/PDF reports.
 - **Machine QR labels**: print one per machine; scanning it opens the report form with that machine chosen (leads see its faults).
 - Everyone can change their own password; doing so signs out their other devices.
+- **Overview** for leads: six figures that each open the matching list, a queue that says *why* each fault needs attention, team workload, recent activity.
+- **On hold with a reason** (parts, outside service, approval, machine availability, other); waiting time per reason in Analytics.
+- **Photos** on faults; **duplicate warning** while reporting; **updated** badge (and optional push) for workers.
+- **Analytics** by period: time to take, time to resolve (MTTR), share on time, downtime, cost, MTBF approximation per machine, recurring faults — each with its definition.
 
 Interface in Croatian (default) and English. Production: <https://adixpaper-production.up.railway.app>
 
@@ -15,7 +19,9 @@ Interface in Croatian (default) and English. Production: <https://adixpaper-prod
 | [PRODUCT.md](PRODUCT.md) | Users, journeys, principles, acceptance criteria |
 | [DESIGN.md](DESIGN.md) | Design system: tokens, components, accessibility |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Railway setup, variables, verification, troubleshooting |
+| [PRE_PRODUCTION_CHECKLIST.md](PRE_PRODUCTION_CHECKLIST.md) | Before merging PR #3: backups, region, QR domain, retention, privacy, alerting, staging |
 | [AUDIT.md](AUDIT.md) | Audit findings, launch checklist, backlog and verdict |
+| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Command-center pass: gaps, phases, progress, verification |
 | [decisions.md](decisions.md) | Decisions someone might want to revisit |
 
 ## Stack

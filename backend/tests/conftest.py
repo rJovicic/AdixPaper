@@ -21,6 +21,7 @@ os.environ["SECRET_KEY"] = "test-secret-key-that-is-long-enough-for-hs256"
 os.environ["ADMIN_USERNAME"] = "admin"
 os.environ["ADMIN_PASSWORD"] = "admin-pass-123"
 os.environ["AUTO_SEED_SPARE_PARTS"] = "false"
+os.environ["PHOTO_RETENTION_SCHEDULER"] = "false"
 os.environ["FRONTEND_DIST"] = str(_static)
 os.environ.pop("RAILWAY_ENVIRONMENT_NAME", None)
 

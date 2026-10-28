@@ -119,3 +119,56 @@
 - What: the original reel-label system (Archivo, deep-blue rail, ruled label fields) with the palette limited to the logo's blue and wordmark grey (#949597, sampled from the logo), white and ink. States are shapes: filled blue new, half-filled blue in progress, hollow grey on hold, filled grey resolved. Red stays only for urgent, overdue and errors. Amber and green are gone.
 - Kept from the press-sheet round: Ctrl/⌘ K search, All / Unassigned / Mine on the overview with a "My faults" panel, the account menu, the time-left hairline.
 - Open: adixpaper.hr could not be reached from the build environment, so the palette rests on the logo file. If the website uses no red, urgent/overdue can become bold deep blue.
+
+## 2026-10-27 · Command center: the overview gains workload and recent activity
+- Decided by: the owner's brief ("operational maintenance command center"), implemented by Claude
+- What: six figures instead of three (adds untaken, waiting for parts, resolved in period), a "why" for every fault in the queue, team workload and recent activity. Revisits "Overview shows only what needs action" (2026-10-26): workload and activity are about acting today (who is free, what just changed); totals and trends stay on Analytics.
+- Rests on: the brief; `GET /api/dashboard/pregled`.
+
+## 2026-10-27 · Status colours stay "logo colours only" (brief asked for semantic colours)
+- Decided by: Claude (default), **owner to confirm**
+- Why: the owner chose logo colours only earlier the same day, explicitly rejecting amber and green ("no crayons"). The command-center brief and its reference images use semantic colours. The newer explicit decision about colour was kept; layout, hierarchy and components follow the references.
+- How to reverse: the palette is tokens in `frontend/src/index.css :root` (`--warn`, `--ok`) plus the marks in `components/ui/Marks.jsx`; adding hues is a small, local change.
+
+## 2026-10-27 · On hold requires a reason
+- Decided by: Claude (default), following the brief
+- What: five reasons (spare parts, outside service, approval, machine availability, other). The server refuses "Na čekanju" without one, records since when, and logs how long and why on leaving. Workers see the reason.
+- Rejected: free text only (cannot be counted); a separate status per reason (multiplies states and filters).
+- Known gap: faults already on hold before this release have no reason until changed.
+
+## 2026-10-27 · Stale saves are refused (optimistic concurrency)
+- Decided by: Claude (default), AUDIT A2-29
+- What: `kvarovi.verzija`, sent with every save from the fault page; a mismatch returns 409 and the page offers "Load latest". The row is locked during the save (PostgreSQL). Saves without a version (scripts) still pass.
+
+## 2026-10-27 · Photos are stored in Postgres
+- Decided by: Claude (default), reversible
+- Why: Railway's container disk is ephemeral; a volume or S3 bucket adds infrastructure and credentials. Re-encoded photos are small (≤ 1600 px JPEG), backups cover them, and access follows the fault's permissions.
+- Trade-off: database growth (~1 GB/year at 50 photos/week). Move to object storage if volume grows; retention is an open owner decision.
+
+## 2026-10-27 · Workers see titles of open faults on a machine while reporting
+- Decided by: the owner's brief (duplicate warning), implemented by Claude
+- What: number, title, status, machine part and time only; no reporter, assignee, costs or notes. The warning never blocks a report. Resolves PRODUCT.md open question on duplicates.
+
+## 2026-10-27 · One handler per fault; no manager/technician split
+- Decided by: Claude (default)
+- Why: the brief allows it "if the application requires both roles"; it does not — leads are the technicians (PRODUCT.md). Adding a second role would invent a rule. Ownership history is in the timeline.
+
+## 2026-10-27 · Analytics MTBF is an approximation
+- Decided by: Claude (default)
+- What: "gap between faults" = mean interval between consecutive reports on a machine in the period. True MTBF needs operating hours, which are not recorded; the page says so.
+
+## 2026-10-28 · Semantic status colours (supersedes "logo colours only")
+- Decided by: the owner ("semantic status colors", with the reference images), after a full visual QA of every screen
+- What: red urgent/overdue/errors, amber on hold and due soon, blue in progress, violet new/untaken, green resolved/active, slate neutral; states as tinted pills with a dot and a word. Logo blue stays the only action colour; the navy shell and Archivo stay. Every text pair checked ≥ 4.5:1 (DESIGN.md table); axe passes on all screens.
+- Also from the same QA: blue-filled active navigation, figure cards with icon tiles, a progress stepper on fault detail, a status donut on Analytics, a navy login, worker action tiles with a raised "Report" button.
+- Rejected: copying the references literally (separate manager/technician fields, statuses the domain does not have, a notifications page and a settings page that would duplicate the account menu).
+
+## 2026-10-28 · In-app QR scanning only where the browser supports it
+- Decided by: Claude (default)
+- Why: the references show an in-app scanner. `BarcodeDetector` exists on Android Chrome but not on iOS Safari; a library would add ~40–100 kB to the worker bundle. Where unsupported, the tile/tab is not shown (no dead control) and the phone's camera app opens the label as before. `Permissions-Policy` now allows `camera=(self)`.
+- Safety: only the numeric id from a `/m/<id>` path is used; the app never navigates to the scanned URL itself.
+
+## 2026-10-28 · Photo retention runs inside the app, dry-run first
+- Decided by: the owner (12 months after resolution); mechanics by Claude (default)
+- What: an hourly check in the app process runs the rule once a day (Europe/Zagreb). No cron service (cost), no external scheduler. Default `dry-run`; `delete` is an explicit, owner-approved variable change. Only photos go; faults and timelines stay, with a timeline entry.
+- Why in-app: one replica, no extra service; the advisory lock keeps it correct if replicas are ever added. Revisit if the app moves to several services.
