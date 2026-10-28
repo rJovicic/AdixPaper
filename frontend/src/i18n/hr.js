@@ -336,6 +336,8 @@ export default {
       waiting: 'Promjena razloga čekanja',
       prilog: 'Dodana fotografija',
       prilogRemoved: 'Uklonjena fotografija',
+      retencija: 'Fotografije uklonjene prema pravilu čuvanja (12 mj.)',
+      retencijaCount: 'Uklonjeno fotografija prema pravilu čuvanja (12 mj.): {count}',
     },
     eventChange: '{from} → {to}',
     eventAssigned: 'Preuzeo: {name}',
