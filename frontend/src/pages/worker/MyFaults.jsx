@@ -7,6 +7,7 @@ import { useI18n } from '../../i18n'
 import FaultCard from '../../components/FaultCard'
 import { useAuth } from '../../auth/AuthProvider'
 import { isUpdated } from '../../lib/seen'
+import { scanSupported } from '../../lib/qr'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 
 export default function MyFaults() {
@@ -15,6 +16,7 @@ export default function MyFaults() {
   const newId = location.state?.newId
   const [tab, setTab] = useState('open')
   const { user } = useAuth()
+  const canScan = scanSupported()
   const faults = useAsync(() => api.get('/kvarovi').then((response) => asArray(response.data)), [])
 
   // Workers keep this screen open to see whether someone is on it: refresh while visible.
@@ -40,16 +42,37 @@ export default function MyFaults() {
 
   return (
     <div>
+      {user?.ime && <p className="text-ink-2">{t('worker.hello', { name: user.ime })}</p>}
       <h1 className="text-2xl font-semibold tracking-[-0.01em]">{t('worker.title')}</h1>
 
-      <Link to="/radnik/prijava" className="btn-primary btn-lg mt-4 w-full text-[1.0625rem]">
-        <Plus size={22} strokeWidth={2.5} aria-hidden="true" />
-        {t('worker.report')}
-      </Link>
-      <p className="mt-2 flex items-center gap-1.5 text-meta text-ink-2">
-        <QrCode size={15} aria-hidden="true" className="shrink-0" />
-        {t('worker.qrHint')}
-      </p>
+      <div className={`mt-4 grid gap-3 ${canScan ? 'grid-cols-2' : ''}`}>
+        <Link to="/radnik/prijava" className="group flex min-h-[6.5rem] flex-col justify-between gap-3 rounded-lg bg-brand p-4 text-stock shadow-label transition-colors hover:bg-brand-hover">
+          <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-md bg-white/15">
+            <Plus size={22} strokeWidth={2.5} />
+          </span>
+          <span>
+            <span className="block text-[1.0625rem] font-semibold leading-tight">{t('worker.report')}</span>
+            <span className="block text-meta text-stock/90">{t('worker.reportHint')}</span>
+          </span>
+        </Link>
+        {canScan && (
+          <Link to="/radnik/skeniraj" className="surface group flex min-h-[6.5rem] flex-col justify-between gap-3 p-4 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
+            <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-md bg-info-wash text-brand">
+              <QrCode size={22} />
+            </span>
+            <span>
+              <span className="block text-[1.0625rem] font-semibold leading-tight text-ink">{t('scan.tile')}</span>
+              <span className="block text-meta text-ink-2">{t('scan.tileHint')}</span>
+            </span>
+          </Link>
+        )}
+      </div>
+      {!canScan && (
+        <p className="mt-2 flex items-center gap-1.5 text-meta text-ink-2">
+          <QrCode size={15} aria-hidden="true" className="shrink-0" />
+          {t('worker.qrHint')}
+        </p>
+      )}
 
       <div role="tablist" aria-label={t('worker.title')} className="mt-6 flex border-b border-rule">
         {tabs.map((item) => (

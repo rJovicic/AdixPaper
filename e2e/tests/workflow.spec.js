@@ -122,3 +122,16 @@ test('overview says why a fault needs attention and drills into one person\'s wo
   await expect(page).toHaveURL(/preuzeo=1/)
   await expect(page.getByLabel('Preuzeo')).toHaveValue('1')
 })
+
+test('the QR scan screen explains itself where the browser cannot read codes and offers the manual route', async ({ page, request }) => {
+  const { worker } = await setupFixture(request)
+  await page.setViewportSize(PHONE)
+  await signIn(page, worker)
+  // Headless Chromium has no BarcodeDetector: no scan tile or tab, only the camera-app hint.
+  await expect(page.getByRole('link', { name: /Skeniraj QR kod/ })).toHaveCount(0)
+  await expect(page.getByText('Ili skenirajte QR oznaku na mašini kamerom mobitela.')).toBeVisible()
+  await page.goto('/radnik/skeniraj')
+  await expect(page.getByRole('alert')).toContainText('Ovaj preglednik ne čita QR kodove')
+  await page.getByRole('link', { name: 'Ručno odaberi mašinu' }).click()
+  await expect(page).toHaveURL(/\/radnik\/prijava$/)
+})

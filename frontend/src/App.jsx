@@ -14,6 +14,7 @@ import MachineLink from './pages/MachineLink'
 import MyFaults from './pages/worker/MyFaults'
 import ReportFault from './pages/worker/ReportFault'
 import WorkerFault from './pages/worker/WorkerFault'
+import ScanMachine from './pages/worker/ScanMachine'
 
 // Lead/admin screens (and the chart library) load only for leads, keeping the worker's phone bundle small.
 // After a deploy an old tab may request page files that no longer exist; reload once to get the new version.
@@ -60,6 +61,7 @@ export default function App() {
                 <Route index element={<MyFaults />} />
                 <Route path="prijava" element={<ReportFault />} />
                 <Route path="kvar/:id" element={<WorkerFault />} />
+                <Route path="skeniraj" element={<ScanMachine />} />
               </Route>
               <Route path="/admin" element={<RequireRole roles={['admin', 'voditelj']}><AdminShell /></RequireRole>}>
                 <Route index element={<Dashboard />} />

@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from 'react-router'
-import { ClipboardList, Plus } from 'lucide-react'
+import { ClipboardList, Plus, QrCode } from 'lucide-react'
+import { scanSupported } from '../lib/qr'
 import BrandLogo from './BrandLogo'
 import AccountMenu from './AccountMenu'
 import PushToggle from './PushToggle'
@@ -13,7 +14,9 @@ const tabClass = ({ isActive }) =>
 export default function WorkerShell() {
   const { t } = useI18n()
   // On the report form the bar would ride above the phone keyboard and cover fields; the form has its own way back.
-  const reporting = useLocation().pathname.startsWith('/radnik/prijava')
+  const { pathname } = useLocation()
+  const reporting = pathname.startsWith('/radnik/prijava') || pathname.startsWith('/radnik/skeniraj')
+  const canScan = scanSupported()
   return (
     <div className="min-h-dvh">
       <a href="#main" className="sr-only z-[80] rounded bg-stock px-4 py-2 font-semibold text-brand focus:not-sr-only focus:fixed focus:left-3 focus:top-3">
@@ -39,9 +42,17 @@ export default function WorkerShell() {
             {t('worker.title')}
           </NavLink>
           <NavLink to="/radnik/prijava" className={tabClass}>
-            <Plus size={22} strokeWidth={2.5} aria-hidden="true" />
+            <span aria-hidden="true" className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-brand text-stock shadow-lift ring-4 ring-stock">
+              <Plus size={24} strokeWidth={2.5} />
+            </span>
             {t('worker.report')}
           </NavLink>
+          {canScan && (
+            <NavLink to="/radnik/skeniraj" className={tabClass}>
+              <QrCode size={22} aria-hidden="true" />
+              {t('scan.tile')}
+            </NavLink>
+          )}
         </div>
       </nav>
     </div>

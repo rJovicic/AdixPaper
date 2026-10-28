@@ -67,7 +67,7 @@ function ShellNav({ isAdmin, overdue, onNavigate }) {
             onClick={onNavigate}
             className={({ isActive }) =>
               `mb-0.5 flex min-h-[2.75rem] items-center gap-3 rounded px-3 text-[0.9375rem] font-medium transition-colors ${
-                isActive ? 'bg-stock text-brand-deep shadow-label' : 'text-brand-on-deep hover:bg-white/10 hover:text-stock'
+                isActive ? 'bg-brand font-semibold text-stock shadow-label' : 'text-brand-on-deep hover:bg-white/10 hover:text-stock'
               }`
             }
           >

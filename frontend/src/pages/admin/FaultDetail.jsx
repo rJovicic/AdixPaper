@@ -63,6 +63,48 @@ function changedFields(form, initialForm) {
   return Object.fromEntries(Object.entries(next).filter(([field, value]) => JSON.stringify(value) !== JSON.stringify(before[field])))
 }
 
+/**
+ * Where the fault is in its life: reported → taken → (on hold) → resolved. Steps with a timestamp are done;
+ * the first step without one is current. Text carries the state, the dots only reinforce it.
+ */
+function Progress({ fault }) {
+  const { t, format, waitingReason } = useI18n()
+  const name = (person) => (person ? `${person.ime} ${person.prezime}` : null)
+  const steps = [
+    { key: 'reported', label: t('fault.stepReported'), at: fault.datum_prijave, who: name(fault.prijavio) },
+    { key: 'taken', label: t('fault.stepTaken'), at: fault.datum_pocetka, who: name(fault.voditelj) },
+    fault.status === 'Na čekanju' && { key: 'waiting', label: t('fault.stepWaiting'), at: fault.cekanje_od, who: fault.razlog_cekanja ? waitingReason(fault.razlog_cekanja) : null, tone: 'warning' },
+    { key: 'resolved', label: t('fault.stepResolved'), at: fault.datum_rjesavanja, who: null },
+  ].filter(Boolean)
+  const current = fault.status === 'Na čekanju' ? 'waiting' : steps.find((step) => !step.at)?.key
+  return (
+    <ol className="mt-4" aria-label={t('fault.progress')}>
+      {steps.map((step, index) => {
+        const done = Boolean(step.at) && step.key !== current
+        const isCurrent = step.key === current
+        const dot = isCurrent
+          ? step.tone === 'warning' ? 'border-warn-mark bg-warn-mark' : 'border-brand bg-stock ring-4 ring-brand/15'
+          : done ? 'border-ok-mark bg-ok-mark' : 'border-rule-strong bg-stock'
+        return (
+          <li key={step.key} className="relative flex gap-3 pb-3.5 last:pb-0">
+            {index < steps.length - 1 && <span aria-hidden="true" className={`absolute bottom-0 left-[0.4375rem] top-4 w-0.5 ${done ? 'bg-ok-mark/60' : 'bg-rule'}`} />}
+            <span aria-hidden="true" className={`relative mt-1 h-4 w-4 shrink-0 rounded-full border-2 ${dot}`} />
+            <span className="min-w-0">
+              <span className={`block text-sm ${isCurrent ? 'font-semibold text-ink' : done ? 'font-medium text-ink' : 'text-ink-3'}`}>
+                {step.label}
+                {isCurrent && <span className="sr-only"> ({t('fault.stepCurrent')})</span>}
+              </span>
+              {(step.at || step.who) && (
+                <span className="block text-meta text-ink-2">{[step.at ? format.dateTime(step.at) : null, step.who].filter(Boolean).join(' · ')}</span>
+              )}
+            </span>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
 const WAITING_REASONS = ['dijelovi', 'vanjski_servis', 'odobrenje', 'proizvodnja', 'ostalo']
 
 /** Asks why the fault goes on hold (or changes the reason); the reason is required by the server. */
@@ -266,9 +308,8 @@ export default function FaultDetail() {
                 <StatusMark status={item.status} />
                 <PriorityMark priority={item.prioritet} />
                 <DueTag fault={item} />
-                <WaitingTag fault={item} />
               </div>
-              <AttentionReasons fault={item} max={5} skip={['hitno']} className="mt-2" />
+              <AttentionReasons fault={item} max={5} skip={['hitno']} withTime={false} className="mt-2" />
             </header>
             <LabelFields
               items={[
@@ -463,12 +504,12 @@ export default function FaultDetail() {
         <div className="order-first space-y-6 lg:sticky lg:top-6 lg:order-none">
           <aside className="surface p-4" aria-label={t('fault.status')}>
             <p className="field-label">{t('fault.status')}</p>
-            <p className="mt-1.5"><StatusMark status={item.status} className="text-base font-semibold" /></p>
+            <p className="mt-1.5"><StatusMark status={item.status} /></p>
+            <Progress fault={item} />
             {item.status === 'Na čekanju' && (
-              <div className="mt-2">
+              <div className="mt-3 rounded border border-warn-mark/30 bg-warn-wash px-3 py-2">
                 <WaitingTag fault={item} />
-                {item.cekanje_od && <p className="mt-0.5 text-meta text-ink-3">{t('waiting.since')}: {format.dateTime(item.cekanje_od)}</p>}
-                <button type="button" className="link mt-1 text-sm" disabled={busy} onClick={() => setWaitingDialog('change')}>{t('fault.changeReason')}</button>
+                <button type="button" className="link mt-1 block text-sm" disabled={busy} onClick={() => setWaitingDialog('change')}>{t('fault.changeReason')}</button>
               </div>
             )}
             <div className="mt-4 grid gap-2">

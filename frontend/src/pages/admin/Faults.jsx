@@ -278,7 +278,7 @@ export default function Faults() {
                     <td className="px-4 py-3"><PriorityMark priority={fault.prioritet} /></td>
                     <td className="px-4 py-3">
                       <StatusMark status={fault.status} />
-                      <WaitingTag fault={fault} className="mt-0.5 flex text-meta" />
+                      <WaitingTag fault={fault} compact className="mt-1 flex text-meta" />
                     </td>
                     <td className="px-4 py-3">
                       {fault.status === 'Riješeno'

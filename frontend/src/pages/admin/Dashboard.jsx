@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowRight, CheckCircle2, History, Inbox, Users } from 'lucide-react'
+import { AlarmClock, ArrowRight, CheckCircle2, ClipboardList, History, Inbox, PackageSearch, Siren, UserX, Users } from 'lucide-react'
 import { api } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { slaInfo } from '../../lib/sla'
 import { eventTitle } from '../../lib/events'
 import { useI18n } from '../../i18n'
 import { useAuth } from '../../auth/AuthProvider'
-import { AttentionReasons, Due, FaultNumber, PriorityMark, StatusMark, WaitingTag } from '../../components/ui/Marks'
+import { AttentionReasons, Due, FaultNumber, StatusMark, WaitingTag } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
 import Segmented from '../../components/ui/Segmented'
 
@@ -35,10 +35,24 @@ function readPeriod() {
   }
 }
 
-function Figure({ label, value, sub, to, alert = false, loading }) {
+const FIGURE_TONE = {
+  info: 'bg-info-wash text-brand',
+  danger: 'bg-urgent-wash text-urgent',
+  warning: 'bg-warn-wash text-warn',
+  success: 'bg-ok-wash text-ok',
+  new: 'bg-new-wash text-new',
+}
+
+/** One overview figure: a card with a tinted icon tile; the whole card opens the matching list. */
+function Figure({ label, value, sub, to, icon: Icon, tone = 'info', alert = false, loading }) {
   return (
-    <Link to={to} className="group flex min-w-0 flex-col justify-between gap-2 border-b border-r border-rule px-4 py-3.5 transition-colors hover:bg-brand-wash/60 sm:px-5">
-      <span className="field-label truncate">{label}</span>
+    <Link to={to} className="surface group flex min-w-0 flex-col gap-3 p-4 transition-[border-color,box-shadow] hover:border-rule-strong hover:shadow-lift">
+      <span className="flex items-center gap-3">
+        <span aria-hidden="true" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${FIGURE_TONE[tone]}`}>
+          <Icon size={18} />
+        </span>
+        <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-tight text-ink-2">{label}</span>
+      </span>
       <span className="flex items-end justify-between gap-2">
         <span className={`numeral text-figure ${alert && value > 0 ? 'text-urgent' : 'text-ink'}`}>{loading ? '–' : value}</span>
         <ArrowRight size={18} aria-hidden="true" className="mb-1 shrink-0 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:text-brand" />
@@ -49,6 +63,7 @@ function Figure({ label, value, sub, to, alert = false, loading }) {
 }
 
 function AttentionRow({ fault, unassigned }) {
+  const { t } = useI18n()
   return (
     <li>
       <Link
@@ -65,12 +80,12 @@ function AttentionRow({ fault, unassigned }) {
           </span>
         </span>
         <span className="col-start-2 min-w-0 lg:col-start-auto">
-          {fault.razlozi_paznje?.length ? (
-            <AttentionReasons fault={fault} className="lg:flex-col lg:gap-y-1" />
+          {fault.razlozi_paznje?.some((reason) => reason !== 'uskoro') ? (
+            <AttentionReasons fault={fault} withTime={false} className="lg:flex-col lg:gap-y-1" />
           ) : fault.status === 'Na čekanju' ? (
             <WaitingTag fault={fault} />
           ) : (
-            <PriorityMark priority={fault.prioritet} />
+            <span className="text-sm text-ink-3">{t('dashboard.onTrack')}</span>
           )}
         </span>
         <Due fault={fault} className="col-start-2 min-w-[7rem] lg:col-start-auto" />
@@ -93,8 +108,8 @@ function Workload({ rows, unassigned, userId }) {
         <li>
           <Link to="/admin/kvarovi?status=otvoreni&preuzeo=nitko" className="block px-5 py-2.5 transition-colors hover:bg-brand-wash/50">
             <span className="flex items-baseline justify-between gap-3">
-              <span className="font-semibold text-warn">{t('dashboard.workloadUnassigned')}</span>
-              <span className="numeral text-lg text-warn">{unassigned}</span>
+              <span className="font-semibold text-new">{t('dashboard.workloadUnassigned')}</span>
+              <span className="numeral text-lg text-new">{unassigned}</span>
             </span>
             {bar(unassigned, false)}
           </Link>
@@ -228,29 +243,34 @@ export default function Dashboard() {
       {overview.error && !data ? (
         <div className="surface mb-6"><ErrorState error={overview.error} onRetry={overview.reload} /></div>
       ) : (
-        <nav aria-label={t('dashboard.kpiNav')} className="surface mb-6 grid grid-cols-2 overflow-hidden border-b-0 border-r-0 md:grid-cols-3 xl:grid-cols-6">
+        <nav aria-label={t('dashboard.kpiNav')} className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <Figure
             label={t('dashboard.open')}
             value={kpi?.otvoreni ?? 0}
             sub={kpi && t('dashboard.openSub', { progress: kpi.u_rjesavanju, waiting: kpi.na_cekanju })}
             loading={loadingKpi}
+            icon={ClipboardList}
             to="/admin/kvarovi?status=otvoreni"
           />
-          <Figure label={t('dashboard.urgent')} value={kpi?.hitni ?? 0} sub={t('dashboard.urgentSub')} loading={loadingKpi} alert to="/admin/kvarovi?status=otvoreni&prioritet=Hitno" />
-          <Figure label={t('dashboard.overdue')} value={kpi?.kasni ?? 0} sub={t('dashboard.overdueSub')} loading={loadingKpi} alert to="/admin/kvarovi?sla=kasni&sort=rizik" />
-          <Figure label={t('dashboard.unassigned')} value={kpi?.nedodijeljeni ?? 0} sub={t('dashboard.unassignedSub')} loading={loadingKpi} to="/admin/kvarovi?status=otvoreni&preuzeo=nitko&sort=rizik" />
+          <Figure label={t('dashboard.urgent')} value={kpi?.hitni ?? 0} sub={t('dashboard.urgentSub')} loading={loadingKpi} alert icon={Siren} tone="danger" to="/admin/kvarovi?status=otvoreni&prioritet=Hitno" />
+          <Figure label={t('dashboard.overdue')} value={kpi?.kasni ?? 0} sub={t('dashboard.overdueSub')} loading={loadingKpi} alert icon={AlarmClock} tone="danger" to="/admin/kvarovi?sla=kasni&sort=rizik" />
+          <Figure label={t('dashboard.unassigned')} value={kpi?.nedodijeljeni ?? 0} sub={t('dashboard.unassignedSub')} loading={loadingKpi} icon={UserX} tone="new" to="/admin/kvarovi?status=otvoreni&preuzeo=nitko&sort=rizik" />
           <Figure
             label={t('dashboard.waitingParts')}
             value={kpi?.ceka_dijelove ?? 0}
             sub={kpi && t('dashboard.waitingPartsSub', { n: kpi.na_cekanju })}
             loading={loadingKpi}
+            icon={PackageSearch}
+            tone="warning"
             to="/admin/kvarovi?cekanje=dijelovi"
           />
           <Figure
-            label={`${t('dashboard.resolved')} · ${t(`dashboard.periods.${period}`)}`}
+            label={t('dashboard.resolved')}
             value={kpi?.rijeseni_u_periodu ?? 0}
-            sub={kpi && t('dashboard.resolvedSub', { n: kpi.prijavljeni_u_periodu })}
+            sub={kpi && t('dashboard.resolvedSub', { n: kpi.prijavljeni_u_periodu, period: t(`dashboard.periods.${period}`) })}
             loading={loadingKpi}
+            icon={CheckCircle2}
+            tone="success"
             to={`/admin/kvarovi?status=Riješeno&rijeseno=${period}`}
           />
         </nav>

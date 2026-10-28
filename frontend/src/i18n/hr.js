@@ -60,7 +60,6 @@ export default {
   },
   waiting: {
     label: 'Razlog čekanja',
-    since: 'Čeka od',
     reasons: {
       dijelovi: 'Rezervni dijelovi',
       vanjski_servis: 'Vanjski servis',
@@ -84,6 +83,7 @@ export default {
     waitingFor: 'Čeka: {reason}',
   },
   attention: {
+    kasniPlain: 'Rok prekoračen',
     kasni: 'Kasni {time}',
     uskoro: 'Rok za {time}',
     hitno: 'Hitno',
@@ -104,6 +104,20 @@ export default {
     remove: 'Ukloni fotografiju',
     removeTitle: 'Ukloniti fotografiju?',
     removeBody: 'Fotografija se briše trajno. U povijesti kvara ostaje zapis da je uklonjena.',
+  },
+  scan: {
+    title: 'Skeniraj QR kod',
+    tile: 'Skeniraj QR kod',
+    tileHint: 'Mašina se odabire sama',
+    hint: 'Usmjerite kameru na QR oznaku mašine.',
+    foreign: 'Ovo nije QR oznaka mašine. Pokušajte s oznakom na mašini.',
+    manual: 'Ručno odaberi mašinu',
+    unsupportedTitle: 'Ovaj preglednik ne čita QR kodove',
+    unsupportedBody: 'Skenirajte oznaku aplikacijom kamere na mobitelu ili odaberite mašinu ručno.',
+    deniedTitle: 'Pristup kameri nije dopušten',
+    deniedBody: 'Dopustite kameru u postavkama preglednika ili odaberite mašinu ručno.',
+    cameraTitle: 'Kamera nije dostupna',
+    cameraBody: 'Kameru možda koristi druga aplikacija. Odaberite mašinu ručno.',
   },
   roles: {
     admin: 'Administrator',
@@ -197,6 +211,8 @@ export default {
     badResponse: 'Poslužitelj je vratio neočekivan odgovor. Pokušajte ponovno.',
   },
   worker: {
+    hello: 'Pozdrav, {name}',
+    reportHint: 'Kvar prijavite u minuti',
     updated: 'Ažurirano',
     qrHint: 'Ili skenirajte QR oznaku na mašini kamerom mobitela.',
     title: 'Moji kvarovi',
@@ -237,6 +253,12 @@ export default {
     noMachines: 'Nema unesenih mašina. Obratite se voditelju održavanja.',
   },
   fault: {
+    progress: 'Tijek kvara',
+    stepReported: 'Prijavljen',
+    stepTaken: 'Preuzet',
+    stepWaiting: 'Na čekanju',
+    stepResolved: 'Riješen',
+    stepCurrent: 'trenutno',
     deadline: 'Rok odziva',
     timeOpen: 'Otvoren',
     changeReason: 'Promijeni razlog',
@@ -320,6 +342,7 @@ export default {
     eventUnassigned: 'Nitko nije zadužen',
   },
   dashboard: {
+    onTrack: 'U roku',
     periodLabel: 'Razdoblje',
     periods: { danas: 'Danas', '7d': '7 dana', '30d': '30 dana', mjesec: 'Ovaj mjesec' },
     periodName: { danas: 'danas', '7d': 'zadnjih 7 dana', '30d': 'zadnjih 30 dana', mjesec: 'ovaj mjesec' },
@@ -331,7 +354,7 @@ export default {
     waitingParts: 'Čekaju dijelove',
     waitingPartsSub: 'Na čekanju ukupno {n}',
     resolved: 'Riješeno',
-    resolvedSub: 'Prijavljeno: {n}',
+    resolvedSub: '{period} · prijavljeno {n}',
     kpiNav: 'Ključni pokazatelji',
     why: 'Zašto',
     workload: 'Opterećenje tima',
@@ -367,6 +390,9 @@ export default {
     noData: 'Još nema podataka.',
   },
   analytics: {
+    byStatus: 'Prijavljeni kvarovi po statusu',
+    byStatusHint: 'Gdje su danas kvarovi prijavljeni u razdoblju',
+    total: 'ukupno',
     periods: { '30d': '30 dana', mjesec: 'Ovaj mjesec', '90d': '90 dana', godina: 'Ova godina' },
     range: '{from} – {to}',
     previous: 'prije: {value}',

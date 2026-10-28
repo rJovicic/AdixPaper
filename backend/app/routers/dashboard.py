@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from ..database import get_db
 from ..models import Oprema, Kvar, Korisnik, KvarDogadjaj, RolaEnum, StatusKvaraEnum, PrioritetEnum, SLA_SATI, KomponentaOpreme, KvarRezervniDio, RezervniDio, Dobavljac
-from ..schemas import Analitika, AnalitikaCekanje, AnalitikaDio, AnalitikaMasina, AnalitikaPonavljanje, AnalitikaPrioritet, AnalitikaSazetak, Pregled, PregledAktivnost, PregledKpi, PregledOpterecenje, KorisnikMini, DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
+from ..schemas import Analitika, AnalitikaCekanje, AnalitikaStatus, AnalitikaDio, AnalitikaMasina, AnalitikaPonavljanje, AnalitikaPrioritet, AnalitikaSazetak, Pregled, PregledAktivnost, PregledKpi, PregledOpterecenje, KorisnikMini, DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
 from ..auth import require_voditelj_or_admin
 from ..timeutil import utcnow, as_utc, local_day_start, local_month_start, local_year_start, local_month_number, period_start
 
@@ -239,8 +239,10 @@ def get_analitika(
     ).limit(10).all()
 
     priorities = defaultdict(int)
+    statuses = defaultdict(int)
     for k in reported:
         priorities[_enum_value(k.prioritet)] += 1
+        statuses[_enum_value(k.status)] += 1
 
     return Analitika(
         od=od,
@@ -252,6 +254,8 @@ def get_analitika(
         ponavljanja=ponavljanja[:10],
         dijelovi=[AnalitikaDio(naziv=r.naziv, sifra=r.sifra, kolicina=float(r.kolicina or 0), trosak=float(r.trosak or 0)) for r in parts],
         po_prioritetu=[AnalitikaPrioritet(prioritet=p, broj=priorities[p]) for p in ("Hitno", "Normalno", "Nisko")],
+        # Where the faults reported in the period stand now.
+        po_statusu=[AnalitikaStatus(status=s.value, broj=statuses[s.value]) for s in StatusKvaraEnum],
     )
 
 

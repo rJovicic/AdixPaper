@@ -2,42 +2,42 @@ import { Clock } from 'lucide-react'
 import { useI18n } from '../../i18n'
 import { slaInfo } from '../../lib/sla'
 
-const STATUS_MARK = {
-  Novo: 'bg-brand',
-  'U rješavanju': 'mark-half',
-  'Na čekanju': 'border-[1.5px] border-ink-3 bg-transparent',
-  'Riješeno': 'bg-grey',
+/** Semantic tones: pill ground, border, text and dot. Every pair is >= 4.5:1 (DESIGN.md). */
+export const TONES = {
+  danger: { pill: 'bg-urgent-wash border-urgent/20 text-urgent', dot: 'bg-urgent-mark', text: 'text-urgent' },
+  warning: { pill: 'bg-warn-wash border-warn-mark/30 text-warn', dot: 'bg-warn-mark', text: 'text-warn' },
+  success: { pill: 'bg-ok-wash border-ok-mark/30 text-ok', dot: 'bg-ok-mark', text: 'text-ok' },
+  info: { pill: 'bg-info-wash border-brand/20 text-brand', dot: 'bg-brand', text: 'text-brand' },
+  new: { pill: 'bg-new-wash border-new-mark/25 text-new', dot: 'bg-new-mark', text: 'text-new' },
+  neutral: { pill: 'bg-slate-wash border-slate-mark/40 text-slate', dot: 'bg-slate-mark', text: 'text-slate' },
 }
 
-const PRIORITY_MARK = {
-  Hitno: { mark: 'bg-urgent', text: 'font-semibold text-urgent' },
-  Normalno: { mark: 'bg-ink-2', text: 'text-ink' },
-  Nisko: { mark: 'border-[1.5px] border-ink-3 bg-transparent', text: 'text-ink-2' },
+const STATUS_TONE = { Novo: 'new', 'U rješavanju': 'info', 'Na čekanju': 'warning', 'Riješeno': 'success' }
+const PRIORITY_TONE = { Hitno: 'danger', Normalno: 'neutral', Nisko: 'neutral' }
+
+/** A state pill: dot + word on a tinted ground. `hollow` draws an outlined dot (e.g. low priority, inactive). */
+export function Badge({ tone = 'neutral', hollow = false, className = '', children }) {
+  const style = TONES[tone] || TONES.neutral
+  return (
+    <span className={`badge ${style.pill} ${className}`}>
+      <span aria-hidden="true" className={`dot ${hollow ? 'border border-current bg-transparent' : style.dot}`} />
+      {children}
+    </span>
+  )
 }
 
 function Square({ className }) {
-  return <span aria-hidden="true" className={`inline-block h-2.5 w-2.5 shrink-0 rounded-[2px] ${className}`} />
+  return <span aria-hidden="true" className={`inline-block h-2 w-2 shrink-0 rounded-full ${className}`} />
 }
 
 export function StatusMark({ status, className = '' }) {
   const { status: label } = useI18n()
-  return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-sm text-ink ${className}`}>
-      <Square className={STATUS_MARK[status] || 'bg-ink-3'} />
-      {label(status)}
-    </span>
-  )
+  return <Badge tone={STATUS_TONE[status]} className={className}>{label(status)}</Badge>
 }
 
 export function PriorityMark({ priority, className = '' }) {
   const { priority: label } = useI18n()
-  const style = PRIORITY_MARK[priority] || PRIORITY_MARK.Normalno
-  return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap text-sm ${style.text} ${className}`}>
-      <Square className={style.mark} />
-      {label(priority)}
-    </span>
-  )
+  return <Badge tone={PRIORITY_TONE[priority]} hollow={priority === 'Nisko'} className={className}>{label(priority)}</Badge>
 }
 
 /** Time left in the response window, or how late it is. Renders nothing for resolved faults. */
@@ -85,7 +85,7 @@ export function DueBar({ fault, className = '' }) {
   if (info.state === 'none') return null
   const used = Math.min(100, Math.max(3, Math.round(info.ratio * 100)))
   return (
-    <span aria-hidden="true" data-late={info.state === 'late' ? '' : undefined} className={`due-bar ${className}`}>
+    <span aria-hidden="true" data-late={info.state === 'late' ? '' : undefined} data-soon={info.state === 'soon' ? '' : undefined} className={`due-bar ${className}`}>
       <i style={{ width: `${used}%` }} />
     </span>
   )
@@ -103,15 +103,16 @@ export function Due({ fault, className = '' }) {
 }
 
 const REASON_TONE = {
-  kasni: { mark: 'bg-urgent', text: 'font-semibold text-urgent' },
-  hitno: { mark: 'bg-urgent', text: 'font-semibold text-urgent' },
-  uskoro: { mark: 'mark-half', text: 'font-semibold text-warn' },
-  nedodijeljen: { mark: 'border-[1.5px] border-brand bg-transparent', text: 'font-semibold text-warn' },
-  ceka_dugo: { mark: 'border-[1.5px] border-ink-3 bg-transparent', text: 'font-medium text-ink-2' },
+  kasni: { mark: 'bg-urgent-mark', text: 'font-semibold text-urgent' },
+  hitno: { mark: 'bg-urgent-mark', text: 'font-semibold text-urgent' },
+  uskoro: { mark: 'bg-warn-mark', text: 'font-semibold text-warn' },
+  nedodijeljen: { mark: 'bg-new-mark', text: 'font-semibold text-new' },
+  ceka_dugo: { mark: 'bg-warn-mark', text: 'font-medium text-warn' },
 }
 
-function reasonText(reason, fault, i18n, now) {
+function reasonText(reason, fault, i18n, now, withTime) {
   const { t, format } = i18n
+  if (reason === 'kasni' && !withTime) return t('attention.kasniPlain')
   if (reason === 'kasni' || reason === 'uskoro') {
     const info = slaInfo(fault, now)
     return t(`attention.${reason}`, { time: format.duration(Math.abs(info.minutesLeft ?? 0)) })
@@ -128,14 +129,18 @@ function reasonText(reason, fault, i18n, now) {
  * Why a fault needs attention, in words (server codes in `fault.razlozi_paznje`, most pressing
  * first). Overdue/due-soon are recomputed from the clock so the times stay current.
  */
-export function AttentionReasons({ fault, max = 3, skip = [], className = '' }) {
+/**
+ * `withTime: false` where the time left is already shown next to it (overview queue, fault header):
+ * overdue then reads "Response window passed" and due-soon is left to the time tag.
+ */
+export function AttentionReasons({ fault, max = 3, skip = [], withTime = true, className = '' }) {
   const i18n = useI18n()
   const now = Date.now()
   const info = slaInfo(fault, now)
   // The server's codes were right when the list loaded; time may have moved a fault from "soon" to "late".
   const reasons = (fault.razlozi_paznje || [])
     .map((reason) => (reason === 'uskoro' && info.state === 'late' ? 'kasni' : reason))
-    .filter((reason) => !skip.includes(reason))
+    .filter((reason) => !skip.includes(reason) && (withTime || reason !== 'uskoro'))
   if (reasons.length === 0) return null
   return (
     <ul className={`flex flex-wrap gap-x-3 gap-y-1 ${className}`}>
@@ -144,7 +149,7 @@ export function AttentionReasons({ fault, max = 3, skip = [], className = '' }) 
         return (
           <li key={reason} className={`inline-flex items-center gap-1.5 whitespace-nowrap text-sm ${tone.text}`}>
             <Square className={tone.mark} />
-            {reasonText(reason, fault, i18n, now)}
+            {reasonText(reason, fault, i18n, now, withTime)}
           </li>
         )
       })}
@@ -153,15 +158,16 @@ export function AttentionReasons({ fault, max = 3, skip = [], className = '' }) 
 }
 
 /** "Waiting: spare parts · 2 d" for faults on hold. Renders nothing otherwise. */
-export function WaitingTag({ fault, className = '' }) {
+/** `compact`: reason only, one line (table cells). */
+export function WaitingTag({ fault, compact = false, className = '' }) {
   const { t, format, waitingReason } = useI18n()
   if (fault?.status !== 'Na čekanju' || !fault.razlog_cekanja) return null
   const waited = fault.cekanje_od ? (Date.now() - new Date(fault.cekanje_od).getTime()) / 60000 : null
   return (
-    <span className={`inline-flex items-center gap-1.5 text-sm text-ink-2 ${className}`}>
-      <Square className="border-[1.5px] border-ink-3 bg-transparent" />
-      {t('waiting.waitingFor', { reason: waitingReason(fault.razlog_cekanja) })}
-      {waited !== null && <span className="tabular text-ink-3">· {format.duration(waited)}</span>}
+    <span className={`inline-flex items-center gap-1.5 text-sm text-warn ${compact ? 'whitespace-nowrap' : ''} ${className}`}>
+      <Square className="bg-warn-mark" />
+      {compact ? waitingReason(fault.razlog_cekanja) : t('waiting.waitingFor', { reason: waitingReason(fault.razlog_cekanja) })}
+      {!compact && waited !== null && <span className="tabular text-ink-3">· {format.duration(waited)}</span>}
     </span>
   )
 }

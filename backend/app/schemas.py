@@ -600,6 +600,11 @@ class AnalitikaPrioritet(BaseModel):
     broj: int
 
 
+class AnalitikaStatus(BaseModel):
+    status: str
+    broj: int
+
+
 class Analitika(BaseModel):
     od: datetime
     do: datetime
@@ -610,3 +615,4 @@ class Analitika(BaseModel):
     ponavljanja: List[AnalitikaPonavljanje]
     dijelovi: List[AnalitikaDio]
     po_prioritetu: List[AnalitikaPrioritet]
+    po_statusu: List[AnalitikaStatus] = []

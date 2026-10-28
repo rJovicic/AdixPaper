@@ -89,6 +89,8 @@ def test_machines_recurring_parts_and_waiting_time(client, admin, make_user, mac
     assert waiting["broj"] >= 1 and waiting["trenutno"] >= 1
 
     assert {p["prioritet"] for p in data["po_prioritetu"]} == {"Hitno", "Normalno", "Nisko"}
+    assert [s["status"] for s in data["po_statusu"]] == ["Novo", "U rješavanju", "Na čekanju", "Riješeno"]
+    assert sum(s["broj"] for s in data["po_statusu"]) == data["sazetak"]["prijavljeno"]
     assert set(data["prethodno"]) == set(data["sazetak"])
 
 

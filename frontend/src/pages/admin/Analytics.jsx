@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { PRIORITY_HEX, REPORTED_HEX, RESOLVED_HEX, STATUS_HEX, WAITING_HEX } from '../../lib/stateColors'
 import { api } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
@@ -43,7 +44,7 @@ function Metric({ label, value, sub, previous }) {
   const { t } = useI18n()
   return (
     <div className="flex min-w-0 flex-col gap-0.5 border-b border-r border-rule px-4 py-3">
-      <dt className="field-label truncate">{label}</dt>
+      <dt className="field-label leading-snug">{label}</dt>
       <dd className="numeral text-[1.75rem] leading-tight text-ink">{value}</dd>
       {sub && <dd className="truncate text-meta text-ink-2">{sub}</dd>}
       {previous !== undefined && <dd className="truncate text-meta text-ink-3">{t('analytics.previous', { value: previous })}</dd>}
@@ -70,8 +71,8 @@ function MonthlyChart({ rows }) {
   return (
     <div className="px-2 pb-3 pt-4">
       <div className="mb-2 flex gap-4 px-3 text-meta text-ink-2" aria-hidden="true">
-        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[2px] bg-rule-strong" />{t('dashboard.reportedSeries')}</span>
-        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[2px] bg-brand" />{t('dashboard.resolvedSeries')}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: REPORTED_HEX }} />{t('dashboard.reportedSeries')}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: RESOLVED_HEX }} />{t('dashboard.resolvedSeries')}</span>
       </div>
       <div className="h-56" role="img" aria-label={`${t('dashboard.byMonth')}: ${data.map((row) => `${row.mjesec} ${row.ukupno}/${row.rijeseno}`).join(', ')}`}>
         <ResponsiveContainer width="100%" height="100%">
@@ -80,11 +81,57 @@ function MonthlyChart({ rows }) {
             <XAxis dataKey="mjesec" tickLine={false} axisLine={{ stroke: 'rgb(214 218 224)' }} tick={{ fill: 'rgb(71 78 89)', fontSize: 12 }} />
             <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: 'rgb(71 78 89)', fontSize: 12 }} width={40} />
             <Tooltip cursor={{ fill: 'rgb(231 237 247 / 0.6)' }} contentStyle={{ borderRadius: 5, border: '1px solid rgb(214 218 224)', fontSize: 13 }} />
-            <Bar dataKey="ukupno" name={t('dashboard.reportedSeries')} fill="rgb(133 140 151)" radius={[2, 2, 0, 0]} />
-            <Bar dataKey="rijeseno" name={t('dashboard.resolvedSeries')} fill="rgb(42 89 162)" radius={[2, 2, 0, 0]} />
+            <Bar dataKey="ukupno" name={t('dashboard.reportedSeries')} fill={REPORTED_HEX} radius={[3, 3, 0, 0]} />
+            <Bar dataKey="rijeseno" name={t('dashboard.resolvedSeries')} fill={RESOLVED_HEX} radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
+    </div>
+  )
+}
+
+/** Donut segments as a conic gradient, with a 1° white gap between segments. */
+function conic(rows, total) {
+  let at = 0
+  const stops = rows.map((row) => {
+    const from = at
+    at += (row.broj / total) * 360
+    const gap = rows.length > 1 ? 1 : 0
+    return `${STATUS_HEX[row.status]} ${from}deg ${Math.max(from, at - gap)}deg, #fff ${Math.max(from, at - gap)}deg ${at}deg`
+  })
+  return `conic-gradient(${stops.join(', ')})`
+}
+
+/** Where the period's reported faults stand now: a donut with the total in the middle and a legend with counts. */
+function StatusDonut({ rows }) {
+  const { t, status } = useI18n()
+  const total = rows.reduce((sum, row) => sum + row.broj, 0)
+  if (!total) return <Empty />
+  const data = rows.filter((row) => row.broj > 0)
+  return (
+    <div className="flex flex-col items-center gap-4 px-5 py-4 sm:flex-row">
+      <div className="relative h-40 w-40 shrink-0" role="img" aria-label={`${t('analytics.byStatus')}: ${data.map((row) => `${status(row.status)} ${row.broj}`).join(', ')}`}>
+        {/* A conic gradient: no focusable SVG parts; the wrapper's label carries the data. */}
+        <div aria-hidden="true" className="h-full w-full rounded-full" style={{ background: conic(data, total), mask: 'radial-gradient(circle, transparent 52%, #000 53%)', WebkitMask: 'radial-gradient(circle, transparent 52%, #000 53%)' }} />
+        <span aria-hidden="true" className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="numeral text-3xl text-ink">{total}</span>
+          <span className="text-meta text-ink-2">{t('analytics.total')}</span>
+        </span>
+      </div>
+      <ul className="w-full space-y-2">
+        {rows.map((row) => (
+          <li key={row.status} className="flex items-center justify-between gap-3 text-sm">
+            <span className="inline-flex items-center gap-2 text-ink">
+              <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ background: STATUS_HEX[row.status] }} />
+              {status(row.status)}
+            </span>
+            <span className="tabular font-semibold text-ink">
+              {row.broj}
+              <span className="ml-2 font-normal text-ink-3">{Math.round((row.broj / total) * 100)} %</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -100,7 +147,9 @@ function BarRows({ rows }) {
             <span className="min-w-0 truncate font-medium text-ink">{row.label}</span>
             <span className="shrink-0 text-meta tabular text-ink-2">{row.text}</span>
           </span>
-          <span aria-hidden="true" className="due-bar mt-1.5"><i style={{ width: `${Math.max(row.value ? 3 : 0, Math.round((row.value / max) * 100))}%` }} /></span>
+          <span aria-hidden="true" className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-wash">
+            <i className="block h-full rounded-full" style={{ width: `${Math.max(row.value ? 3 : 0, Math.round((row.value / max) * 100))}%`, background: row.color }} />
+          </span>
           {row.note && <span className="mt-1 block text-meta text-ink-3">{row.note}</span>}
         </li>
       ))}
@@ -259,18 +308,9 @@ export default function Analytics() {
           {monthly.error ? <ErrorState error={monthly.error} onRetry={monthly.reload} /> : <MonthlyChart rows={monthly.data || []} />}
         </Panel>
 
-        <Panel title={t('analytics.waiting')} hint={t('analytics.waitingHint')} className="lg:col-span-2">
-          {!d ? <LoadingRows rows={2} /> : d.cekanje.length === 0 ? <Empty /> : (
-            <BarRows
-              rows={d.cekanje.map((row) => ({
-                key: row.razlog,
-                label: waitingReason(row.razlog),
-                value: row.ukupno_min,
-                text: row.broj ? t('analytics.waitingRow', { n: row.broj, time: format.duration(row.ukupno_min) }) : '—',
-                note: row.trenutno ? t('analytics.waitingNow', { n: row.trenutno }) : null,
-              }))}
-            />
-          )}
+
+        <Panel title={t('analytics.byStatus')} hint={t('analytics.byStatusHint')} className="lg:col-span-2">
+          {!d ? <LoadingRows rows={2} /> : <StatusDonut rows={d.po_statusu || []} />}
         </Panel>
 
         <Panel title={t('analytics.recurring')} hint={t('analytics.recurringHint', { n: RECURRING_MIN })} className="lg:col-span-3">
@@ -291,28 +331,42 @@ export default function Analytics() {
           )}
         </Panel>
 
-        <div className="space-y-6 lg:col-span-2">
-          <Panel title={t('analytics.byPriority')}>
-            {!d ? <LoadingRows rows={2} /> : (
-              <BarRows rows={d.po_prioritetu.map((row) => ({ key: row.prioritet, label: priority(row.prioritet), value: row.broj, text: String(row.broj) }))} />
-            )}
-          </Panel>
-          <Panel title={t('analytics.parts')} hint={t('analytics.partsHint')}>
-            {!d ? <LoadingRows rows={2} /> : d.dijelovi.length === 0 ? <Empty /> : (
-              <ol className="divide-y divide-rule">
-                {d.dijelovi.slice(0, 6).map((row) => (
-                  <li key={`${row.naziv}-${row.sifra}`} className="flex items-center gap-3 px-5 py-2.5">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium text-ink">{row.naziv}</span>
-                      <span className="block truncate text-meta text-ink-2">{[row.sifra, row.trosak ? format.money(row.trosak) : null].filter(Boolean).join(' · ')}</span>
-                    </span>
-                    <span className="numeral shrink-0 text-lg">{format.number(row.kolicina)}</span>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </Panel>
-        </div>
+        <Panel title={t('analytics.waiting')} hint={t('analytics.waitingHint')} className="lg:col-span-2">
+          {!d ? <LoadingRows rows={2} /> : d.cekanje.length === 0 ? <Empty /> : (
+            <BarRows
+              rows={d.cekanje.map((row) => ({
+                key: row.razlog,
+                label: waitingReason(row.razlog),
+                value: row.ukupno_min,
+                text: row.broj ? t('analytics.waitingRow', { n: row.broj, time: format.duration(row.ukupno_min) }) : '—',
+                note: row.trenutno ? t('analytics.waitingNow', { n: row.trenutno }) : null,
+                color: WAITING_HEX,
+              }))}
+            />
+          )}
+        </Panel>
+
+        <Panel title={t('analytics.parts')} hint={t('analytics.partsHint')} className="lg:col-span-3">
+          {!d ? <LoadingRows rows={2} /> : d.dijelovi.length === 0 ? <Empty /> : (
+            <ol className="divide-y divide-rule">
+              {d.dijelovi.slice(0, 6).map((row) => (
+                <li key={`${row.naziv}-${row.sifra}`} className="flex items-center gap-3 px-5 py-2.5">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium text-ink">{row.naziv}</span>
+                    <span className="block truncate text-meta text-ink-2">{[row.sifra, row.trosak ? format.money(row.trosak) : null].filter(Boolean).join(' · ')}</span>
+                  </span>
+                  <span className="numeral shrink-0 text-lg">{format.number(row.kolicina)}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Panel>
+
+        <Panel title={t('analytics.byPriority')} className="lg:col-span-2">
+          {!d ? <LoadingRows rows={2} /> : (
+            <BarRows rows={d.po_prioritetu.map((row) => ({ key: row.prioritet, label: priority(row.prioritet), value: row.broj, text: String(row.broj), color: PRIORITY_HEX[row.prioritet] }))} />
+          )}
+        </Panel>
       </div>
     </div>
   )

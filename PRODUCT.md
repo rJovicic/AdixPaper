@@ -111,5 +111,4 @@ WCAG 2.2 AA: keyboard operable, visible focus, 4.5:1 text contrast, labelled for
 - Are the response windows (2 h / 8 h / 48 h) the agreed internal targets, or placeholders?
 - Should the dashboard separate the two companies (Cupup / Delt)?
 - How long should photos be kept (storage grows ~1 GB/year at 50 photos a week)?
-- Should status colours return (green/amber), given the 2026-10-27 "logo colours only" decision? The command-center brief asked for semantic colours.
 - Must production data stay in the EU (the service currently runs in Railway `us-west2`)?

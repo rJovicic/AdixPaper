@@ -40,7 +40,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         headers.setdefault("X-Content-Type-Options", "nosniff")
         headers.setdefault("X-Frame-Options", "DENY")
         headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        headers.setdefault("Permissions-Policy", "camera=(self), microphone=(), geolocation=()")
         if not request.url.path.startswith(DOCS_PATHS):
             # Swagger UI loads assets from a CDN, so it is exempt from the strict policy.
             headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)

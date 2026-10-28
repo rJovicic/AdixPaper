@@ -26,7 +26,27 @@ Branch `claude/command-center-redesign`. Details, phases and verification: [IMPL
 
 Verification at the end of this pass: ruff clean; **pytest 79 passed** on PostgreSQL 16 and on SQLite; ESLint 0, i18n parity OK, production build OK; `npm audit --omit=dev` 0, `pip-audit` 0; **Playwright 30 passed** against the production build served by FastAPI on Postgres (axe 0 serious/critical on every screen checked, no horizontal overflow at 360/768/1280). Not verified: Docker image build (no daemon here; CI builds it), the deployed environment, real phones (iOS Safari camera/file picker, push on iOS home-screen apps), real users.
 
-Still open (owner): backups (A2-23), data region (A2-24), privacy notice (A2-25), `PUBLIC_URL` (A2-26), alerting (A2-27), photo retention, whether to bring back semantic status colours.
+### Visual QA against the reference images (2026-10-28)
+
+Method: 48 screenshots of every screen and the main dialogs at 1440 × 900 and 390 × 844 (Playwright on the production build, Postgres, realistic local demo data incl. overdue, on-hold, resolved, comments and a photo), compared with the four reference boards. Re-captured after each round.
+
+| ID | Finding before | Status |
+|---|---|---|
+| V1 | No semantic state colours: status and priority were logo-blue/grey squares, references use tinted pills (red/amber/blue/green) | Fixed: semantic tokens + `Badge` everywhere (faults, machines, users, search, worker cards); contrast table in DESIGN.md |
+| V2 | KPI figures were a ruled strip without icons | Fixed: figure cards with tinted icon tiles |
+| V3 | Sidebar active item was a white chip; references fill it blue | Fixed |
+| V4 | Fault detail had no status progression | Fixed: stepper with time and person per step |
+| V5 | Analytics mostly tables, monochrome bars | Fixed: status donut, colour-coded priority/waiting bars, resolved series green |
+| V6 | Worker home: no greeting, no action tiles, no in-app QR scan | Fixed: greeting, report tile, raised "+" tab; scan tile/tab/screen where `BarcodeDetector` exists |
+| V7 | Login plain grey | Fixed: navy ground |
+| V8 | Waiting reason wrapped into 4 lines in the fault table | Fixed: compact one-line reason |
+| V9 | Same information repeated: "kasni 3 d" twice per queue row; waiting reason 3× on fault detail; "Normalno" shown as a reason | Fixed |
+| V10 | Labels truncated on phones ("Čekaju dijel…", "Zastoj (evidentir…"); badges stretched in machine cards | Fixed |
+| V11 | Found by axe after the change: report-tile subtitle 3.7:1; donut SVG sectors unlabeled/focusable | Fixed (white 90 % = 5.9:1; CSS donut) |
+
+Not adopted from the references, deliberately: tabs on fault detail (one scrolling workspace keeps the resolve-validation focus behaviour), machine photos (no such data), separate manager/technician fields, a notifications centre and a settings page (account menu covers language, password, push, sign-out).
+
+Still open (owner): backups and a tested restore (A2-23), EU data region (A2-24), employee privacy notice (A2-25), `PUBLIC_URL` before printing labels (A2-26), error alerting (A2-27), photo retention.
 
 ## 1. Executive summary
 

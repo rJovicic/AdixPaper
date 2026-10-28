@@ -92,10 +92,14 @@ Known limitations introduced/kept:
 - A report retried after a network failure that actually reached the server can create a duplicate; the duplicate warning shows the first one. No idempotency key (would need a column and client key).
 - The "updated" badge is per device (localStorage).
 
+## 3b. Visual QA pass (2026-10-28)
+
+Owner asked for semantic status colours and verification against the references. Screenshots of every screen at 1440 and 390 px were compared with the reference boards; gaps V1–V11 and their fixes are in `AUDIT.md` ("Visual QA against the reference images"). After the pass: pytest 79 (Postgres + SQLite), Playwright 31 (axe clean, no overflow), lint/i18n/build clean.
+
 ## 4. Next task
 
 The agreed scope is implemented. Remaining items need the owner or a real environment:
-1. Decide on semantic status colours (kept logo-only; see `decisions.md`).
-2. Deploy the branch to a staging/preview service and check on real phones: iOS Safari photo picker, push on an installed home-screen app (iOS 16.4+), Android keyboard with the report form.
-3. Photo retention rule; Postgres backups (A2-23); data region (A2-24); privacy notice (A2-25); `PUBLIC_URL` (A2-26); alerting (A2-27).
+1. Deploy the branch to a staging/preview service and check on real phones: iOS Safari photo picker, push on an installed home-screen app (iOS 16.4+), Android keyboard with the report form.
+2. Photo retention rule; Postgres backups (A2-23); data region (A2-24); privacy notice (A2-25); `PUBLIC_URL` (A2-26); alerting (A2-27).
+3. Android Chrome: try the in-app QR scan on a printed label (headless tests cover only the unsupported path).
 4. Engineering backlog: Alembic before the first non-additive change (A2-28); idempotency key for report submission; per-IP throttle behind Railway's edge (A2-36); preventive maintenance schedules (A2-35).

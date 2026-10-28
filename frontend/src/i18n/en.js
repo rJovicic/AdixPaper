@@ -60,7 +60,6 @@ export default {
   },
   waiting: {
     label: 'Waiting reason',
-    since: 'Waiting since',
     reasons: {
       dijelovi: 'Spare parts',
       vanjski_servis: 'Outside service',
@@ -84,6 +83,7 @@ export default {
     waitingFor: 'Waiting: {reason}',
   },
   attention: {
+    kasniPlain: 'Response window passed',
     kasni: 'Overdue {time}',
     uskoro: 'Due in {time}',
     hitno: 'Urgent',
@@ -104,6 +104,20 @@ export default {
     remove: 'Remove photo',
     removeTitle: 'Remove the photo?',
     removeBody: 'The photo is deleted for good. The fault history keeps a note that it was removed.',
+  },
+  scan: {
+    title: 'Scan QR code',
+    tile: 'Scan QR code',
+    tileHint: 'Picks the machine for you',
+    hint: 'Point the camera at the machine\'s QR label.',
+    foreign: 'This is not a machine label. Try the label on the machine.',
+    manual: 'Choose the machine manually',
+    unsupportedTitle: 'This browser cannot read QR codes',
+    unsupportedBody: 'Scan the label with the phone\'s camera app, or choose the machine manually.',
+    deniedTitle: 'Camera access is not allowed',
+    deniedBody: 'Allow the camera in the browser settings, or choose the machine manually.',
+    cameraTitle: 'The camera is not available',
+    cameraBody: 'Another app may be using it. Choose the machine manually.',
   },
   roles: {
     admin: 'Administrator',
@@ -197,6 +211,8 @@ export default {
     badResponse: 'The server returned an unexpected response. Try again.',
   },
   worker: {
+    hello: 'Hello, {name}',
+    reportHint: 'Report a fault in a minute',
     updated: 'Updated',
     qrHint: 'Or scan the QR label on the machine with your phone camera.',
     title: 'My faults',
@@ -237,6 +253,12 @@ export default {
     noMachines: 'No machines have been added yet. Ask your maintenance lead.',
   },
   fault: {
+    progress: 'Progress',
+    stepReported: 'Reported',
+    stepTaken: 'Taken',
+    stepWaiting: 'On hold',
+    stepResolved: 'Resolved',
+    stepCurrent: 'current',
     deadline: 'Response due',
     timeOpen: 'Open for',
     changeReason: 'Change reason',
@@ -320,6 +342,7 @@ export default {
     eventUnassigned: 'Nobody assigned',
   },
   dashboard: {
+    onTrack: 'On track',
     periodLabel: 'Period',
     periods: { danas: 'Today', '7d': '7 days', '30d': '30 days', mjesec: 'This month' },
     periodName: { danas: 'today', '7d': 'last 7 days', '30d': 'last 30 days', mjesec: 'this month' },
@@ -331,7 +354,7 @@ export default {
     waitingParts: 'Waiting for parts',
     waitingPartsSub: 'On hold in total {n}',
     resolved: 'Resolved',
-    resolvedSub: 'Reported: {n}',
+    resolvedSub: '{period} · reported {n}',
     kpiNav: 'Key figures',
     why: 'Why',
     workload: 'Team workload',
@@ -367,6 +390,9 @@ export default {
     noData: 'No data yet.',
   },
   analytics: {
+    byStatus: 'Reported faults by status',
+    byStatusHint: 'Where the faults reported in the period stand today',
+    total: 'total',
     periods: { '30d': '30 days', mjesec: 'This month', '90d': '90 days', godina: 'This year' },
     range: '{from} – {to}',
     previous: 'before: {value}',

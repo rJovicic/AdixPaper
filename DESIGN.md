@@ -15,7 +15,15 @@ colors:
   blue-wash: "#E7EDF7"
   on-shell-quiet: "#B8C6DE"
   urgent: "#B42318"
-  urgent-wash: "#FCEBE9"
+  urgent-wash: "#FEF3F2"
+  warning: "#B54708"
+  warning-wash: "#FFFAEB"
+  success: "#067647"
+  success-wash: "#ECFDF3"
+  new: "#5925DC"
+  new-wash: "#F4F3FF"
+  neutral: "#475467"
+  neutral-wash: "#F2F4F7"
   wordmark-grey: "#949597"
 typography:
   reel-number:
@@ -133,7 +141,7 @@ Light theme only: workers use phones on a brightly lit production floor and lead
 
 **Key characteristics**
 - One brand ink (`logo-blue`), a deep-blue shell, everything else neutral until a state needs colour.
-- State is a solid 10 px square + a word — never colour alone, never a pastel pill.
+- State is a tinted pill with a dot and a word in a semantic tone — never colour alone.
 - Numbers are set condensed and heavy, with tabular figures.
 - Hairline rules group information; shadows are minimal and only lift surfaces.
 
@@ -149,24 +157,23 @@ Light theme only: workers use phones on a brightly lit production floor and lead
 - **Ink `#15181D`** (17.8:1) for text and numerals; **Ink Secondary `#474E59`** (8.4:1) for supporting text; **Ink Tertiary `#636B77`** (5.4:1 on stock, 4.7:1 on ground) for metadata and placeholders.
 - **Rule `#D6DAE0`** for hairlines; **Rule Strong `#858C97`** (3.4:1) for control borders — meets the 3:1 non-text contrast rule.
 
-### State: the logo's two colours, as shapes
-The palette is only what the Adix Paper logo and website use: the logo blue, its deep shade, the wordmark grey `#949597`, white and ink. States are told apart by **shape** (owner's decision, 2026-10-27: no amber, green or other hues).
+### State: semantic colour, always with a dot and a word
+Owner's brief of 2026-10-28 (supersedes "logo colours only"): navy shell, light surfaces, logo-blue actions and **semantic state colours**. Tokens live in `frontend/src/index.css :root` (`--urgent*`, `--warn*`, `--ok*`, `--new*`, `--slate*`, `--info-wash`); components use them through `Badge` / `TONES` in `components/ui/Marks.jsx`; charts use the same hex values from `lib/stateColors.js`.
 
-| State | Mark | Text |
-|---|---|---|
-| New | filled logo-blue square | ink |
-| In progress | half-filled logo-blue square (`.mark-half`) | ink |
-| On hold, low priority, inactive | hollow 1.5 px `#636B77` square | ink-secondary |
-| Resolved | filled wordmark-grey square | ink |
-| Machine in service | half-filled logo-blue | ink |
-| Due soon, unsaved changes, success | — | deep blue `#152C52`, semibold |
-| **Urgent, overdue, errors, destructive** | `#B42318` | `#B42318` (6.6:1), wash `#FCEBE9` |
+| Tone | Text on white / on wash | Dot | Used for |
+|---|---|---|---|
+| danger | `#B42318` 6.6:1 / 6.1:1 on `#FEF3F2` | `#D92D20` | Urgent priority, overdue, broken machine, errors, destructive |
+| warning | `#B54708` 5.4:1 / 5.2:1 on `#FFFAEB` | `#F79009` | On hold (any reason), due soon, waiting > 24 h, machine in service |
+| info | `#2A59A2` 6.9:1 / 6.3:1 on `#EFF4FF` | logo blue | In progress |
+| new | `#5925DC` 7.7:1 / 7.0:1 on `#F4F3FF` | `#7A5AF8` | New, untaken |
+| success | `#067647` 5.7:1 / 5.4:1 on `#ECFDF3` | `#17B26A` | Resolved, active machine/user, success toasts |
+| neutral | `#475467` 7.7:1 / 7.0:1 on `#F2F4F7` | `#98A2B3` (hollow for low/inactive) | Normal and low priority, decommissioned, inactive |
 
-Red is the one colour outside the logo, kept because "urgent" and "late" must stop the eye on a busy screen; it appears nowhere else.
+States render as a **pill**: tinted ground, 1 px tinted border, 6 px dot, the word in the tone's text colour (`.badge`). Attention reasons and the waiting tag are dot + coloured text without the pill, so a row never carries more than two pills.
 
 ### Named Rules
-- **Logo Colours Only.** Logo blue, deep blue, wordmark grey, white and ink. Red only for urgent, overdue and errors. Never amber, green, cyan or other hues.
-- **Shape-and-word Rule.** Every status/priority shows a marker *and* its word, so it survives greyscale and colour blindness.
+- **Semantic, not decorative.** Colour appears only where a state is meant; surfaces stay white/grey, actions stay logo blue. No gradients on surfaces.
+- **Shape-and-word Rule.** Every status/priority shows a marker *and* its word, so it survives greyscale and colour blindness. Dot colours are never the only signal.
 
 ## Typography
 
@@ -191,10 +198,12 @@ Headings use `text-wrap: balance`, paragraphs `pretty`. Prose is capped at ~75 c
 - **Spacing:** Tailwind's 4 px scale; groups tight (8–12 px), sections generous (24–32 px). More space above a heading than below.
 - **Shell:** desktop (≥ 1024 px) — fixed 256 px deep-blue rail with nav, language, notifications, account. Below 1024 px — sticky top bar + drawer (native `<dialog>`). Content max width 72 rem (lead) / 42 rem (worker).
 - **Breakpoints:** `xs 420`, `sm 640`, `md 768`, `lg 1024`, `xl 1280`. Tables appear at `md`; below it, lists render as label cards.
-- **Overview (Pregled):** a period switch (Today · 7 days · 30 days · This month; it only affects "Resolved"); six figures in one ruled strip — Open · Urgent · Overdue · Untaken · Waiting for parts · Resolved in period — each a link to a list that returns the same count; "Needs attention" (up to 10 open faults, most pressing reason first, then time left) with a **Why** column in words, All / Untaken / Mine toggles; beside it from `xl` "My faults" and "Team workload" (open faults per lead with hairline bars, untaken first, each row opens that person's list); "Recent activity" under the queue. Phones: figures, queue, my faults, workload, activity. Refreshes every minute while visible.
-- **Analytics (Analize):** period switch (30 days · This month · 90 days · This year); one ruled strip of eight figures, each with the same figure for the preceding period ("prije: …"); "How these are calculated" lists every definition. Then machines (table ≥ md, cards below), faults by month, waiting by reason, recurring faults, reports by priority, spare parts used. Missing data shows "—", never 0.
+- **Overview (Pregled):** a period switch (Today · 7 days · 30 days · This month; it only affects "Resolved"); six figure cards (tinted icon tile per tone: open blue, urgent and overdue red, untaken violet, waiting amber, resolved green) — Open · Urgent · Overdue · Untaken · Waiting for parts · Resolved in period — each a link to a list that returns the same count; "Needs attention" (up to 10 open faults, most pressing reason first, then time left) with a **Why** column in words, All / Untaken / Mine toggles; beside it from `xl` "My faults" and "Team workload" (open faults per lead with hairline bars, untaken first, each row opens that person's list); "Recent activity" under the queue. Phones: figures, queue, my faults, workload, activity. Refreshes every minute while visible.
+- **Analytics (Analize):** period switch (30 days · This month · 90 days · This year); one ruled strip of eight figures, each with the same figure for the preceding period ("prije: …"); "How these are calculated" lists every definition. Then machines (table ≥ md, cards below), faults by month (reported slate, resolved green), reported faults by status (CSS conic-gradient donut with total and legend; no focusable SVG), recurring faults, waiting by reason (amber bars), spare parts used, reports by priority (red / slate bars). Missing data shows "—", never 0.
 - Charts load only on Analytics. Durations under 10 h show hours and minutes; longer ones show whole hours.
-- **Fault detail:** main column (label block with machine · location, part, reporter, reported, taken by, response due, started, time open / resolved; description; photos) + 18.5 rem side column (status panel with actions and waiting reason, sticky on desktop and first on phones; machine history from `lg`). "Put on hold" opens a reason dialog (radio cards). A save refused as stale shows a red-ruled notice with "Load latest".
+- **Login:** navy ground, white card with the logo, HR/EN switch on the navy bar.
+- **Worker home:** greeting, a large blue "Report fault" tile and — only where the browser can read QR codes (`BarcodeDetector`, e.g. Android Chrome) — a "Scan QR code" tile and tab that open a full-screen camera view (`/radnik/skeniraj`). Elsewhere the hint "scan the label with the phone camera" stays. The tab bar's "Report" is a raised round button.
+- **Fault detail:** the status panel shows a progress stepper (Reported → Taken → On hold → Resolved, green when done, blue ring for current, amber for on hold) with time and person per step. Main column (label block with machine · location, part, reporter, reported, taken by, response due, started, time open / resolved; description; photos) + 18.5 rem side column (status panel with actions and waiting reason, sticky on desktop and first on phones; machine history from `lg`). "Put on hold" opens a reason dialog (radio cards). A save refused as stale shows a red-ruled notice with "Load latest".
 - **Phone navigation:** workers get a bottom tab bar (My faults · Report fault), hidden on the report form so it never rides above the keyboard; leads below 640 px get Overview · Faults (overdue count) · Machines · More (opens the drawer; active on screens without a tab). Fixed bars use `.pb-safe` for the home indicator.
 
 ## Elevation & Depth
@@ -206,7 +215,7 @@ Flat by default; hairlines carry structure.
 
 ## Shapes
 
-Radii are small, like die-cut label corners: 3 px (markers, chips), 6 px (buttons, inputs), 10 px (surfaces, dialogs). Status markers are 10 px squares with a 2 px radius.
+Radii are small, like die-cut label corners: 3 px (markers, chips), 6 px (buttons, inputs), 10 px (surfaces, dialogs). State pills are fully rounded with a 6 px dot.
 
 ## Components
 
@@ -223,7 +232,7 @@ For choices that need a sentence (urgency on the report form, role on the user f
 `surface`: white stock, 1 px rule border, 10 px radius, `shadow-label`. Never nested.
 
 ### Navigation
-Rail items 44 px tall; active = white chip with deep-blue text; `aria-current` from `NavLink`. The overdue count sits beside "Kvarovi" as a small red badge. Skip link to `#main` on every shell.
+Rail items 44 px tall; active = logo-blue fill with white semibold text (as in the references); `aria-current` from `NavLink`. The overdue count sits beside "Kvarovi" as a small red badge. Skip link to `#main` on every shell.
 
 ### Search (Ctrl/⌘ K)
 The rail's search field (or Ctrl/⌘ K anywhere) opens a dialog: combobox + listbox, ↑ ↓ Enter Esc. Empty query lists open faults by risk; a number finds that fault; text matches title, machine and part, and machines.
@@ -265,7 +274,7 @@ The printed **machine QR label** (Machines → QR oznake) carries the same ident
 
 ### Don't:
 - Add eyebrows/kickers above headings, gradient text, glows, or coloured side borders.
-- Use colour as the only signal, or pastel pill badges.
+- Use colour as the only signal, or colour where no state is meant.
 - Introduce a second typeface or a second accent colour.
 - Use `alert()`/`confirm()`; use toasts and `ConfirmDialog`.
 

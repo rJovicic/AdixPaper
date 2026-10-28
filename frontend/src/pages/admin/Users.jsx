@@ -11,6 +11,7 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Field from '../../components/ui/Field'
 import RadioCards from '../../components/ui/RadioCards'
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
+import { Badge } from '../../components/ui/Marks'
 
 const ROLES = ['radnik', 'voditelj', 'admin']
 const EMPTY = { username: '', ime: '', prezime: '', email: '', telefon: '', odjel: '', rola: 'radnik', password: '' }
@@ -189,10 +190,9 @@ export default function Users() {
   )
 
   const statusCell = (user) => (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm">
-      <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-[2px] ${user.aktivan ? 'bg-brand' : 'border-[1.5px] border-ink-3'}`} />
+    <Badge tone={user.aktivan ? 'success' : 'neutral'} hollow={!user.aktivan}>
       {user.aktivan ? t('common.active') : t('common.inactive')}
-    </span>
+    </Badge>
   )
 
   return (

@@ -11,20 +11,16 @@ import Dialog from '../../components/ui/Dialog'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Field from '../../components/ui/Field'
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
+import { Badge } from '../../components/ui/Marks'
 
 const COMPANIES = ['Cupup d.o.o', 'Delt papir d.o.o']
 const STATUSES = ['Aktivno', 'Neispravno', 'Na servisu', 'Raspisano']
-const STATUS_MARK = { Aktivno: 'bg-brand', Neispravno: 'bg-urgent', 'Na servisu': 'mark-half', Raspisano: 'border-[1.5px] border-ink-3' }
+const STATUS_TONE = { Aktivno: 'success', Neispravno: 'danger', 'Na servisu': 'warning', Raspisano: 'neutral' }
 const EMPTY = { naziv: '', tip: '', tvrtka: '', proizvodac: '', model: '', serijski_broj: '', lokacija: '', datum_kupnje: '', status: 'Aktivno', napomene: '' }
 
 function MachineStatus({ status }) {
   const { machineStatus } = useI18n()
-  return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm">
-      <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-[2px] ${STATUS_MARK[status] || 'bg-ink-3'}`} />
-      {machineStatus(status)}
-    </span>
-  )
+  return <Badge tone={STATUS_TONE[status]} hollow={status === 'Raspisano'}>{machineStatus(status)}</Badge>
 }
 
 function ComponentsEditor({ machineId }) {

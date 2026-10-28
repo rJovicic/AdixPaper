@@ -156,3 +156,14 @@
 ## 2026-10-27 · Analytics MTBF is an approximation
 - Decided by: Claude (default)
 - What: "gap between faults" = mean interval between consecutive reports on a machine in the period. True MTBF needs operating hours, which are not recorded; the page says so.
+
+## 2026-10-28 · Semantic status colours (supersedes "logo colours only")
+- Decided by: the owner ("semantic status colors", with the reference images), after a full visual QA of every screen
+- What: red urgent/overdue/errors, amber on hold and due soon, blue in progress, violet new/untaken, green resolved/active, slate neutral; states as tinted pills with a dot and a word. Logo blue stays the only action colour; the navy shell and Archivo stay. Every text pair checked ≥ 4.5:1 (DESIGN.md table); axe passes on all screens.
+- Also from the same QA: blue-filled active navigation, figure cards with icon tiles, a progress stepper on fault detail, a status donut on Analytics, a navy login, worker action tiles with a raised "Report" button.
+- Rejected: copying the references literally (separate manager/technician fields, statuses the domain does not have, a notifications page and a settings page that would duplicate the account menu).
+
+## 2026-10-28 · In-app QR scanning only where the browser supports it
+- Decided by: Claude (default)
+- Why: the references show an in-app scanner. `BarcodeDetector` exists on Android Chrome but not on iOS Safari; a library would add ~40–100 kB to the worker bundle. Where unsupported, the tile/tab is not shown (no dead control) and the phone's camera app opens the label as before. `Permissions-Policy` now allows `camera=(self)`.
+- Safety: only the numeric id from a `/m/<id>` path is used; the app never navigates to the scanned URL itself.
