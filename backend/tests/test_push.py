@@ -3,6 +3,7 @@ import json
 
 import pytest
 import pywebpush
+import requests
 
 from app.config import settings
 from app.database import SessionLocal
@@ -11,9 +12,16 @@ from app.models import PushPretplata
 from conftest import unique
 
 
-class FakeResponse:
-    def __init__(self, status_code):
-        self.status_code = status_code
+def push_service_response(status_code, text=""):
+    """A real requests.Response, like pywebpush raises with: falsy for 4xx/5xx."""
+    response = requests.Response()
+    response.status_code = status_code
+    response._content = text.encode()
+    return response
+
+
+class Captured(tuple):
+    """(sent, gone), plus the options each send used and endpoints that answer 403."""
 
 
 @pytest.fixture()
@@ -21,15 +29,23 @@ def pushes(monkeypatch):
     """Captures webpush calls instead of contacting a push service; endpoints in `gone` answer 410."""
     sent = []
     gone = set()
+    broken = set()
+    options = []
 
-    def fake_webpush(subscription_info, data, vapid_private_key, vapid_claims):
+    def fake_webpush(subscription_info, data, vapid_private_key, vapid_claims, ttl=0, headers=None):
+        options.append({"ttl": ttl, "headers": headers or {}})
         if subscription_info["endpoint"] in gone:
-            raise pywebpush.WebPushException("gone", response=FakeResponse(410))
+            raise pywebpush.WebPushException("gone", response=push_service_response(410))
+        if subscription_info["endpoint"] in broken:
+            raise pywebpush.WebPushException("bad", response=push_service_response(403, '{"reason":"BadJwtToken"}'))
         sent.append((subscription_info["endpoint"], json.loads(data)))
 
     monkeypatch.setattr(pywebpush, "webpush", fake_webpush)
     monkeypatch.setattr(settings, "VAPID_PRIVATE_KEY", "test-private-key")
-    return sent, gone
+    captured = Captured((sent, gone))
+    captured.options = options
+    captured.broken = broken
+    return captured
 
 
 def subscribe(client, headers, name):
@@ -108,3 +124,34 @@ def test_without_vapid_keys_nothing_is_sent(client, make_user, machine, pushes, 
     created = client.post("/api/kvarovi", json={"oprema_id": machine["id"], "naslov": "Kvar", "prioritet": "Nisko"}, headers=worker_headers)
     assert created.status_code == 201
     assert sent == []
+
+
+def test_pushes_survive_a_locked_or_offline_phone(client, make_user, machine, pushes):
+    """TTL 0 (the library default) means "now or never": a locked iPhone would miss it."""
+    _, worker_headers = make_user()
+    _, lead_headers = make_user(rola="voditelj")
+    subscribe(client, lead_headers, "ttl")
+    pushes.options.clear()
+    client.post("/api/kvarovi", json={"oprema_id": machine["id"], "naslov": "TTL", "prioritet": "Nisko"}, headers=worker_headers)
+    assert pushes.options and all(option["ttl"] >= 3600 for option in pushes.options)
+    assert all(option["headers"].get("Urgency") == "high" for option in pushes.options)
+
+
+def test_the_test_button_reaches_only_the_callers_devices_and_reports_problems(client, make_user, pushes):
+    sent, _ = pushes
+    me, my_headers = make_user(rola="voditelj")
+    _, other_headers = make_user(rola="voditelj")
+    assert client.post("/api/notifikacije/test", headers=my_headers).status_code == 404  # nothing subscribed yet
+
+    mine = subscribe(client, my_headers, "mine")
+    theirs = subscribe(client, other_headers, "theirs")
+    sent.clear()
+    response = client.post("/api/notifikacije/test", headers=my_headers)
+    assert response.status_code == 200
+    assert response.json() == {"devices": 1, "sent": 1, "expired": 0, "failed": 0}
+    assert [endpoint for endpoint, _ in sent] == [mine]
+    assert theirs not in [endpoint for endpoint, _ in sent]
+
+    pushes.broken.add(mine)
+    failed = client.post("/api/notifikacije/test", headers=my_headers)
+    assert failed.status_code == 502

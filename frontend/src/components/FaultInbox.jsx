@@ -72,6 +72,9 @@ export default function FaultInbox({ inbox, tone = 'dark', align = 'right' }) {
               </button>
             )}
           </div>
+          <div className="border-b border-rule p-3 empty:hidden">
+            <PushToggle variant="card" hint={t('inbox.pushHint')} />
+          </div>
           {items.length === 0 ? (
             <p className="px-4 py-6 text-center text-ink-2">{t('inbox.empty')}</p>
           ) : (
@@ -109,8 +112,8 @@ export default function FaultInbox({ inbox, tone = 'dark', align = 'right' }) {
             <Link to="/admin/kvarovi" onClick={() => setOpen(false)} className="link text-sm">{t('inbox.all')}</Link>
           </div>
           {/* Asked here, where it is wanted, never on page load. Hidden when the server has no push keys. */}
-          <div className="border-t border-rule px-1.5 py-1.5">
-            <PushToggle hint={t('inbox.pushHint')} />
+          <div className="border-t border-rule px-1.5 py-1.5 empty:hidden">
+            <PushToggle variant="manage" />
           </div>
         </div>
       )}

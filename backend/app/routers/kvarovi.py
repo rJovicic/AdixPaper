@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from io import BytesIO
 import json
+from urllib.parse import urlsplit
 from types import SimpleNamespace
 import logging
 
@@ -243,15 +244,20 @@ def _query_kvarovi(
     return records, len(records)
 
 
-def _send_push_notifications(title: str, body: str, url: str = "/", user_ids: Optional[List[int]] = None, tag: Optional[str] = None):
+PUSH_TTL_SECONDS = 24 * 3600  # a phone that is off or out of signal still gets it within a day
+
+
+def _send_push_notifications(title: str, body: str, url: str = "/", user_ids: Optional[List[int]] = None, tag: Optional[str] = None) -> dict:
     """Runs as a background task, after the request's session is closed, so it opens its own.
     Without `user_ids`, goes to every active lead and admin (new faults). The payload holds only
     a short title and line plus an in-app link: the app shows details after sign-in. `tag` lets
-    the phone replace an older notification about the same thing instead of stacking a copy."""
+    the phone replace an older notification about the same thing instead of stacking a copy.
+    Returns {"devices", "sent", "expired", "failed"} and logs the same, without endpoints or keys."""
     from ..config import settings
 
+    result = {"devices": 0, "sent": 0, "expired": 0, "failed": 0}
     if not settings.VAPID_PRIVATE_KEY:
-        return
+        return result
 
     db = SessionLocal()
     try:
@@ -263,8 +269,10 @@ def _send_push_notifications(title: str, body: str, url: str = "/", user_ids: Op
         else:
             query = query.filter(Korisnik.id.in_(user_ids))
         pretplate = query.all()
+        result["devices"] = len(pretplate)
         mrtve = []
         for p in pretplate:
+            service = urlsplit(p.endpoint).hostname or "?"
             try:
                 webpush(
                     subscription_info={
@@ -273,19 +281,32 @@ def _send_push_notifications(title: str, body: str, url: str = "/", user_ids: Op
                     },
                     data=json.dumps({"title": title, "body": body, "url": url, "tag": tag or url}),
                     vapid_private_key=settings.VAPID_PRIVATE_KEY,
-                    vapid_claims={"sub": settings.VAPID_EMAIL}
+                    vapid_claims={"sub": settings.VAPID_EMAIL},
+                    # pywebpush defaults to TTL 0 ("now or never"): a locked or offline phone would miss it.
+                    ttl=PUSH_TTL_SECONDS,
+                    headers={"Urgency": "high"},
                 )
+                result["sent"] += 1
             except WebPushException as e:
-                if e.response and e.response.status_code in (404, 410):
+                # A requests.Response is falsy for 4xx/5xx, so compare with None, not truthiness.
+                status = e.response.status_code if e.response is not None else None
+                if status in (404, 410):
                     mrtve.append(p.id)
+                    result["expired"] += 1
+                else:
+                    result["failed"] += 1
+                    reason = (e.response.text[:200] if e.response is not None else str(e))
+                    logger.warning("Push to %s failed (user %s): HTTP %s %s", service, p.korisnik_id, status, reason)
         for pid in mrtve:
             db.query(PushPretplata).filter(PushPretplata.id == pid).delete()
         if mrtve:
             db.commit()
+        logger.info("Push %r: %s device(s), %s sent, %s expired, %s failed", url, result["devices"], result["sent"], result["expired"], result["failed"])
     except Exception:
         logger.exception("Sending push notifications failed")
     finally:
         db.close()
+    return result
 
 
 def _notify_reporter(background_tasks: BackgroundTasks, kvar: Kvar, actor: Korisnik, body: str):
