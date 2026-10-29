@@ -200,7 +200,8 @@ class KomponentaMini(BaseModel):
 
 class OpremaWithStats(OpremaOut):
     broj_kvarova: int = 0
-    ukupni_troskovi: float = 0
+    # Repair costs are for leads and admins; workers get None.
+    ukupni_troskovi: Optional[float] = 0
     zadnji_kvar: Optional[datetime] = None
 
 
@@ -444,7 +445,15 @@ class PushSubscribeData(BaseModel):
 class PushSend(BaseModel):
     title: ShortText
     body: Annotated[str, Field(max_length=1000)]
-    url: Optional[str] = None
+    # A path inside the app ("/admin/kvarovi/12"); a notification never opens another site.
+    url: Optional[Annotated[str, Field(max_length=500)]] = None
+
+    @field_validator("url")
+    @classmethod
+    def _in_app_path(cls, value):
+        if value is not None and (not value.startswith("/") or value[1:2] in ("/", "\\") or any(c.isspace() or c == "\\" for c in value)):
+            raise PydanticCustomError("in_app_path", "Poveznica mora biti stranica aplikacije")
+        return value
 
 
 # --- DASHBOARD ---

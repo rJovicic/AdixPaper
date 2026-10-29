@@ -23,6 +23,7 @@ Interface in Croatian (default) and English. Production: <https://adixpaper-prod
 | [AUDIT.md](AUDIT.md) | Audit findings, launch checklist, backlog and verdict |
 | [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Command-center pass: gaps, phases, progress, verification |
 | [decisions.md](decisions.md) | Decisions someone might want to revisit |
+| [docs/IMPROVEMENT_LOG.md](docs/IMPROVEMENT_LOG.md) | 2026-10-29 improvement pass: findings, fixes, evidence, open owner/operator items |
 
 ## Stack
 
@@ -68,13 +69,13 @@ Sign in at <http://localhost:3000> with `ADMIN_USERNAME` / `ADMIN_PASSWORD`. To 
 ## Tests and checks
 
 ```bash
-# Backend: 57 tests (set TEST_DATABASE_URL to use PostgreSQL; SQLite otherwise)
+# Backend: 131 tests (set TEST_DATABASE_URL to use PostgreSQL; SQLite otherwise)
 cd backend && ruff check app tests && python -m pytest -q
 
 # Frontend
 cd frontend && npm run lint && npm run check:i18n && npm run build
 
-# End-to-end + accessibility (25 tests; the new-version banner test runs only against a production build) (needs the app running and seed-demo data)
+# End-to-end + accessibility (56 tests; the new-version banner test runs only against a production build) (needs the app running and seed-demo data)
 cd e2e && npm ci && npx playwright test                      # against Vite on :3000
 E2E_BASE_URL=http://localhost:8000 npx playwright test       # against the Docker image
 ```

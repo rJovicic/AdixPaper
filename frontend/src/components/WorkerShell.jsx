@@ -3,6 +3,7 @@ import { ClipboardList, Home, PlusCircle, User } from 'lucide-react'
 import { BrandOnNavy } from './BrandLogo'
 import BottomNav from './BottomNav'
 import InstallPrompt from './InstallPrompt'
+import ConnectionNotice from './ConnectionNotice'
 import { useI18n } from '../i18n'
 
 export default function WorkerShell() {
@@ -28,6 +29,7 @@ export default function WorkerShell() {
             <BrandOnNavy label={t('app.name')} />
           </Link>
         </div>
+        <ConnectionNotice />
       </header>
       <main id="main" tabIndex={-1} className={`mx-auto max-w-2xl px-4 pt-5 focus:outline-none ${reporting ? 'pb-12' : 'pb-28'}`}>
         <Outlet />

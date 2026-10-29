@@ -345,9 +345,10 @@ export default function Faults() {
       )}
 
       <div className={`surface mb-4 hidden gap-3 p-3 sm:grid sm:grid-cols-3 ${
-        view === 'active' ? 'xl:grid-cols-[minmax(0,1.6fr)_repeat(6,minmax(0,1fr))]' : 'lg:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,1fr))]'
+        // One row only where every select has room for its longest option; otherwise two rows (labels were clipped at 1366 px).
+        view === 'active' ? 'xl:grid-cols-4 2xl:grid-cols-[minmax(0,1.6fr)_repeat(6,minmax(0,1fr))]' : 'xl:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,1fr))]'
       }`}>
-        <div className={`relative col-span-2 sm:col-span-3 ${view === 'active' ? 'xl:col-span-1' : 'lg:col-span-1'}`}>
+        <div className="relative col-span-2 sm:col-span-3 xl:col-span-1">
           <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
           <input
             type="search"

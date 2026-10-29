@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router'
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, History, Pause, WifiOff, Wrench } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronRight, History, Pause, Wrench } from 'lucide-react'
 import { api } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useLiveRefresh, useLiveStatus } from '../../lib/live'
@@ -28,7 +28,7 @@ const byAttention = (a, b) => rank(a) - rank(b) || minutesLeft(a) - minutesLeft(
 
 const fullName = (person) => (person ? `${person.ime} ${person.prezime}` : '')
 
-/** "Live" when changes arrive by themselves; otherwise say the data may be behind. */
+/** "Live" when changes arrive by themselves. A lost connection is announced by the shell (ConnectionNotice). */
 function LiveState() {
   const { t } = useI18n()
   const status = useLiveStatus()
@@ -40,13 +40,7 @@ function LiveState() {
       </span>
     )
   }
-  if (status === 'connecting') return null
-  return (
-    <span role="status" className="inline-flex items-center gap-1.5 text-meta font-semibold text-warn">
-      <WifiOff size={14} aria-hidden="true" />
-      {status === 'offline' ? t('live.offline') : t('live.reconnecting')}
-    </span>
-  )
+  return null
 }
 
 function ViewAll({ to, children }) {

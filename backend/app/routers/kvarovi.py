@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, or_
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from io import BytesIO
 import json
@@ -60,6 +60,12 @@ def _enum_value(value) -> str:
 OPEN_FILTER = "otvoreni"
 MAX_PRILOGA = 6
 CONFLICT_DETAIL = "Kvar je u međuvremenu izmijenjen. Učitajte najnovije stanje pa ponovite promjenu."
+WORK_DONE_REQUIRED = "Prije zatvaranja kvara upišite što je napravljeno"
+INVALID_DATES = "Neispravan datum: ne može biti prije prijave, u budućnosti ni proturječiti statusu kvara"
+# Resolution details only leads and admins see (KVAR_INTERNAL_FIELDS); changes to them stay off the worker's timeline.
+INTERNAL_DETAIL_FIELDS = {"materijal", "troskovi", "napomene_voditelja"}
+# Tolerance for a client clock slightly ahead of the server's when a lead corrects a date.
+CLOCK_SKEW = timedelta(minutes=2)
 
 
 def _enum_param(enum_cls, value: Optional[str]):
@@ -332,6 +338,27 @@ def _parts_signature(items) -> list:
         get = item.get if isinstance(item, dict) else lambda key, _i=item: getattr(_i, key)
         rows.append((int(get("rezervni_dio_id")), Decimal(str(get("kolicina"))).normalize(), get("napomena") or None))
     return sorted(rows, key=lambda row: (row[0], row[1], row[2] or ""))
+
+
+def _check_lifecycle_dates(kvar: Kvar, update_data: dict) -> None:
+    """Dates a lead sets by hand must fit the record: not before the report, not in the future,
+    start before resolution, and a resolution date only on a resolved fault."""
+    supplied = [field for field in ("datum_pocetka", "datum_rjesavanja") if field in update_data]
+    if not supplied:
+        return
+    latest = utcnow() + CLOCK_SKEW
+    reported = as_utc(kvar.datum_prijave) if kvar.datum_prijave else None
+    for field in supplied:
+        value = getattr(kvar, field)
+        if value is None:  # cleared by a status change in the same save
+            continue
+        value = as_utc(value)
+        if value > latest or (reported is not None and value < reported):
+            raise HTTPException(status_code=400, detail=INVALID_DATES)
+    if "datum_rjesavanja" in supplied and kvar.status != StatusKvaraEnum.rijeseno:
+        raise HTTPException(status_code=400, detail=INVALID_DATES)
+    if kvar.datum_pocetka and kvar.datum_rjesavanja and as_utc(kvar.datum_pocetka) > as_utc(kvar.datum_rjesavanja):
+        raise HTTPException(status_code=400, detail=INVALID_DATES)
 
 
 def _load_kvar(kvar_id: int, db: Session) -> Kvar:
@@ -779,9 +806,14 @@ def update_kvar(
     expected_version = update_data.pop("verzija", None)
     if expected_version is not None and expected_version != kvar.verzija:
         raise HTTPException(status_code=409, detail=CONFLICT_DETAIL)
-    for required in ("status", "prioritet"):
+    # Explicit nulls cannot clear these: status and priority are required, and the lifecycle
+    # dates are set and cleared by status changes, not by the client.
+    for required in ("status", "prioritet", "datum_pocetka", "datum_rjesavanja"):
         if update_data.get(required, "") is None:
             update_data.pop(required)
+    for field in ("datum_pocetka", "datum_rjesavanja"):
+        if field in update_data:
+            update_data[field] = as_utc(update_data[field])
     parts_payload = update_data.pop("utroseni_dijelovi", None)
     waiting_reason = update_data.pop("razlog_cekanja", None)
     old_waiting_reason = kvar.razlog_cekanja
@@ -820,8 +852,6 @@ def update_kvar(
             if not kvar.voditelj_id:
                 kvar.voditelj_id = current_user.id
         if new_status == StatusKvaraEnum.rijeseno:
-            if not (kvar.sto_je_uradjeno or "").strip():
-                raise HTTPException(status_code=400, detail="Prije zatvaranja kvara upišite što je napravljeno")
             if not kvar.datum_rjesavanja:
                 kvar.datum_rjesavanja = utcnow()
         else:
@@ -839,6 +869,11 @@ def update_kvar(
     else:
         kvar.razlog_cekanja = None
         kvar.cekanje_od = None
+
+    # A resolved fault always says what was done, whether it was just resolved or edited later.
+    if kvar.status == StatusKvaraEnum.rijeseno and not (kvar.sto_je_uradjeno or "").strip():
+        raise HTTPException(status_code=400, detail=WORK_DONE_REQUIRED)
+    _check_lifecycle_dates(kvar, update_data)
 
     db.flush()
 
@@ -902,16 +937,21 @@ def update_kvar(
         field for field in detail_fields
         if field in update_data and _normalized(old_details[field]) != _normalized(getattr(kvar, field))
     )
-    if changed_details:
-        _add_event(
-            db,
-            kvar,
-            current_user,
-            "details",
-            "Ažurirani detalji rješavanja",
-            podaci={"fields": changed_details},
-            interno=changed_details == ["napomene_voditelja"],
-        )
+    # One entry for what the reporter may see (work done, downtime), one internal for the rest.
+    for fields, interno in (
+        ([f for f in changed_details if f not in INTERNAL_DETAIL_FIELDS], False),
+        ([f for f in changed_details if f in INTERNAL_DETAIL_FIELDS], True),
+    ):
+        if fields:
+            _add_event(
+                db,
+                kvar,
+                current_user,
+                "details",
+                "Ažurirani detalji rješavanja",
+                podaci={"fields": fields},
+                interno=interno,
+            )
 
     if parts_payload is not None and _parts_signature(parts_payload) == _parts_signature(
         [{"rezervni_dio_id": u.rezervni_dio_id, "kolicina": u.kolicina, "napomena": u.napomena} for u in kvar.utroseni_dijelovi]
@@ -919,6 +959,8 @@ def update_kvar(
         parts_payload = None  # unchanged: keep rows and avoid a spurious timeline entry
 
     if parts_payload is not None:
+        # Parts already on this fault stay valid after they leave the catalogue; new ones must be active.
+        parts_on_fault = {u.rezervni_dio_id for u in kvar.utroseni_dijelovi}
         db.query(KvarRezervniDio).filter(KvarRezervniDio.kvar_id == kvar.id).delete()
         for item in parts_payload:
             rezervni_dio_id = item.get("rezervni_dio_id") if isinstance(item, dict) else item.rezervni_dio_id
@@ -927,7 +969,8 @@ def update_kvar(
 
             if kolicina <= 0:
                 raise HTTPException(status_code=400, detail="Količina rezervnog dijela mora biti veća od nule")
-            if not db.query(RezervniDio.id).filter(RezervniDio.id == rezervni_dio_id, RezervniDio.aktivan == True).first():
+            part = db.query(RezervniDio.id, RezervniDio.aktivan).filter(RezervniDio.id == rezervni_dio_id).first()
+            if not part or not (part.aktivan or rezervni_dio_id in parts_on_fault):
                 raise HTTPException(status_code=404, detail="Rezervni dio nije pronađen")
             db.add(KvarRezervniDio(
                 kvar_id=kvar.id,
@@ -942,6 +985,7 @@ def update_kvar(
             "parts",
             "Ažurirani utrošeni rezervni dijelovi",
             podaci={"count": len(parts_payload)},
+            interno=True,
         )
 
     kvar.verzija = (kvar.verzija or 1) + 1
@@ -989,9 +1033,12 @@ def add_prilog(
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(get_current_user),
 ):
-    """Attach a photo. The reporter (worker) and leads/admins may add up to MAX_PRILOGA per fault."""
+    """Attach a photo, up to MAX_PRILOGA per fault: the reporter (worker) while the fault is open,
+    leads/admins at any time."""
     kvar = _load_kvar(kvar_id, db)
     _ensure_kvar_access(kvar, current_user)
+    if not _can_manage(current_user) and not kvar.otvoren:
+        raise HTTPException(status_code=403, detail="Fotografije se mogu dodati samo dok je kvar otvoren")
     if db.query(func.count(KvarPrilog.id)).filter(KvarPrilog.kvar_id == kvar_id).scalar() >= MAX_PRILOGA:
         raise HTTPException(status_code=400, detail=f"Kvar može imati najviše {MAX_PRILOGA} fotografija")
     raw = datoteka.file.read(12 * 1024 * 1024 + 1)

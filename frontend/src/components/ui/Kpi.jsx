@@ -52,7 +52,8 @@ export default function Kpi({ label, value, icon: Icon, tone = 'info', delta, re
           <span className="numeral text-[1.5rem] leading-none text-ink sm:text-[1.75rem]">{loading ? '–' : value}</span>
           {!loading && delta}
         </span>
-        <span className={`mt-1.5 ${inline ? 'block' : 'hidden sm:block'} truncate text-meta text-ink-3`}>{loading ? ' ' : (reference || sub || ' ')}</span>
+        {/* Shown on phones too: a bare "↑23" does not say compared with when. */}
+        {(reference || sub) && <span className="mt-1 block truncate text-meta text-ink-3 sm:mt-1.5">{loading ? ' ' : (reference || sub)}</span>}
       </span>
     </>
   )

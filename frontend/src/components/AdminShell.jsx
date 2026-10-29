@@ -14,6 +14,7 @@ import { useNewFaultAlerts } from '../lib/useNewFaultAlerts'
 import PushToggle from './PushToggle'
 import FaultInbox from './FaultInbox'
 import InstallPrompt from './InstallPrompt'
+import ConnectionNotice from './ConnectionNotice'
 import { useLiveRefresh } from '../lib/live'
 
 // Daily work first; records and reports after a quiet divider; settings sit with the account.
@@ -178,6 +179,8 @@ export default function AdminShell() {
             <FaultInbox inbox={inbox} />
           </div>
         </header>
+
+        <ConnectionNotice />
 
         <main
           id="main"

@@ -694,6 +694,8 @@ export default {
     'Pristup zabranjen - potrebne voditelj ili admin ovlasti': 'Maintenance lead or administrator rights are required.',
     'Push notifikacije nisu konfigurirane': 'Push notifications are not configured.',
     'Rezervni dio nije pronađen': 'Spare part not found.',
+    'Fotografije se mogu dodati samo dok je kvar otvoren': 'Photos can only be added while the fault is open.',
+    'Neispravan datum: ne može biti prije prijave, u budućnosti ni proturječiti statusu kvara': 'Invalid date: it cannot be before the report, in the future, or contradict the fault status.',
     'Serijski broj već postoji': 'Another machine already has this serial number.',
     'Slanje notifikacija nije uspjelo': 'Sending notifications failed.',
     'Odaberite razlog čekanja': 'Choose why the fault is on hold.',
