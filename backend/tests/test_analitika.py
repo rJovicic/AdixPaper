@@ -26,13 +26,13 @@ def set_fault(kvar_id, **values):
 def test_period_summary_matches_a_hand_calculation(client, make_user, machine):
     _, worker = make_user()
     ids = [report(client, worker, machine)["id"] for _ in range(3)]
-    # Urgent (2 h window): reported 10:00, taken 10:30, resolved 11:30 → 90 min, on time, 60 min downtime, 100 €.
+    # Urgent (2 h window): reported 10:00, taken 10:30, resolved 11:30 → 90 min, response on time, 60 min downtime, 100 €.
     set_fault(ids[0], prioritet=PrioritetEnum.hitno, status=StatusKvaraEnum.rijeseno, datum_prijave=at(2, 10),
-              datum_pocetka=at(2, 10, 30), datum_rjesavanja=at(2, 11, 30), trajanje_min=60, troskovi=100)
-    # Normal (8 h window): reported 08:00, taken 09:00, resolved 20:00 → 720 min, late, no downtime recorded.
+              datum_odziva=at(2, 10, 30), datum_pocetka=at(2, 10, 30), datum_rjesavanja=at(2, 11, 30), trajanje_min=60, troskovi=100)
+    # Normal (8 h window): reported 08:00, taken 09:00 (response on time), resolved 20:00 → 720 min, no downtime recorded.
     set_fault(ids[1], prioritet=PrioritetEnum.normalno, status=StatusKvaraEnum.rijeseno, datum_prijave=at(5, 8),
-              datum_pocetka=at(5, 9), datum_rjesavanja=at(5, 20), trajanje_min=0, troskovi=0)
-    # Low, still open and untaken.
+              datum_odziva=at(5, 9), datum_pocetka=at(5, 9), datum_rjesavanja=at(5, 20), trajanje_min=0, troskovi=0)
+    # Low, still open and untaken, its 48 h window long passed → response late.
     set_fault(ids[2], prioritet=PrioritetEnum.nisko, datum_prijave=at(10, 8))
 
     db = SessionLocal()
@@ -43,9 +43,9 @@ def test_period_summary_matches_a_hand_calculation(client, make_user, machine):
     assert summary.prijavljeno == 3
     assert summary.rijeseno == 2
     assert summary.vrijeme_do_rjesenja_min == 405.0  # (90 + 720) / 2
-    assert summary.vrijeme_do_preuzimanja_min == 45.0  # (30 + 60) / 2
+    assert summary.vrijeme_do_odziva_min == 45.0  # (30 + 60) / 2
     assert summary.vrijeme_popravka_min == 360.0  # (60 + 660) / 2
-    assert summary.sla_u_roku == 1 and summary.sla_postotak == 50.0
+    assert summary.sla_u_roku == 2 and summary.sla_ocijenjeno == 3 and summary.sla_postotak == 66.7
     assert summary.zastoj_min == 60 and summary.zastoj_evidentiran == 1
     assert summary.trosak_rada == 100.0
 

@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from datetime import datetime, timedelta
 from collections import defaultdict
-from typing import List, Optional
+from typing import List
 
 from ..database import get_db
-from ..models import Oprema, Kvar, Korisnik, KvarDogadjaj, RolaEnum, StatusKvaraEnum, PrioritetEnum, SLA_SATI, KomponentaOpreme, KvarRezervniDio, RezervniDio, Dobavljac
+from ..models import Oprema, Kvar, Korisnik, KvarDogadjaj, RolaEnum, StatusKvaraEnum, PrioritetEnum, KomponentaOpreme, KvarRezervniDio, RezervniDio, Dobavljac
 from ..schemas import Analitika, AnalitikaCekanje, AnalitikaStatus, AnalitikaDio, AnalitikaMasina, AnalitikaPonavljanje, AnalitikaPrioritet, AnalitikaSazetak, Pregled, PregledAktivnost, PregledKpi, PregledOpterecenje, KorisnikMini, DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
 from ..auth import require_voditelj_or_admin
 from ..timeutil import utcnow, as_utc, local_day_start, local_month_start, local_year_start, local_month_number, period_start
@@ -20,16 +20,6 @@ OPEN_STATUSES = [StatusKvaraEnum.novo, StatusKvaraEnum.u_rjesavanju, StatusKvara
 def _enum_value(value) -> str:
     raw = getattr(value, "value", value)
     return str(raw) if raw is not None else ""
-
-
-def _sla_ratio(kvar: Kvar, now: datetime) -> Optional[float]:
-    if kvar.status == StatusKvaraEnum.rijeseno or not kvar.datum_prijave:
-        return None
-    limit = SLA_SATI.get(_enum_value(kvar.prioritet))
-    if not limit:
-        return None
-    elapsed = (now - as_utc(kvar.datum_prijave)).total_seconds() / 3600
-    return elapsed / limit
 
 
 ACTIVITY_ROWS = 8
@@ -176,30 +166,41 @@ def _mean(values):
 
 
 def _summary(db: Session, od: datetime, do: datetime) -> AnalitikaSazetak:
-    """Headline figures for [od, do). Definitions are shown on the Analytics page (analytics.defs)."""
-    reported = db.query(func.count(Kvar.id)).filter(Kvar.datum_prijave >= od, Kvar.datum_prijave < do).scalar() or 0
+    """Headline figures for [od, do). Definitions are shown on the Analytics page (analytics.defs).
+
+    Response window: judged for the faults reported in the period. On time = first response
+    within the window; late = first response after it, or none yet with the window passed.
+    Faults still inside their window without a response are not judged yet, nor are faults whose
+    first response predates the record of it (no datum_odziva, not waiting).
+    """
+    now = utcnow()
+    reported_faults = db.query(Kvar).filter(Kvar.datum_prijave >= od, Kvar.datum_prijave < do).all()
     resolved = db.query(Kvar).filter(
         Kvar.status == StatusKvaraEnum.rijeseno, Kvar.datum_rjesavanja >= od, Kvar.datum_rjesavanja < do
     ).all()
-    taken = db.query(Kvar.datum_prijave, Kvar.datum_pocetka).filter(
-        Kvar.datum_pocetka >= od, Kvar.datum_pocetka < do, Kvar.datum_prijave.isnot(None)
+    responded = db.query(Kvar.datum_prijave, Kvar.datum_odziva).filter(
+        Kvar.datum_odziva >= od, Kvar.datum_odziva < do, Kvar.datum_prijave.isnot(None)
     ).all()
-    on_time = sum(1 for k in resolved if k.rok is not None and as_utc(k.datum_rjesavanja) <= k.rok)
+    on_time = sum(1 for k in reported_faults if k.odziv_u_roku is True)
+    late = sum(
+        1 for k in reported_faults
+        if k.odziv_u_roku is False or (k.ceka_odziv and k.rok is not None and k.rok < now)
+    )
     parts_cost = 0.0
     if resolved:
+        # Unit prices recorded when the parts were used, never today's catalogue price.
         parts_cost = db.query(
-            func.coalesce(func.sum(KvarRezervniDio.kolicina * func.coalesce(RezervniDio.cijena, 0)), 0)
-        ).join(RezervniDio, KvarRezervniDio.rezervni_dio_id == RezervniDio.id).filter(
-            KvarRezervniDio.kvar_id.in_([k.id for k in resolved])
-        ).scalar() or 0
+            func.coalesce(func.sum(KvarRezervniDio.kolicina * func.coalesce(KvarRezervniDio.jedinicna_cijena, 0)), 0)
+        ).filter(KvarRezervniDio.kvar_id.in_([k.id for k in resolved])).scalar() or 0
     return AnalitikaSazetak(
-        prijavljeno=reported,
+        prijavljeno=len(reported_faults),
         rijeseno=len(resolved),
         vrijeme_do_rjesenja_min=_mean(_minutes(k.datum_prijave, k.datum_rjesavanja) for k in resolved if k.datum_prijave),
-        vrijeme_do_preuzimanja_min=_mean(_minutes(prijava, pocetak) for prijava, pocetak in taken),
+        vrijeme_do_odziva_min=_mean(_minutes(prijava, odziv) for prijava, odziv in responded),
         vrijeme_popravka_min=_mean(_minutes(k.datum_pocetka, k.datum_rjesavanja) for k in resolved if k.datum_pocetka),
         sla_u_roku=on_time,
-        sla_postotak=round(100 * on_time / len(resolved), 1) if resolved else None,
+        sla_ocijenjeno=on_time + late,
+        sla_postotak=round(100 * on_time / (on_time + late), 1) if on_time + late else None,
         zastoj_min=sum(k.trajanje_min or 0 for k in resolved),
         zastoj_evidentiran=sum(1 for k in resolved if (k.trajanje_min or 0) > 0),
         trosak_rada=float(sum(k.troskovi or 0 for k in resolved)),
@@ -222,6 +223,14 @@ def get_analitika(
 
     reported = db.query(Kvar).options(joinedload(Kvar.oprema), joinedload(Kvar.komponenta)).filter(Kvar.datum_prijave >= od).all()
 
+    # Spare-part cost per fault at the recorded unit prices, so a machine's cost is labour + parts.
+    part_costs = dict(
+        db.query(KvarRezervniDio.kvar_id, func.sum(KvarRezervniDio.kolicina * func.coalesce(KvarRezervniDio.jedinicna_cijena, 0)))
+        .filter(KvarRezervniDio.kvar_id.in_([k.id for k in reported]))
+        .group_by(KvarRezervniDio.kvar_id)
+        .all()
+    ) if reported else {}
+
     by_machine = defaultdict(list)
     for k in reported:
         by_machine[k.oprema_id].append(k)
@@ -235,7 +244,7 @@ def get_analitika(
             lokacija=machine.lokacija,
             kvarovi=len(faults),
             zastoj_min=sum(k.trajanje_min or 0 for k in faults),
-            trosak=float(sum(k.troskovi or 0 for k in faults)),
+            trosak=float(sum((k.troskovi or 0) + (part_costs.get(k.id) or 0) for k in faults)),
             vrijeme_do_rjesenja_min=_mean(_minutes(k.datum_prijave, k.datum_rjesavanja) for k in faults if k.datum_rjesavanja),
             # Mean gap between consecutive reports in the period: a proxy for MTBF (operating hours are not recorded).
             mtbf_sati=round((times[-1] - times[0]).total_seconds() / 3600 / (len(times) - 1), 1) if len(times) > 1 else None,
@@ -278,7 +287,7 @@ def get_analitika(
         RezervniDio.naziv,
         RezervniDio.sifra,
         func.sum(KvarRezervniDio.kolicina).label("kolicina"),
-        func.sum(KvarRezervniDio.kolicina * func.coalesce(RezervniDio.cijena, 0)).label("trosak"),
+        func.sum(KvarRezervniDio.kolicina * func.coalesce(KvarRezervniDio.jedinicna_cijena, 0)).label("trosak"),
     ).join(KvarRezervniDio, RezervniDio.id == KvarRezervniDio.rezervni_dio_id).join(
         Kvar, KvarRezervniDio.kvar_id == Kvar.id
     ).filter(
@@ -353,16 +362,14 @@ def get_stats(db: Session = Depends(get_db), _: Korisnik = Depends(require_vodit
         Kvar.datum_rjesavanja >= month_start,
     ).scalar() or 0
     dijelovi_mjesec = db.query(
-        func.coalesce(func.sum(KvarRezervniDio.kolicina * func.coalesce(RezervniDio.cijena, 0)), 0)
-    ).join(Kvar, KvarRezervniDio.kvar_id == Kvar.id).join(
-        RezervniDio, KvarRezervniDio.rezervni_dio_id == RezervniDio.id
-    ).filter(
+        func.coalesce(func.sum(KvarRezervniDio.kolicina * func.coalesce(KvarRezervniDio.jedinicna_cijena, 0)), 0)
+    ).join(Kvar, KvarRezervniDio.kvar_id == Kvar.id).filter(
         Kvar.datum_prijave >= month_start
     ).scalar() or 0
 
     broj_radnika = db.query(func.count(Korisnik.id)).filter(Korisnik.aktivan == True).scalar() or 0
     otvoreni_records = db.query(Kvar).filter(Kvar.status.in_(OPEN_STATUSES)).all()
-    sla_ratios = [_sla_ratio(k, now) for k in otvoreni_records]
+    sla_ratios = [k.udio_roka_u(now) for k in otvoreni_records]
     sla_kasni = len([r for r in sla_ratios if r is not None and r >= 1])
     sla_uskoro = len([r for r in sla_ratios if r is not None and 0.75 <= r < 1])
 
@@ -491,23 +498,21 @@ def get_utrosak_dijelova(db: Session = Depends(get_db), _: Korisnik = Depends(re
         RezervniDio.naziv,
         RezervniDio.sifra,
         Dobavljac.naziv.label("dobavljac"),
-        func.coalesce(RezervniDio.cijena, 0).label("cijena"),
         func.sum(KvarRezervniDio.kolicina).label("kolicina"),
+        func.sum(KvarRezervniDio.kolicina * func.coalesce(KvarRezervniDio.jedinicna_cijena, 0)).label("trosak"),
     ).join(KvarRezervniDio, RezervniDio.id == KvarRezervniDio.rezervni_dio_id).outerjoin(
         Dobavljac, RezervniDio.dobavljac_id == Dobavljac.id
     ).group_by(
-        RezervniDio.id, RezervniDio.naziv, RezervniDio.sifra, RezervniDio.cijena, Dobavljac.naziv
+        RezervniDio.id, RezervniDio.naziv, RezervniDio.sifra, Dobavljac.naziv
     ).order_by(func.sum(KvarRezervniDio.kolicina).desc()).limit(10).all()
 
     items = []
     for r in result:
-        qty = float(r.kolicina or 0)
-        price = float(r.cijena or 0)
         items.append(SparePartUsageSummary(
             naziv=r.naziv,
             sifra=r.sifra,
             dobavljac=r.dobavljac,
-            kolicina=qty,
-            trosak=qty * price,
+            kolicina=float(r.kolicina or 0),
+            trosak=float(r.trosak or 0),
         ))
     return items

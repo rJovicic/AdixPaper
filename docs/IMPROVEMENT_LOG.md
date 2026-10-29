@@ -74,16 +74,69 @@ Verification after round 2: `npm run lint` pass, `npm run check:i18n` pass, `npm
 pass; Playwright against the production build **56 passed** (54 existing + 2 new); backend
 **131 passed**.
 
+### Round 3 — owner decisions (2026-10-29): first-response SLA, historical part prices, sensitive data, management screens
+
+#### First-response SLA (owner: the 2 h / 8 h / 48 h are first-response targets)
+
+- **Definition.** First response = the first time a lead or admin moves a fault out of "Novo" (take → U rješavanju, hold → Na čekanju, or resolve). Recorded once by the server in the new column `kvarovi.datum_odziva`; never sent by the client; kept when the fault is reopened. Edits, comments and assignment alone are not a response.
+- **Rule.** Only a fault still waiting (status Novo and no `datum_odziva`) can be overdue / due soon (`Kvar.ceka_odziv`, `udio_roka_u`, `razlozi_paznje_u`). After the response, `odziv_u_roku` says whether it was within the window.
+- **Everywhere:** attention reasons and overview "overdue", the `sla` filter and `sort=rizik` on the fault list (and the rail's overdue badge, which uses that filter), Excel/PDF "Odziv" column ("Odziv u roku" / "Odziv izvan roka" / waiting states) plus a "Prvi odziv" date, the legacy `/dashboard/stats`, fault list and detail (countdown only while waiting; outcome afterwards; detail fields "Rok odziva" and "Prvi odziv"), report-form priority hints ("Odziv u 2 h"), Analytics.
+- **Analytics.** "Time to first response" replaces "time to take" (mean over faults first responded to in the period). "Responded on time" = of faults *reported* in the period, the share whose first response was within the window. A fault with no response after its window counts as late; one still inside its window is not judged yet; faults that left "Novo" with no trace of when are not judged. MTTR (time to resolution) and repair time are unchanged and separate. API: `vrijeme_do_preuzimanja_min` → `vrijeme_do_odziva_min`, new `sla_ocijenjeno` (frontend and tests updated together).
+- **Existing data** (filled once in the transaction that adds the column): first status change away from "Novo" in the timeline, else `datum_pocetka`, else `datum_rjesavanja`; faults still new stay empty. Verified on PostgreSQL with data created by the `main` release.
+
+#### Historical spare-part prices
+
+- New columns `kvar_rezervni_dijelovi.jedinicna_cijena` (unit price when used) and `cijena_naknadno` (true for rows that existed before the upgrade). New usage copies the catalogue price; re-saving a fault's parts list carries each existing part's recorded price over, so editing quantities never re-prices the past.
+- Every cost uses it: analytics period parts cost and top parts, per-machine cost, `/dashboard/stats`, `/dashboard/utrosak-dijelova`, the parts Excel export (with a "Cijena upisana naknadno" column), fault detail data.
+- **Rows without a historical price:** frozen at the catalogue price at upgrade time and flagged. That is the best value available, and it no longer drifts. A part with no catalogue price stays `NULL` and costs 0, as before.
+
+#### Management screens
+
+| # | Screen | Finding | Change |
+|---|---|---|---|
+| R3-1 | Machines | **Cost column showed labour only** under "Cost"; Analytics per-machine cost the same, while the period total included parts. | Machine cost = labour + parts at recorded prices (API, list, Analytics); header "Trošak (rad + dijelovi)". |
+| R3-2 | Machines | **Dead delete action**: offered for every machine, always refused (409) for machines with faults after a confirmation. | Shown only for machines without faults; machines with faults are retired via status "Raspisano" (as the server message already says). |
+| R3-3 | Machines | No status filter; decommissioned machines mixed in. | Status filter beside search (client-side; list already loaded). |
+| R3-4 | Spare parts | **Part names truncated** to ~25 characters at 1366 px (`max-w-0` collapsed the name column while "Unit" took the width). | Name column takes the width, up to two lines, full name on hover; unit/price shrink to content. |
+| R3-5 | Spare parts | **A removed part could not be restored** in the UI (API supported it); an accidental removal was permanent for users. | "Show removed" toggle, "Removed" badge, "Return to catalogue" action; the header counts active parts only. |
+| R3-6 | Spare parts | Price edits gave no hint that past costs are fixed now. | Hint in the edit dialog. |
+| R3-7 | Users | 81 people, **no search or filter**. | Search (name, username, department) + role filter, result count, "clear filters" empty state. |
+| R3-8 | Analytics | The monthly chart looked empty in a screenshot. | **Not a bug**: bars render after recharts' animation (measured 155 px / 16 px). No change. |
+| R3-9 | Analytics | Definitions described the old SLA and catalogue-price costs. | Rewritten in both languages for first response and recorded prices. |
+
+#### Supplier data exposure
+
+- Tracked files and the history of all 79 commits were searched: catalogue prices/stock appear **only** in `backend/app/seed_data/spareparts.csv` (552 of 668 rows priced), added in `08db6e1` and unchanged since. No price appears in other files, docs or the two design screenshots (checked visually); sampled part codes occur nowhere else.
+- On this branch the file now holds supplier, code, name, unit only. Production is unaffected (seed loads only into an empty table).
+- **Not done (needs authorisation):** repository visibility and history rewrite. Steps in PRE_PRODUCTION_CHECKLIST.md §10 item 7.
+
+#### Production configuration (read-only check)
+
+Railway MCP, `list-variables` for service AdixPaper (production), **names only — the tool returned values redacted**:
+`RESET_USERNAME`, `RESET_PASSWORD`, `ADMIN_RESET_PASSWORD` are **not set**. `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` **are set** (the 2026-10-28 checklist said unset), so push is configured but not verified on devices.
+
+#### Verification (round 3)
+
+| Check | Result |
+|---|---|
+| `ruff check app tests` | pass |
+| Backend tests, PostgreSQL 16 | **139 passed** (new: `test_response_window.py` 5, `test_part_prices.py` 3; updated: `test_analitika.py` hand calculation, `test_workflow.py` attention reasons) |
+| Backend tests, SQLite | 137 passed, 2 skipped (PostgreSQL-only) |
+| Upgrade from `main` on PostgreSQL 16 (CI `upgrade` job steps run locally; `upgrade-check.py` extended to assert parts costs unchanged and first responses filled) | `upgrade OK: 5 faults, 12 events, 4 machines, 4 users, 668 parts unchanged`; second restart healthy |
+| Migration on a hand-built legacy SQLite schema, run twice | backfill values as specified; idempotent; frozen price survives a catalogue change |
+| Frontend lint, i18n parity (614 keys), production build | pass |
+| Playwright against the production build | **60 passed** (new `management.spec.js` 4) |
+
 ## Open items
 
 ### Owner decisions
 
 | # | Topic | Why it matters | Needed |
 |---|---|---|---|
-| O-1 | **SLA wording vs. rule.** The code measures 2 h / 8 h / 48 h from report **to resolution** (PRODUCT.md says the same), but the UI calls it "Rok odziva" / "Response due" and "response window", which reads as time-to-take. | A lead may believe taking a fault in time meets the target; on-time % in Analytics would then surprise. | Confirm which is intended. If resolution: rename to "Rok rješavanja" / "Resolve by" (copy only). If response: the rule changes to "taken by" (code + analytics + tests). Not changed silently. |
-| O-2 | **Backups are off** (owner, 2026-10-28). | Any bad delete, faulty migration or volume failure is permanent; code rollback does not restore data. Photos live in the database too. | Strongly recommended: Railway Postgres Daily + Weekly backups (≈ cents/month at 0.32 GB), then one restore drill on staging. |
-| O-3 | **Public repository** carries the supplier catalogue with prices and stock (`backend/app/seed_data/spareparts.csv`). | Commercially sensitive data is public; history keeps it even if the file is removed. | Decide on making the repo private (check Actions minutes) or purging the file from history. |
-| O-4 | Spare-part costs in Analytics and exports use the **current catalogue price**, not the price at the time of use. | Editing a price rewrites past cost figures. | Decide whether historical prices matter; if yes, store the unit price on each usage row (additive column). |
+| O-1 | ✅ **Resolved 2026-10-29 (round 3): first response.** ~~SLA wording vs. rule.~~ The code measures 2 h / 8 h / 48 h from report **to resolution** (PRODUCT.md says the same), but the UI calls it "Rok odziva" / "Response due" and "response window", which reads as time-to-take. | A lead may believe taking a fault in time meets the target; on-time % in Analytics would then surprise. | Confirm which is intended. If resolution: rename to "Rok rješavanja" / "Resolve by" (copy only). If response: the rule changes to "taken by" (code + analytics + tests). Not changed silently. |
+| O-2 | **Backups: owner agreed 2026-10-29; not enabled yet** (operator action, PRE_PRODUCTION_CHECKLIST §10). | Any bad delete, faulty migration or volume failure is permanent; code rollback does not restore data. Photos live in the database too. | Strongly recommended: Railway Postgres Daily + Weekly backups (≈ cents/month at 0.32 GB), then one restore drill on staging. |
+| O-3 | **Public repository** — file cleaned on the branch (round 3); visibility/history still owner actions. carries the supplier catalogue with prices and stock (`backend/app/seed_data/spareparts.csv`). | Commercially sensitive data is public; history keeps it even if the file is removed. | Decide on making the repo private (check Actions minutes) or purging the file from history. |
+| O-4 | ✅ **Resolved (round 3): recorded unit prices.** ~~Spare-part costs in Analytics and exports use the **current catalogue price**, not the price at the time of use. | Editing a price rewrites past cost figures. | Decide whether historical prices matter; if yes, store the unit price on each usage row (additive column). |
 | O-5 | Privacy notice, Railway DPA, retention for faults and deactivated users (PRE_PRODUCTION_CHECKLIST §8). | GDPR obligations for employee data and photos. | Company/legal text. |
 
 ### Operator tasks (need access, not code)

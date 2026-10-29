@@ -10,7 +10,7 @@ import { useI18n } from '../../i18n'
 import { useToast } from '../../components/ui/Toast'
 import Menu from '../../components/ui/Menu'
 import FaultRow from '../../components/FaultRow'
-import { DueTag, FaultNumber, PriorityMark, StatusMark, WaitingTag } from '../../components/ui/Marks'
+import { DueTag, FaultNumber, PriorityMark, ResponseOutcome, StatusMark, WaitingTag } from '../../components/ui/Marks'
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
 
 const PAGE = 50
@@ -425,7 +425,7 @@ export default function Faults() {
                     <td className="px-4 py-3">
                       {fault.status === 'Riješeno'
                         ? <span className="whitespace-nowrap text-sm tabular text-ink-2">{format.dateShort(fault.datum_rjesavanja)}</span>
-                        : <DueTag fault={fault} />}
+                        : <><DueTag fault={fault} /><ResponseOutcome fault={fault} /></>}
                     </td>
                     <td className="hidden max-w-[11rem] truncate px-4 py-3 text-ink-2 lg:table-cell">
                       {fault.voditelj ? `${fault.voditelj.ime} ${fault.voditelj.prezime}` : '—'}

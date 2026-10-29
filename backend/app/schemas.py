@@ -200,7 +200,7 @@ class KomponentaMini(BaseModel):
 
 class OpremaWithStats(OpremaOut):
     broj_kvarova: int = 0
-    # Repair costs are for leads and admins; workers get None.
+    # Repair cost (labour + spare parts at their recorded prices); for leads and admins, None for workers.
     ukupni_troskovi: Optional[float] = 0
     zadnji_kvar: Optional[datetime] = None
 
@@ -327,6 +327,8 @@ class KvarRezervniDioOut(BaseModel):
     kvar_id: int
     rezervni_dio_id: int
     kolicina: Decimal
+    jedinicna_cijena: Optional[Decimal] = None
+    cijena_naknadno: bool = False
     napomena: Optional[str] = None
     rezervni_dio: Optional[RezervniDioOut] = None
 
@@ -352,6 +354,8 @@ class KvarOut(BaseModel):
     datum_prijave: datetime
     datum_pocetka: Optional[datetime] = None
     datum_rjesavanja: Optional[datetime] = None
+    datum_odziva: Optional[datetime] = None
+    odziv_u_roku: Optional[bool] = None
     oprema: Optional[OpremaMini] = None
     komponenta: Optional[KomponentaMini] = None
     prijavio: Optional[KorisnikMini] = None
@@ -381,6 +385,8 @@ class KvarListOut(BaseModel):
     datum_prijave: datetime
     datum_pocetka: Optional[datetime] = None
     datum_rjesavanja: Optional[datetime] = None
+    datum_odziva: Optional[datetime] = None
+    odziv_u_roku: Optional[bool] = None
     oprema: Optional[OpremaMini] = None
     komponenta: Optional[KomponentaMini] = None
     prijavio: Optional[KorisnikMini] = None
@@ -572,9 +578,12 @@ class AnalitikaSazetak(BaseModel):
     prijavljeno: int
     rijeseno: int
     vrijeme_do_rjesenja_min: Optional[float] = None
-    vrijeme_do_preuzimanja_min: Optional[float] = None
+    # Mean report → first response, over faults first responded to in the period.
+    vrijeme_do_odziva_min: Optional[float] = None
     vrijeme_popravka_min: Optional[float] = None
+    # Faults reported in the period: first response within the window, out of those judged so far.
     sla_u_roku: int
+    sla_ocijenjeno: int = 0
     sla_postotak: Optional[float] = None
     zastoj_min: int
     zastoj_evidentiran: int

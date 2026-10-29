@@ -207,13 +207,13 @@ export default function Analytics() {
           <dl className="-mb-px -mr-px grid grid-cols-2 sm:grid-cols-4">
             <Metric label={t('analytics.reported')} value={s.prijavljeno} previous={p.prijavljeno} />
             <Metric label={t('analytics.resolved')} value={s.rijeseno} previous={p.rijeseno} />
-            <Metric label={t('analytics.toTake')} value={duration(s.vrijeme_do_preuzimanja_min)} previous={duration(p.vrijeme_do_preuzimanja_min)} />
+            <Metric label={t('analytics.toRespond')} value={duration(s.vrijeme_do_odziva_min)} previous={duration(p.vrijeme_do_odziva_min)} />
             <Metric label={t('analytics.toResolve')} value={duration(s.vrijeme_do_rjesenja_min)} previous={duration(p.vrijeme_do_rjesenja_min)} />
             <Metric label={t('analytics.repair')} value={duration(s.vrijeme_popravka_min)} previous={duration(p.vrijeme_popravka_min)} />
             <Metric
               label={t('analytics.onTime')}
               value={percent(s.sla_postotak)}
-              sub={s.rijeseno ? t('analytics.onTimeOf', { n: s.sla_u_roku, total: s.rijeseno }) : undefined}
+              sub={s.sla_ocijenjeno ? t('analytics.onTimeOf', { n: s.sla_u_roku, total: s.sla_ocijenjeno }) : undefined}
               previous={percent(p.sla_postotak)}
             />
             <Metric
@@ -235,7 +235,7 @@ export default function Analytics() {
       <details className="mb-6 text-sm text-ink-2">
         <summary className="inline-flex min-h-[2.75rem] cursor-pointer items-center font-semibold text-brand">{t('analytics.defsTitle')}</summary>
         <dl className="surface mt-1 grid gap-x-6 gap-y-2 px-5 py-4 md:grid-cols-2">
-          {['reported', 'resolved', 'toTake', 'toResolve', 'repair', 'onTime', 'downtime', 'cost'].map((key) => (
+          {['reported', 'resolved', 'toRespond', 'toResolve', 'repair', 'onTime', 'downtime', 'cost'].map((key) => (
             <div key={key}>
               <dt className="font-semibold text-ink">{t(`analytics.${key}`)}</dt>
               <dd>{t(`analytics.defs.${key}`)}</dd>

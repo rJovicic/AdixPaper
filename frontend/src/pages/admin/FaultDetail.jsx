@@ -13,7 +13,7 @@ import Timeline from '../../components/Timeline'
 import Photos from '../../components/Photos'
 import Dialog from '../../components/ui/Dialog'
 import RadioCards from '../../components/ui/RadioCards'
-import { AttentionReasons, DueTag, FaultNumber, LabelFields, PriorityMark, PriorityTile, StatusMark, WaitingTag } from '../../components/ui/Marks'
+import { AttentionReasons, DueTag, FaultNumber, LabelFields, PriorityMark, PriorityTile, ResponseOutcome, StatusMark, WaitingTag } from '../../components/ui/Marks'
 import { useReportedAt } from '../../components/FaultRow'
 import { EmptyState, ErrorState, LoadingRows } from '../../components/ui/States'
 
@@ -341,6 +341,7 @@ export default function FaultDetail() {
                   <PriorityMark priority={item.prioritet} />
                   <StatusMark status={item.status} />
                   <DueTag fault={item} className="ml-1" />
+                  <ResponseOutcome fault={item} className="ml-1" />
                 </div>
                 <p className="mt-2 text-meta text-ink-3">{t('fault.reportedWhen', { when: reportedAt(item.datum_prijave) })}</p>
                 <AttentionReasons fault={item} max={5} skip={['hitno']} withTime={false} className="mt-2" />
@@ -372,7 +373,13 @@ export default function FaultDetail() {
                   { label: t('fault.reportedBy'), value: item.prijavio ? `${item.prijavio.ime} ${item.prijavio.prezime}` : '—' },
                   { label: t('fault.reportedAt'), value: format.dateTime(item.datum_prijave) },
                   { label: t('fault.assignee'), value: item.voditelj ? `${item.voditelj.ime} ${item.voditelj.prezime}` : t('fault.unassigned') },
-                  { label: t('fault.deadline'), value: item.status === 'Riješeno' ? '—' : format.dateTime(item.rok) },
+                  { label: t('fault.deadline'), value: format.dateTime(item.rok) },
+                  {
+                    label: t('fault.firstResponse'),
+                    value: item.datum_odziva
+                      ? `${format.dateTime(item.datum_odziva)}${item.odziv_u_roku === null ? '' : ` · ${t(item.odziv_u_roku ? 'sla.respondedOnTime' : 'sla.respondedLate')}`}`
+                      : item.status === 'Novo' ? t('sla.awaiting') : '—',
+                  },
                   { label: t('fault.startedAt'), value: format.dateTime(item.datum_pocetka) },
                   item.status === 'Riješeno'
                     ? { label: t('fault.resolvedAt'), value: format.dateTime(item.datum_rjesavanja) }

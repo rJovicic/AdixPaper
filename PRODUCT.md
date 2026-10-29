@@ -30,11 +30,12 @@ Built around this plant's own machines, components and spare-parts catalogue (66
 
 ## Operating Context
 
-- Fault priorities and response windows: **Hitno / Urgent — 2 h**, **Normalno / Normal — 8 h**, **Nisko / Low — 48 h**, measured from the moment of reporting until the fault is resolved.
+- Fault priorities and response windows: **Hitno / Urgent — 2 h**, **Normalno / Normal — 8 h**, **Nisko / Low — 48 h**, measured from the moment of reporting until the **first response** (owner, 2026-10-29). The first response is the first time a lead or admin moves the fault out of **Novo** — takes it, puts it on hold or resolves it — recorded once by the server (`datum_odziva`). Reopening keeps the first response; edits, comments and assignment alone are not a response. Only a fault still waiting for its first response can be overdue. Time to resolution (MTTR) is a separate metric with no target.
 - Fault states: **Novo → U rješavanju → (Na čekanju) → Riješeno**. A resolved fault can be reopened. Putting a fault on hold requires a reason — spare parts, outside service, approval, machine availability (production), other — and records since when; the time on hold per reason feeds Analytics.
 - A fault needs attention when it is **overdue**, **due soon** (last quarter of its window), **urgent**, **untaken**, or **on hold for more than 24 h**. The server computes these reasons once (`Kvar.razlozi_paznje`); the overview and lists show them in words.
 - One person handles a fault (`voditelj_id`, shown as "Preuzeo"). Leads are the technicians; there is no separate manager/technician split. Every reassignment is in the timeline.
 - Every change to a fault (status, priority, assignee, component, resolution details, parts) is written to the fault's timeline; leads can add internal notes workers do not see.
+- Spare parts used on a fault keep the unit price recorded when they were used; changing the catalogue price affects only later use. Costs (fault, machine, analytics, exports) use the recorded price.
 - Reports leave the system as Excel (faults; spare-part usage grouped by supplier, one sheet per supplier) and PDF.
 - Leads are alerted to new faults in the open app (polling) and, when VAPID keys are configured, by Web Push.
 - Reporting periods ("today", "this month") follow the plant's local time, Europe/Zagreb.
@@ -108,7 +109,7 @@ WCAG 2.2 AA: keyboard operable, visible focus, 4.5:1 text contrast, labelled for
 ## Open Questions
 
 - How many workers share a phone, and is a 480-minute session right for shared devices?
-- Are the response windows (2 h / 8 h / 48 h) the agreed internal targets, or placeholders?
+- ~~Are the response windows targets?~~ Answered 2026-10-29: they are first-response targets (see Operating Context).
 - Should the dashboard separate the two companies (Cupup / Delt)?
 - How long should photos be kept (storage grows ~1 GB/year at 50 photos a week)?
 - Must production data stay in the EU (the service currently runs in Railway `us-west2`)?

@@ -81,8 +81,10 @@ def test_attention_reasons_say_why_a_fault_needs_action(client, admin, make_user
 
     low = report(client, worker, machine, prioritet="Nisko")
     shift_reported(low["id"], 40)  # 8 h of 48 h left: due soon
+    assert client.get(f"/api/kvarovi/{low['id']}", headers=admin).json()["razlozi_paznje"] == ["uskoro", "nedodijeljen"]
+    # Taking it is the first response: the response window no longer applies (owner, 2026-10-29).
     put(client, admin, low["id"], status="U rješavanju")
-    assert client.get(f"/api/kvarovi/{low['id']}", headers=admin).json()["razlozi_paznje"] == ["uskoro"]
+    assert client.get(f"/api/kvarovi/{low['id']}", headers=admin).json()["razlozi_paznje"] == []
 
     put(client, admin, low["id"], status="Na čekanju", razlog_cekanja="odobrenje")
     db = SessionLocal()

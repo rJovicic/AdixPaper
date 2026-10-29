@@ -26,7 +26,7 @@ Owner decisions (2026-10-28):
 | Alerts | No project webhooks [V] |
 | Live code | `main` with PR #3 and PR #4 (deployed 2026-10-28 08:36 UTC by owner's decision, without a prior backup); previous deployment `5dfcd364` (`ab992b2`) is the rollback target [V] |
 | Startup incident | During the move the app started before `postgres.railway.internal` resolved, exited, and recovered on restart [V]. Fixed in this release: startup now waits for the database (§4). |
-| GitHub repo | **Public**; it includes the spare-parts catalogue with prices and stock (552 of 668 parts) [V] |
+| GitHub repo | **Public**. Prices and stock (552 of 668 parts) were in `backend/app/seed_data/spareparts.csv`; removed from the file on branch `claude/adix-paper-improvement-scd3or` (2026-10-29) but **still in Git history** (commit `08db6e1`, reachable from every later commit) — see §10 [V] |
 
 ## 2. Tested by the repository (no infrastructure needed)
 
@@ -131,3 +131,18 @@ Steps:
 5. If something is wrong: Railway → Deployments → previous deployment → **Rollback**.
    - Hobby keeps rollback images for 72 h [D]; after that, redeploy commit `ab992b2`.
    - The added columns and table can stay.
+
+## 10. Open deployment actions (2026-10-29)
+
+Nothing below was done by Claude: each needs the owner or someone with production access.
+
+| # | Action | Why | How to verify | Status |
+|---|---|---|---|---|
+| 1 | 🔒 **Backups**: Railway → Postgres → Backups → enable **Daily** and **Weekly**. Owner agreed 2026-10-29. | Without them a bad delete, faulty migration or volume failure is permanent. | Note the retention Railway shows for each schedule. Backups are volume-level, so they cover **all database data including photos** (photos are stored in Postgres, `kvar_prilozi`). Then **restore one backup into staging** (Railway restores within the same project/environment) and open an old fault with a photo there. Only after a successful restore drill is the backup process "verified". | Agreed, not yet enabled |
+| 2 | 🔒 **Wait for CI** on the AdixPaper service (Settings → Source). | Merging to `main` deploys immediately; a red build would still ship. | Push a commit to a test branch and watch the deployment wait for the checks. | Open |
+| 3 | 🔒 **Manual backup before merging this branch**, then merge in a quiet hour. | The release adds `kvarovi.datum_odziva` and `kvar_rezervni_dijelovi.jedinicna_cijena` / `cijena_naknadno` and fills them once (additive; no existing column is changed or dropped). | Deploy log shows the app healthy; open an old resolved fault: "Prvi odziv" and part prices present; Analytics loads. CI `upgrade` job covers this on PostgreSQL 18 (also run locally on 16). | Open |
+| 4 | **Push notifications** (if wanted). `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` **are set** in production (read-only check 2026-10-29, names only). | Configuration alone does not prove delivery. | On a real **iPhone** (app installed to the home screen, iOS 16.4+) and a real **Android** phone: enable notifications in the app, press the test button, lock the phone, report a fault from another account; the lead's locked phone must show it; tapping it opens the fault. Repeat after signing out (no notifications must arrive). | Pending real-device test |
+| 5 | **QR labels**: scan one printed label with an iPhone (camera app and in-app scanner where offered) and an Android phone, signed out and signed in, as worker and as lead. | Labels encode `PUBLIC_URL`; a wrong domain means reprinting all. | Worker lands on the report form with the machine chosen; lead lands on that machine's faults. Print all only afterwards. | Pending |
+| 6 | **Dangerous variables**: `RESET_USERNAME` / `RESET_PASSWORD` and `ADMIN_RESET_PASSWORD=true` re-apply on **every** start: they overwrite that person's own password and sign them out everywhere. | Silent account takeover risk and lock-outs after each deploy. | Read-only check 2026-10-29 (variable names only, values never read): **none of the three is set** in production. Keep it that way; if one is ever used for a recovery, remove it right after the next successful start. | Verified absent |
+| 7 | 🔒 **Repository privacy**: make the GitHub repository private, **or** rewrite history to drop the old `spareparts.csv` contents (`git filter-repo --path backend/app/seed_data/spareparts.csv --invert-paths`, then re-add the clean file, force-push all branches and tags, ask GitHub support to purge cached views; every clone must re-clone). | Supplier prices and stock levels are public in history even after the file was cleaned on the branch. Forks and clones already made keep them either way. | `git log --all -p -- backend/app/seed_data/spareparts.csv` shows no price column in any commit; or the repository shows "Private". Check the GitHub plan's Actions minutes before going private. | Owner decision; Claude did not change visibility or history |
+| 8 | Privacy notice, Railway DPA, retention periods (§8). | GDPR. | Documents on file. | Open |

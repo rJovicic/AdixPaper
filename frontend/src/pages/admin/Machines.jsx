@@ -217,6 +217,7 @@ export default function Machines() {
   const toast = useToast()
   const { user } = useAuth()
   const [query, setQuery] = useState('')
+  const [status, setStatus] = useState('')
   const [editing, setEditing] = useState(null) // null | 'new' | machine
   const [deleting, setDeleting] = useState(null)
   const [createdId, setCreatedId] = useState(null)
@@ -230,10 +231,10 @@ export default function Machines() {
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const list = machines.data || []
-    if (!q) return list
-    return list.filter((machine) => `${machine.naziv} ${machine.tip} ${machine.lokacija || ''} ${machine.serijski_broj || ''}`.toLowerCase().includes(q))
-  }, [machines.data, query])
+    return (machines.data || []).filter((machine) => (!status || machine.status === status)
+      && (!q || `${machine.naziv} ${machine.tip} ${machine.lokacija || ''} ${machine.serijski_broj || ''}`.toLowerCase().includes(q)))
+  }, [machines.data, query, status])
+  const filtered = Boolean(query || status)
 
   const onSaved = (saved, created) => {
     toast.success(t('machines.saved'))
@@ -262,7 +263,9 @@ export default function Machines() {
       <button type="button" className="btn-icon" aria-label={`${t('common.edit')}: ${machine.naziv}`} onClick={() => setEditing(machine)}>
         <Pencil size={18} aria-hidden="true" />
       </button>
-      {canDelete && (
+      {/* Only a machine with no faults can be deleted (the server refuses otherwise, to keep history);
+          one with faults is retired by setting its status to Raspisano in the edit dialog. */}
+      {canDelete && !machine.broj_kvarova && (
         <button type="button" className="btn-icon hover:bg-urgent-wash hover:text-urgent" aria-label={`${t('machines.delete')}: ${machine.naziv}`} onClick={() => setDeleting(machine)}>
           <Trash2 size={18} aria-hidden="true" />
         </button>
@@ -286,9 +289,15 @@ export default function Machines() {
         }
       />
 
-      <div className="relative mb-4">
-        <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
-        <input type="search" className="control pl-9" aria-label={t('common.search')} placeholder={t('machines.searchPlaceholder')} value={query} onChange={(event) => setQuery(event.target.value)} />
+      <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem]">
+        <div className="relative">
+          <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
+          <input type="search" className="control pl-9" aria-label={t('common.search')} placeholder={t('machines.searchPlaceholder')} value={query} onChange={(event) => setQuery(event.target.value)} />
+        </div>
+        <select className="control" aria-label={t('machines.status')} value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="">{t('machines.allStatuses')}</option>
+          {STATUSES.map((value) => <option key={value} value={value}>{i18n.machineStatus(value)}</option>)}
+        </select>
       </div>
 
       {machines.loading && !machines.data ? (
@@ -297,8 +306,8 @@ export default function Machines() {
         <div className="surface"><ErrorState error={machines.error} onRetry={machines.reload} /></div>
       ) : rows.length === 0 ? (
         <div className="surface">
-          {query
-            ? <EmptyState icon={SearchX} title={t('machines.noMatchTitle')} action={<button type="button" className="btn-secondary" onClick={() => setQuery('')}>{t('common.clearFilters')}</button>} />
+          {filtered
+            ? <EmptyState icon={SearchX} title={t('machines.noMatchTitle')} action={<button type="button" className="btn-secondary" onClick={() => { setQuery(''); setStatus('') }}>{t('common.clearFilters')}</button>} />
             : <EmptyState icon={Factory} title={t('machines.emptyTitle')} body={t('machines.emptyBody')} action={<button type="button" className="btn-primary" onClick={() => setEditing('new')}>{t('machines.add')}</button>} />}
         </div>
       ) : (
