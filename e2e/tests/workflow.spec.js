@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from '@playwright/test'
-import { ADMIN, PHONE, apiToken, chooseMachine, faultNumber, setupFixture, signIn } from './helpers'
+import { ADMIN, PHONE, apiToken, chooseMachine, faultNumber, setupFixture, signIn, chooseComponent } from './helpers'
 
 // A real 4×3 PNG: the server decodes and re-encodes every photo.
 const PNG = Buffer.from(
@@ -101,7 +101,7 @@ test('worker is told about open faults on the machine, can still report, and att
   await expect(page.getByText('Na ovoj mašini već je prijavljeno otvorenih kvarova: 1')).toBeVisible()
   await expect(page.getByText('Već poznat kvar')).toBeVisible()
 
-  await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await chooseComponent(page, 'Nož')
   await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByLabel('Što se događa?').fill('Nož se zaglavljuje')
   await page.locator('input[type=file]').setInputFiles({ name: 'kvar.png', mimeType: 'image/png', buffer: PNG })
@@ -202,7 +202,7 @@ test('a report whose response is lost is not created twice when the worker sends
   await signIn(page, worker)
   await page.goto('/radnik/prijava')
   await chooseMachine(page, machine.naziv)
-  await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await chooseComponent(page, 'Nož')
   await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByLabel('Što se događa?').fill('Izgubljen odgovor')
   await page.getByRole('button', { name: 'Dalje' }).click()

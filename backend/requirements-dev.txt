@@ -2,3 +2,5 @@
 pytest==8.3.3
 httpx==0.27.2
 ruff==0.7.4
+zxing-cpp==3.1.1  # tests only: decode the QR codes in generated labels
+pypdfium2==5.14.0  # tests only: render label PDFs to images for decoding

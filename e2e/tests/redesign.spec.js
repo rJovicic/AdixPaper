@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ADMIN, PHONE, apiToken, chooseMachine, settle, setupFixture, signIn } from './helpers'
+import { ADMIN, PHONE, apiToken, chooseMachine, settle, setupFixture, signIn, chooseComponent } from './helpers'
 
 // The redesigned shell and flows: the tab bar's "+", the stepped report, phone tabs on a fault, Profile.
 
@@ -16,13 +16,15 @@ test('phone tab bar: "+" opens the report; the steps go back and forth without l
   const steps = page.getByRole('list', { name: 'Koraci prijave' })
   await expect(steps.locator('[aria-current="step"]')).toContainText('1')
   await chooseMachine(page, machine.naziv)
-  await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await chooseComponent(page, 'Nož')
   await page.getByRole('button', { name: 'Dalje' }).click()
   await expect(steps.locator('[aria-current="step"]')).toContainText('2')
   await expect(page.getByRole('heading', { name: /Opišite kvar/ })).toBeFocused()
   await page.getByLabel('Što se događa?').fill('Natrag i naprijed')
   await page.getByRole('button', { name: 'Prethodni korak' }).click()
-  await expect(page.getByRole('radio', { name: new RegExp(machine.naziv) })).toBeChecked()
+  // The chosen machine folds into one line; the chosen component stays selected.
+  await expect(page.getByText(machine.naziv, { exact: true })).toBeVisible()
+  await expect(page.getByRole('radio', { name: /^Nož/ })).toBeChecked()
   await page.getByRole('button', { name: 'Dalje' }).click()
   await expect(page.getByLabel('Što se događa?')).toHaveValue('Natrag i naprijed')
   await page.getByRole('button', { name: 'Dalje' }).click()

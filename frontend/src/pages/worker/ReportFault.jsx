@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { ArrowLeft, ArrowRight, Camera, Check, CheckCircle2, Factory, Info, Plus, QrCode, Search, Send, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Camera, Check, CheckCircle2, CornerDownRight, Factory, Info, Plus, QrCode, Search, Send, X } from 'lucide-react'
 import { api, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
@@ -14,7 +14,7 @@ import PushToggle from '../../components/PushToggle'
 import { uploadPhoto } from '../../lib/photo'
 import { scanSupported } from '../../lib/qr'
 
-const EMPTY = { oprema_id: '', komponenta_id: '', naslov: '', opis: '', prioritet: 'Normalno', kljuc: '', korak: 1 }
+const EMPTY = { oprema_id: '', komponenta_id: '', naslov: '', opis: '', prioritet: 'Normalno', kljuc: '', korak: 1, oznaka: '' }
 const STEPS = 3
 const BASE = '/radnik'
 const MAX_PHOTOS = 5 // the server keeps up to 6 per fault; one is left for the lead
@@ -177,6 +177,79 @@ function MachinePicker({ machines, value, onChange, error, inputRef, scanned }) 
   )
 }
 
+/**
+ * Which part of the machine the fault is on. The first choice, selected until the worker picks
+ * another, is the machine as a whole: a fault never has to be forced onto a component.
+ */
+function ComponentPicker({ components, value, onChange, inputRef, loading }) {
+  const { t } = useI18n()
+  const [query, setQuery] = useState('')
+  const labelId = useId()
+  const needle = query.trim().toLocaleLowerCase()
+  const shown = needle
+    ? components.filter((item) => `${item.naziv} ${item.model || ''} ${item.proizvodac || ''}`.toLocaleLowerCase().includes(needle))
+    : components
+  const options = [{ id: '', naziv: t('report.wholeMachine'), detail: t('report.wholeMachineHint') }, ...shown.map((item) => ({
+    id: String(item.id), naziv: item.naziv, detail: [item.model, item.proizvodac].filter(Boolean).join(' · '),
+  }))]
+  return (
+    <div>
+      <p id={labelId} className="mb-1.5 text-sm font-semibold text-ink">{t('report.component')}</p>
+      {components.length > 6 && (
+        <div className="relative mb-2">
+          <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
+          <input type="search" className="control pl-9" aria-label={t('report.componentSearch')} placeholder={t('report.componentSearch')} value={query} onChange={(event) => setQuery(event.target.value)} />
+        </div>
+      )}
+      <div role="radiogroup" aria-labelledby={labelId} aria-busy={loading || undefined} className="relative max-h-[min(26rem,52dvh)] overflow-y-auto rounded-md border border-rule">
+        {options.map((option, index) => {
+          const checked = String(value || '') === option.id
+          return (
+            <label
+              key={option.id || 'whole'}
+              className={`relative flex min-h-[3.5rem] cursor-pointer items-center gap-3 border-b border-rule px-3 py-2.5 transition-colors last:border-b-0
+                has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-brand
+                ${checked ? 'bg-brand-wash' : 'bg-stock hover:bg-ground/70'} ${index === 0 ? 'border-b-rule-strong/60' : ''}`}
+            >
+              <input ref={checked ? inputRef : undefined} type="radio" name="komponenta" value={option.id} checked={checked} onChange={() => onChange(option.id)} className="sr-only" />
+              <span className="min-w-0 flex-1">
+                {/* Wraps instead of truncating: two components must never look the same. */}
+                <span className={`block break-words font-semibold ${index === 0 ? 'text-brand-deep' : 'text-ink'}`}>{option.naziv}</span>
+                {option.detail && <span className="block break-words text-meta text-ink-2">{option.detail}</span>}
+              </span>
+              <span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${checked ? 'border-brand bg-brand text-stock' : 'border-rule-strong/70'}`}>
+                {checked && <Check size={14} strokeWidth={3} />}
+              </span>
+            </label>
+          )
+        })}
+        {needle && shown.length === 0 && <p className="px-4 py-4 text-center text-ink-2">{t('report.componentNone')}</p>}
+      </div>
+    </div>
+  )
+}
+
+/** What the report is about: machine, and the component or "whole machine". Kept in view on every step. */
+function TargetCard({ machine, component, onChange }) {
+  const { t } = useI18n()
+  return (
+    <button type="button" onClick={onChange} className="flex w-full items-start gap-3 rounded-md border border-rule bg-ground/60 px-3 py-2.5 text-left transition-colors hover:border-rule-strong/60">
+      <span aria-hidden="true" className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand text-stock"><Factory size={17} /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block break-words text-meta font-semibold uppercase tracking-wide text-ink-2">{machine.naziv}</span>
+        <span className="mt-0.5 flex items-start gap-1 font-semibold text-ink">
+          <CornerDownRight size={16} aria-hidden="true" className="mt-1 shrink-0 text-ink-3" />
+          <span className="break-words">{component ? component.naziv : t('report.wholeMachine')}</span>
+        </span>
+        {component && (component.model || component.proizvodac) && (
+          <span className="block break-words pl-5 text-meta text-ink-2">{[component.model, component.proizvodac].filter(Boolean).join(' · ')}</span>
+        )}
+      </span>
+      <span className="shrink-0 text-sm font-semibold text-brand">{t('report.change')}</span>
+    </button>
+  )
+}
+
 function PhotoStrip({ photos, onAdd, onRemove }) {
   const { t } = useI18n()
   const input = useRef(null)
@@ -252,7 +325,8 @@ function Reported({ fault, machine, onNew }) {
         </div>
         <div className="px-4 py-3">
           <dt className="field-label">{t('report.machine')}</dt>
-          <dd className="font-semibold text-ink">{machine?.naziv || '—'}{fault.komponenta ? ` · ${fault.komponenta.naziv}` : ''}</dd>
+          <dd className="font-semibold text-ink">{machine?.naziv || '—'}</dd>
+          <dd className="text-ink-2">{fault.komponenta ? [fault.komponenta.naziv, fault.komponenta.model].filter(Boolean).join(' · ') : t('report.wholeMachine')}</dd>
         </div>
         <div className="px-4 py-3">
           <dt className="field-label">{t('fault.priority')}</dt>
@@ -280,13 +354,21 @@ export default function ReportFault() {
   const toast = useToast()
   const { user } = useAuth()
   const [params] = useSearchParams()
-  // Set when the worker arrived by scanning a machine's QR label.
+  // Set when the worker arrived by scanning a label: a machine's, or a component's (then both).
   const scanned = /^\d+$/.test(params.get('oprema') || '') ? params.get('oprema') : ''
+  const scannedComponent = scanned && /^\d+$/.test(params.get('komponenta') || '') ? params.get('komponenta') : ''
   const [form, setForm] = useState(() => {
     const stored = readDraft(user?.id)
     const draft = stored.kljuc ? stored : { ...stored, kljuc: newKey() }
-    if (!scanned || draft.oprema_id === scanned) return scanned ? { ...draft, oprema_id: scanned } : draft
-    return { ...draft, oprema_id: scanned, komponenta_id: '', korak: 1 }
+    if (!scanned) return draft
+    // The draft remembers which label it came from: a reload of the same label continues it; a
+    // different label sets the target it names (anything already typed is kept).
+    const label = `${scanned}:${scannedComponent}`
+    if (draft.oznaka === label && draft.oprema_id === scanned) return draft
+    // A component label names the target completely: straight to the description, no second choice.
+    if (scannedComponent) return { ...draft, oznaka: label, oprema_id: scanned, komponenta_id: scannedComponent, korak: 2 }
+    // A machine label: the whole machine, with its components offered on step 1.
+    return { ...draft, oznaka: label, oprema_id: scanned, komponenta_id: '', korak: 1 }
   })
   const step = Math.min(STEPS, Math.max(1, Number(form.korak) || 1))
   const [errors, setErrors] = useState({})
@@ -298,6 +380,8 @@ export default function ReportFault() {
   const refs = { oprema_id: useRef(null), komponenta_id: useRef(null), naslov: useRef(null) }
   const stepHeading = useRef(null)
   const autoAdvanced = useRef(false)
+  // The machine list is open until a machine is chosen; then it folds into one line with "Change".
+  const [pickingMachine, setPickingMachine] = useState(() => !form.oprema_id)
   const canScan = scanSupported()
 
   useEffect(() => {
@@ -318,6 +402,7 @@ export default function ReportFault() {
     [form.oprema_id],
   )
   const machine = (machines.data || []).find((item) => String(item.id) === String(form.oprema_id))
+  const component = componentList.find((item) => String(item.id) === String(form.komponenta_id))
 
   useEffect(() => {
     if (!done) writeDraft(user?.id, form)
@@ -329,15 +414,23 @@ export default function ReportFault() {
       setForm((current) => ({ ...current, oprema_id: '', komponenta_id: '', korak: 1 }))
     }
   }, [machines.data, form.oprema_id])
-  const needsComponent = Boolean(form.oprema_id) && componentList.length > 0
+  const hasComponents = Boolean(form.oprema_id) && componentList.length > 0
 
-  // Scanned a machine with no parts to choose: nothing to do on step 1, go straight to the description.
+  // A chosen (or scanned) component that is not offered any more (deactivated, another machine's):
+  // back to step 1 with "whole machine", so nothing is sent against the wrong target.
   useEffect(() => {
-    if (scanned && !autoAdvanced.current && step === 1 && machine && components.data && !components.loading && !needsComponent) {
+    if (components.data && !components.loading && form.komponenta_id && !component) {
+      setForm((current) => ({ ...current, komponenta_id: '', korak: 1 }))
+    }
+  }, [components.data, components.loading, form.komponenta_id, component])
+
+  // Scanned a machine with no components to choose: nothing to do on step 1, go straight to the description.
+  useEffect(() => {
+    if (scanned && !autoAdvanced.current && step === 1 && machine && components.data && !components.loading && !hasComponents) {
       autoAdvanced.current = true
       setForm((current) => ({ ...current, korak: 2 }))
     }
-  }, [scanned, step, machine, components.data, components.loading, needsComponent])
+  }, [scanned, step, machine, components.data, components.loading, hasComponents])
 
   const update = (field, value) => {
     setForm((current) => ({ ...current, [field]: value, ...(field === 'oprema_id' ? { komponenta_id: '' } : {}) }))
@@ -353,10 +446,7 @@ export default function ReportFault() {
 
   const stepErrors = (which) => {
     const next = {}
-    if (which === 1) {
-      if (!form.oprema_id) next.oprema_id = t('errors.required')
-      if (needsComponent && !form.komponenta_id) next.komponenta_id = t('errors.required')
-    }
+    if (which === 1 && !form.oprema_id) next.oprema_id = t('errors.required')
     if (which === 2 && !form.naslov.trim()) next.naslov = t('errors.required')
     return next
   }
@@ -474,45 +564,40 @@ export default function ReportFault() {
 
             {formError && <p role="alert" className="rounded-md border border-urgent/30 bg-urgent-wash px-3 py-2.5 text-sm font-medium text-urgent">{formError}</p>}
 
-            {step > 1 && machine && (
-              <button type="button" onClick={() => goTo(1)} className="flex w-full items-center gap-3 rounded-md border border-rule bg-ground/60 px-3 py-2.5 text-left transition-colors hover:border-rule-strong/60">
-                <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand text-stock"><Factory size={17} /></span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold text-ink">{machine.naziv}</span>
-                  <span className="block truncate text-meta text-ink-2">
-                    {[componentList.find((item) => String(item.id) === String(form.komponenta_id))?.naziv, machine.lokacija].filter(Boolean).join(' · ') || t('report.change')}
-                  </span>
-                </span>
-                <span className="text-sm font-semibold text-brand">{t('report.change')}</span>
-              </button>
-            )}
+            {step > 1 && machine && <TargetCard machine={machine} component={component} onChange={() => goTo(1)} />}
 
             {step === 1 && (
               <>
-                <MachinePicker
-                  machines={machines.data}
-                  value={form.oprema_id}
-                  onChange={(value) => update('oprema_id', value)}
-                  error={errors.oprema_id}
-                  inputRef={refs.oprema_id}
-                  scanned={scanned && String(form.oprema_id) === scanned}
-                />
-                {form.oprema_id && needsComponent && (
-                  <Field label={t('report.component')} error={errors.komponenta_id} hint={t('report.componentHint')} required>
-                    {(props) => (
-                      <select
-                        {...props}
-                        ref={refs.komponenta_id}
-                        className="control"
-                        value={form.komponenta_id}
-                        disabled={components.loading}
-                        onChange={(event) => update('komponenta_id', event.target.value)}
-                      >
-                        <option value="">{components.loading ? t('common.loading') : t('report.componentPlaceholder')}</option>
-                        {componentList.map((component) => <option key={component.id} value={component.id}>{component.naziv}</option>)}
-                      </select>
-                    )}
-                  </Field>
+                {pickingMachine || !machine ? (
+                  <MachinePicker
+                    machines={machines.data}
+                    value={form.oprema_id}
+                    onChange={(value) => {
+                      update('oprema_id', value)
+                      setPickingMachine(false)
+                    }}
+                    error={errors.oprema_id}
+                    inputRef={refs.oprema_id}
+                    scanned={scanned && String(form.oprema_id) === scanned}
+                  />
+                ) : (
+                  <div className="flex items-center gap-3 rounded-md border border-brand/30 bg-brand-wash px-3 py-2.5">
+                    <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand text-stock"><Factory size={17} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-meta text-ink-2">{scanned && String(form.oprema_id) === scanned ? t('report.scannedMachine') : t('report.machine')}</span>
+                      <span className="block break-words font-semibold text-ink">{machine.naziv}</span>
+                    </span>
+                    <button type="button" className="btn-quiet shrink-0" onClick={() => setPickingMachine(true)}>{t('report.change')}</button>
+                  </div>
+                )}
+                {hasComponents && (
+                  <ComponentPicker
+                    components={componentList}
+                    value={form.komponenta_id}
+                    onChange={(value) => update('komponenta_id', value)}
+                    inputRef={refs.komponenta_id}
+                    loading={components.loading}
+                  />
                 )}
                 <KnownFaults faults={known.data} />
                 {canScan && !form.oprema_id && (

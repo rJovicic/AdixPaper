@@ -7,7 +7,7 @@ from typing import List
 
 from ..database import get_db
 from ..models import Oprema, Kvar, Korisnik, KvarDogadjaj, RolaEnum, StatusKvaraEnum, PrioritetEnum, KomponentaOpreme, KvarRezervniDio, RezervniDio, Dobavljac
-from ..schemas import Analitika, AnalitikaCekanje, AnalitikaStatus, AnalitikaDio, AnalitikaMasina, AnalitikaPonavljanje, AnalitikaPrioritet, AnalitikaSazetak, Pregled, PregledAktivnost, PregledKpi, PregledOpterecenje, KorisnikMini, DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
+from ..schemas import Analitika, AnalitikaCekanje, AnalitikaKomponenta, AnalitikaStatus, AnalitikaDio, AnalitikaMasina, AnalitikaPonavljanje, AnalitikaPrioritet, AnalitikaSazetak, Pregled, PregledAktivnost, PregledKpi, PregledOpterecenje, KorisnikMini, DashboardStats, KvaroviPoMjesecu, TopOpremaKvarovi, KvaroviPoStatusu, KvaroviPoPrioritetu, TopKomponentaKvarovi, SparePartUsageSummary
 from ..auth import require_voditelj_or_admin
 from ..timeutil import utcnow, as_utc, local_day_start, local_month_start, local_year_start, local_month_number, period_start
 
@@ -243,6 +243,8 @@ def get_analitika(
             naziv=machine.naziv,
             lokacija=machine.lokacija,
             kvarovi=len(faults),
+            # Of those, reported against the machine as a whole (no component); the rest name a component.
+            na_cijeloj_masini=sum(1 for k in faults if not k.komponenta_id),
             zastoj_min=sum(k.trajanje_min or 0 for k in faults),
             trosak=float(sum((k.troskovi or 0) + (part_costs.get(k.id) or 0) for k in faults)),
             vrijeme_do_rjesenja_min=_mean(_minutes(k.datum_prijave, k.datum_rjesavanja) for k in faults if k.datum_rjesavanja),
@@ -250,6 +252,30 @@ def get_analitika(
             mtbf_sati=round((times[-1] - times[0]).total_seconds() / 3600 / (len(times) - 1), 1) if len(times) > 1 else None,
         ))
     masine.sort(key=lambda row: (-row.kvarovi, -row.zastoj_min, row.naziv))
+
+    # The same faults by component (faults on a whole machine are not in this list). Each fault is
+    # counted once: under its component here, and under its machine above.
+    by_component = defaultdict(list)
+    for k in reported:
+        if k.komponenta_id:
+            by_component[k.komponenta_id].append(k)
+    komponente = sorted(
+        (
+            AnalitikaKomponenta(
+                komponenta_id=faults[0].komponenta_id,
+                naziv=faults[0].komponenta.naziv if faults[0].komponenta else "",
+                oprema_id=faults[0].oprema_id,
+                oprema=faults[0].oprema.naziv if faults[0].oprema else "",
+                model=faults[0].komponenta.model if faults[0].komponenta else None,
+                kvarovi=len(faults),
+                zastoj_min=sum(k.trajanje_min or 0 for k in faults),
+                trosak=float(sum((k.troskovi or 0) + (part_costs.get(k.id) or 0) for k in faults)),
+                vrijeme_do_rjesenja_min=_mean(_minutes(k.datum_prijave, k.datum_rjesavanja) for k in faults if k.datum_rjesavanja),
+            )
+            for faults in by_component.values()
+        ),
+        key=lambda row: (-row.kvarovi, -row.zastoj_min, row.naziv),
+    )
 
     recurring = defaultdict(list)
     for k in reported:
@@ -308,6 +334,7 @@ def get_analitika(
         sazetak=_summary(db, od, now),
         prethodno=_summary(db, before, od),
         masine=masine[:10],
+        komponente=komponente[:10],
         cekanje=cekanje,
         ponavljanja=ponavljanja[:10],
         dijelovi=[AnalitikaDio(naziv=r.naziv, sifra=r.sifra, kolicina=float(r.kolicina or 0), trosak=float(r.trosak or 0)) for r in parts],

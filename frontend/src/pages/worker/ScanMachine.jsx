@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router'
 import { CameraOff, ListChecks, X } from 'lucide-react'
 import { useI18n } from '../../i18n'
 import { useAuth } from '../../auth/AuthProvider'
-import { createQrReader, machineIdFromCode, scanSupported } from '../../lib/qr'
+import { createQrReader, labelPath, scanSupported } from '../../lib/qr'
 
 const SCAN_EVERY_MS = 200
 
@@ -53,12 +53,12 @@ export default function ScanMachine() {
           try {
             const text = await read(video.current)
             if (!text) return
-            const id = machineIdFromCode(text)
-            if (id) {
+            const path = labelPath(text)
+            if (path) {
               stopped = true
               window.clearInterval(timer)
               navigator.vibrate?.(40)
-              navigate(`/m/${id}`, { replace: true })
+              navigate(path, { replace: true })
             } else {
               setForeign(true)
             }

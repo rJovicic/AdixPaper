@@ -54,15 +54,15 @@ test('machine form keeps focus while typing and saves', async ({ page }) => {
   await name.click()
   await page.keyboard.type('Rezačica E2E', { delay: 20 })
   await expect(name).toHaveValue('Rezačica E2E')
-  await page.getByLabel('Tip').fill('Rezačica')
-  await page.getByRole('button', { name: 'Spremi', exact: true }).click()
+  await page.getByRole('button', { name: 'Spremi', exact: true }).click() // the type is optional now
   await expect(page.getByRole('status').filter({ hasText: 'Mašina je spremljena.' })).toBeVisible()
-  // New machine stays open for adding parts and printing its QR label.
-  await expect(page.getByRole('heading', { name: 'Dijelovi mašine' })).toBeVisible()
+  // A new machine opens on its own page, ready for its components and labels.
+  await expect(page.getByRole('heading', { name: 'Rezačica E2E', level: 1 })).toBeVisible()
   await expect(page.getByText('Mašina je dodana.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Komponente' })).toBeVisible()
   const download = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Ispiši QR oznaku' }).click()
-  expect((await download).suggestedFilename()).toBe('adix-paper-qr-oznake.pdf')
+  await page.getByRole('button', { name: 'Naljepnice (mašina + komponente)' }).click()
+  expect((await download).suggestedFilename()).toBe('adix-paper-qr-oznake-masine.pdf')
 })
 
 test('admin cannot deactivate their own account', async ({ page }) => {

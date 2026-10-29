@@ -127,6 +127,50 @@ Railway MCP, `list-variables` for service AdixPaper (production), **names only �
 | Frontend lint, i18n parity (614 keys), production build | pass |
 | Playwright against the production build | **60 passed** (new `management.spec.js` 4) |
 
+### Round 4 — machine → component → fault hierarchy, QR per component, guarded test reset (2026-10-30)
+
+**Existing architecture (inspected first).** `oprema` (machines: name, required `tip`, company, manufacturer, model, globally unique serial, status enum incl. Raspisano, unused `qr_kod`), `komponente_opreme` (name, description, active), `kvarovi.oprema_id` (required) + `kvarovi.komponenta_id` (optional; the API already checked it belongs to the machine). Labels encoded `/m/<machine id>`. The report form *required* a component whenever the machine had any; the admin managed components inside the machine dialog.
+
+**Data model (additive migration in `bootstrap.ensure_additive_schema`).**
+- `oprema`: + `inventurni_broj`, `qr_oznaka` (unique), `azurirano`; `tip` nullable. Active/inactive = existing status (Raspisano = inactive).
+- `komponente_opreme`: + `proizvodac`, `model`, `inventurni_broj`, `serijski_broj`, `qr_oznaka` (unique), `azurirano`.
+- `postavke` (new): key/value; holds the disposable-test-database marker.
+- Faults: unchanged. A fault without a component is a fault on the whole machine — that is how every existing fault stays; no component is ever inferred.
+- Identifier rules (only when entered): inventory number unique across machines + components; component serial unique per manufacturer; machine serial unique (existing). Format: letters, digits, space and `. / _ # -`, ≤ 100.
+- Indexes: unique on both `qr_oznaka`; on both `inventurni_broj`; on component `serijski_broj`.
+
+**QR.** Server-generated opaque identifiers (72 random bits). `GET /api/qr/{oznaka}` (any signed-in user) resolves to machine or component with only names/model/manufacturer/active; `/api/qr/{oznaka}/slika.svg` (leads) for the screens. Labels: `/api/oprema/{id}/qr-oznake.pdf` (machine + active components, sorted), `/api/oprema/komponente/{id}/qr-oznaka.pdf`, existing all-machines sheet now with `/q/` links. `POST …/nova-qr-oznaka` issues a new code only on explicit request. `/m/<id>` labels keep working. Scanner and sign-in redirect accept `/q/<identifier>` paths only (no open redirect). Unknown, decommissioned and deactivated targets show a message instead of a report the server would refuse.
+
+**Reporting.** Component label → report opens on the description with machine → component → model · manufacturer in view. Machine label → step 1 with the machine folded into one line, "Cijela mašina" selected by default and the components (searchable when > 6, never truncated) to choose from. The draft remembers which label it came from: reloading continues; scanning a different label sets that label's target (found and fixed during the work: a component chosen earlier leaked into a later machine scan). Server: refuses a component of another machine (existing), a deactivated component and a decommissioned machine (new).
+
+**Admin.** Machines: list with components, open and urgent faults, status; search also finds components (any machine) by name, model, manufacturer, inventory or serial number; register export (Excel). Machine page: details, searchable component table (stacked on phones), labels for the whole line, QR of the machine, faults link, add component. Component page: parent, identifiers ("Nije uneseno" when empty), QR + label download + "New QR code" (confirmed), open faults, recent history, edit, deactivate/activate, delete only without fault history (server refuses otherwise, 409).
+
+**Lists, analytics, exports.** Fault list: component filter (component / whole machine only / all) under the machine filter; fault rows show the component on its own line. Fault detail links to the component. Analytics: per-machine "on the whole machine" count, and a component table; each fault counted once (its machine above, its component below). Excel: Komponenta, Model komponente, Inventurni broj (component's, else machine's); PDF: machine → component.
+
+**Seed.** `python -m app.seed_assets` (dry run) / `--apply`: AMICA MATRIX + 13 components exactly as supplied, identifiers empty. Idempotent; never overwrites entered data; stops on ambiguity; production requires `--confirm-database`.
+
+**Reset.** `python -m app.reset_test_data status | mark-disposable | reset` — see DEPLOYMENT.md. Safeguards: production environment refused unconditionally; database name must be confirmed; remote host must be named; disposable marker required; explicit delete flag.
+
+**What actually ran on which database.**
+- Local container PostgreSQL `adixpaper` (created in this session, holding only `seed-demo.py` and e2e data — no production data ever): schema upgrade on 170 machines / 128 components / 76 faults (all got unique QR identifiers, faults intact); AMICA MATRIX seeded (dry run, apply, re-apply = unchanged); marked disposable and **reset: 131 faults, 277 timeline entries, 5 photos, 5 part usages deleted**; users (218), machines (288), components (255), parts (672) unchanged; second reset deleted 0.
+- Local `upgr`: release `ec99698` (main) created and seeded the database, this branch upgraded it; `upgrade-check.py` OK (now also checks every QR identifier resolves).
+- **Production: nothing seeded, nothing reset, no settings changed.** Not reachable from this environment, and whether its faults are test data is unconfirmed.
+
+**Performance.** Label sheets drew each QR code twice through reportlab's widget; now drawn once from the module matrix as row runs: 100 labels 4.7 s → 1.6 s; decoded output identical (tests).
+
+#### Verification (round 4)
+
+| Check | Result |
+|---|---|
+| `ruff check app tests` | pass |
+| Backend, PostgreSQL 16 | **159 passed** (new `test_hierarchy.py`: 18 incl. QR decoding of generated PDFs, seeding, reset safeguards) |
+| Backend, SQLite | 157 passed, 2 skipped (PostgreSQL-only) |
+| Upgrade from `main` on PostgreSQL 16 | `upgrade OK: 5 faults, 13 events, 4 machines, 4 users, 668 parts unchanged` + QR checks |
+| Frontend lint, i18n parity (673 keys), build, `npm audit --omit=dev` | pass, 0 vulnerabilities |
+| Playwright, fresh database + seed-demo (as CI) | **67 passed** (new: `hierarchy.spec.js` 6, accessibility of machine/component/report screens 1; 5 existing tests updated for the intended changes: optional component, folded machine line, machine page after creating a machine) |
+| Phone width (390 px) machine list / machine / component pages | no horizontal overflow (measured) |
+| Physical devices (camera scanning, printing) | **not tested** |
+
 ## Open items
 
 ### Owner decisions

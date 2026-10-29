@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ADMIN, PHONE, chooseMachine, openAccountMenu, reportFault, setupFixture, signIn } from './helpers'
+import { ADMIN, PHONE, chooseMachine, openAccountMenu, reportFault, setupFixture, signIn, chooseComponent } from './helpers'
 
 test.use({ viewport: PHONE })
 
@@ -16,9 +16,9 @@ test('worker reports a fault on a phone and can follow it', async ({ page, reque
   await expect(page.getByText('Obavezno polje.').first()).toBeVisible()
 
   await chooseMachine(page, machine.naziv)
-  await page.getByRole('button', { name: 'Dalje' }).click()
-  await expect(page.getByText('Obavezno polje.').first()).toBeVisible() // the part is required on this machine
-  await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  // A component is optional: the whole machine is the default, the machine's components are offered.
+  await expect(page.getByRole('radio', { name: /^Cijela mašina/ })).toBeChecked()
+  await chooseComponent(page, 'Nož')
   await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByRole('button', { name: 'Dalje' }).click()
   await expect(page.getByLabel('Što se događa?')).toBeFocused()
@@ -110,11 +110,11 @@ test('scanning a machine QR label opens the report with that machine chosen, eve
   await page.getByRole('button', { name: /Prijavi se|Sign in/ }).click()
 
   await expect(page).toHaveURL(new RegExp(`/radnik/prijava\\?oprema=${machine.id}$`))
-  await expect(page.getByRole('radio', { name: new RegExp(machine.naziv) })).toBeChecked()
-  await expect(page.getByText('Odabrano skeniranjem QR oznake na mašini.')).toBeVisible()
+  await expect(page.getByText('Skenirana mašina')).toBeVisible()
+  await expect(page.getByText(machine.naziv, { exact: true })).toBeVisible()
 
   // A half-written report, and the step it is on, survive a reload.
-  await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await chooseComponent(page, 'Nož')
   await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByLabel('Što se događa?').fill('Remen proklizava')
   await page.reload()

@@ -43,14 +43,18 @@ export async function createQrReader() {
 }
 
 /**
- * The machine id in a scanned label, or null. Labels encode `<origin>/m/<id>`; the origin may be
- * PUBLIC_URL rather than this page's, so only the path is trusted and nothing outside the app is opened.
+ * The in-app path a scanned label points at, or null for anything that is not one of ours.
+ * Current labels encode `<origin>/q/<identifier>` (a machine or a component); older machine labels
+ * `<origin>/m/<id>`. The origin may be PUBLIC_URL rather than this page's, so only the path is
+ * trusted, rebuilt from the matched parts, and nothing outside the app is ever opened.
  */
-export function machineIdFromCode(text) {
+export function labelPath(text) {
   try {
     const url = new URL(String(text).trim(), window.location.origin)
-    const match = /^\/m\/(\d{1,9})\/?$/.exec(url.pathname)
-    return match ? match[1] : null
+    const token = /^\/q\/([A-Za-z0-9_-]{8,32})\/?$/.exec(url.pathname)
+    if (token) return `/q/${token[1]}`
+    const id = /^\/m\/(\d{1,9})\/?$/.exec(url.pathname)
+    return id ? `/m/${id[1]}` : null
   } catch {
     return null
   }

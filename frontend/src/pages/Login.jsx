@@ -47,7 +47,9 @@ export default function Login() {
       const signedIn = await signIn(username.trim(), password)
       const from = location.state?.from
       // Return to where the user was headed: a screen of their own role, or a machine QR link.
-      const allowed = from && (from.startsWith(homeForRole(signedIn.rola)) || from.startsWith('/m/'))
+      // Only in-app paths: the role's own screens and machine/component labels (never "//host").
+      const allowed = typeof from === 'string' && /^\/(?!\/)/.test(from)
+        && (from.startsWith(homeForRole(signedIn.rola)) || /^\/(m\/\d+|q\/[A-Za-z0-9_-]{8,32})$/.test(from))
       const target = allowed ? from : homeForRole(signedIn.rola)
       navigate(target, { replace: true })
     } catch (error) {

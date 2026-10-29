@@ -80,7 +80,7 @@ export default function WorkerFault() {
             columns="sm:grid-cols-2"
             items={[
               { label: t('fault.machine'), value: item.oprema?.naziv },
-              { label: t('fault.component'), value: item.komponenta?.naziv || t('fault.componentGeneral') },
+              { label: t('fault.component'), value: item.komponenta ? [item.komponenta.naziv, item.komponenta.model, item.komponenta.proizvodac].filter(Boolean).join(' · ') : t('fault.componentGeneral') },
               { label: t('fault.reportedAt'), value: format.dateTime(item.datum_prijave) },
               { label: t('fault.assignee'), value: item.voditelj ? `${item.voditelj.ime} ${item.voditelj.prezime}` : t('worker.waiting') },
               resolved && { label: t('fault.resolvedAt'), value: format.dateTime(item.datum_rjesavanja), wide: true },

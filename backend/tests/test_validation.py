@@ -3,7 +3,9 @@ import pytest
 
 
 @pytest.mark.parametrize("payload", [
-    {"naziv": None}, {"tip": "   "}, {"status": None}, {"proizvodac": "p" * 300}, {"serijski_broj": "s" * 300},
+    # "tip" became optional on 2026-10-30 (a production line has no single type); a blank name is still refused.
+    {"naziv": None}, {"naziv": "   "}, {"status": None}, {"proizvodac": "p" * 300}, {"serijski_broj": "s" * 300},
+    {"inventurni_broj": "i" * 300}, {"inventurni_broj": "?!"},
 ])
 def test_machine_update_rejects_empty_required_and_oversized_values(client, admin, machine, payload):
     assert client.put(f"/api/oprema/{machine['id']}", json=payload, headers=admin).status_code == 422

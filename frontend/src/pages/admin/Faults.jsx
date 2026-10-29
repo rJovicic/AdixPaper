@@ -107,6 +107,8 @@ export default function Faults() {
     sort: params.get('sort') || (view === 'resolved' ? 'rijeseno' : 'novo'),
     assignee: params.get('preuzeo') || '',
     machine: params.get('oprema') || '',
+    // A component id, or "masina" for faults on the machine as a whole; only with a machine filter.
+    component: params.get('oprema') && /^(\d+|masina)$/.test(params.get('komponenta') || '') ? params.get('komponenta') : '',
     waiting: params.get('cekanje') || '',
     resolved: PERIODS.includes(params.get('rijeseno')) ? params.get('rijeseno') : '',
   }
@@ -117,10 +119,11 @@ export default function Faults() {
     const query = new URLSearchParams()
     if (filters.prioritet) query.set('prioritet', filters.prioritet)
     if (/^\d+$/.test(filters.machine)) query.set('oprema_id', filters.machine)
+    if (filters.component) query.set('komponenta', filters.component)
     if (filters.assignee === 'ja' || filters.assignee === 'nitko' || /^\d+$/.test(filters.assignee)) query.set('preuzeo', filters.assignee)
     if (settledQ) query.set('q', settledQ)
     return query.toString()
-  }, [filters.prioritet, filters.machine, filters.assignee, settledQ])
+  }, [filters.prioritet, filters.machine, filters.component, filters.assignee, settledQ])
 
   // Every filter is applied on the server, so the count, the pages and the exports agree.
   const serverQuery = useMemo(() => {
@@ -158,6 +161,10 @@ export default function Faults() {
     () => (/^\d+$/.test(filters.machine) ? api.get(`/oprema/${filters.machine}`).then((response) => response.data) : null),
     [filters.machine],
   )
+  const machineComponents = useAsync(
+    () => (/^\d+$/.test(filters.machine) ? api.get(`/oprema/${filters.machine}/komponente`).then((response) => asArray(response.data)) : []),
+    [filters.machine],
+  )
   const leads = useAsync(() => api.get('/korisnici/radnici/lista').then((response) => asArray(response.data).filter((user) => user.rola !== 'radnik')), [])
 
   useEffect(() => {
@@ -183,7 +190,7 @@ export default function Faults() {
 
   const changeView = (next) => {
     const query = new URLSearchParams()
-    for (const key of ['q', 'prioritet', 'oprema', 'preuzeo']) if (params.get(key)) query.set(key, params.get(key))
+    for (const key of ['q', 'prioritet', 'oprema', 'komponenta', 'preuzeo']) if (params.get(key)) query.set(key, params.get(key))
     if (next === 'resolved') query.set('pregled', 'rijeseni')
     setParams(query, { replace: true })
   }
@@ -291,8 +298,26 @@ export default function Faults() {
               label={t('faults.machineFilter')}
               value={machine.data?.naziv || `#${filters.machine}`}
               clearLabel={t('faults.clearMachine')}
-              onClear={() => setFilter('oprema', '')}
+              onClear={() => {
+                const next = new URLSearchParams(params)
+                next.delete('oprema')
+                next.delete('komponenta')
+                if (view === 'resolved') next.set('pregled', 'rijeseni')
+                setParams(next, { replace: true })
+              }}
             />
+          )}
+          {filters.machine && (machineComponents.data || []).length > 0 && (
+            <select
+              className="control w-auto min-w-[14rem] max-w-full"
+              aria-label={t('assets.componentFilter')}
+              value={filters.component}
+              onChange={(event) => setFilter('komponenta', event.target.value)}
+            >
+              <option value="">{t('assets.componentFilterAll')}</option>
+              <option value="masina">{t('assets.componentFilterMachine')}</option>
+              {machineComponents.data.map((item) => <option key={item.id} value={item.id}>{item.naziv}{item.aktivna ? '' : ` (${t('common.inactive')})`}</option>)}
+            </select>
           )}
           {filters.resolved && (
             <FilterChip

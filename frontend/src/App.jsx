@@ -12,6 +12,7 @@ import { LoadingRows } from './components/ui/States'
 import Login from './pages/Login'
 import NotFound from './pages/NotFound'
 import MachineLink from './pages/MachineLink'
+import QrLink from './pages/QrLink'
 import MyFaults from './pages/worker/MyFaults'
 import ReportFault from './pages/worker/ReportFault'
 import WorkerFault from './pages/worker/WorkerFault'
@@ -39,6 +40,8 @@ const Faults = lazyPage(() => import('./pages/admin/Faults'))
 const Analytics = lazyPage(() => import('./pages/admin/Analytics'))
 const FaultDetail = lazyPage(() => import('./pages/admin/FaultDetail'))
 const Machines = lazyPage(() => import('./pages/admin/Machines'))
+const MachineDetail = lazyPage(() => import('./pages/admin/MachineDetail'))
+const ComponentDetail = lazyPage(() => import('./pages/admin/ComponentDetail'))
 const SpareParts = lazyPage(() => import('./pages/admin/SpareParts'))
 const Users = lazyPage(() => import('./pages/admin/Users'))
 
@@ -66,6 +69,7 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/m/:id" element={<RequireRole><MachineLink /></RequireRole>} />
+              <Route path="/q/:oznaka" element={<RequireRole><QrLink /></RequireRole>} />
               <Route path="/radnik" element={<RequireRole roles={['radnik']}><WorkerShell /></RequireRole>}>
                 <Route index element={<WorkerHome />} />
                 <Route path="kvarovi" element={<MyFaults />} />
@@ -82,6 +86,8 @@ export default function App() {
                 <Route path="kvarovi" element={<Faults />} />
                 <Route path="kvarovi/:id" element={<FaultDetail />} />
                 <Route path="oprema" element={<Machines />} />
+                <Route path="oprema/:id" element={<MachineDetail />} />
+                <Route path="oprema/:id/komponente/:kid" element={<ComponentDetail />} />
                 <Route path="rezervni-dijelovi" element={<SpareParts />} />
                 <Route path="analize" element={<Analytics />} />
                 <Route path="profil" element={<Profile />} />
