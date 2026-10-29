@@ -11,7 +11,7 @@ from . import bootstrap, retention
 from .config import settings
 from .database import SessionLocal, engine
 from .security import SecurityHeadersMiddleware
-from .routers import auth, korisnici, oprema, dashboard, kvarovi, notifikacije, rezervni_dijelovi, uzivo
+from .routers import auth, korisnici, oprema, dashboard, kvarovi, notifikacije, qr, rezervni_dijelovi, uzivo
 
 
 @asynccontextmanager
@@ -52,6 +52,7 @@ app.include_router(dashboard.router)
 app.include_router(notifikacije.router)
 app.include_router(rezervni_dijelovi.router)
 app.include_router(uzivo.router)
+app.include_router(qr.router)
 
 
 @app.get("/health", include_in_schema=False)

@@ -289,7 +289,11 @@ export default function Analytics() {
                     <tr key={row.oprema_id} className="hover:bg-brand-wash/50">
                       <td className="max-w-0 px-5 py-2.5">
                         <Link to={`/admin/kvarovi?oprema=${row.oprema_id}`} className="block truncate font-semibold text-ink hover:underline">{row.naziv}</Link>
-                        {row.lokacija && <span className="block truncate text-meta text-ink-2">{row.lokacija}</span>}
+                        {(row.lokacija || row.na_cijeloj_masini > 0) && (
+                          <span className="block truncate text-meta text-ink-2">
+                            {[row.lokacija, row.na_cijeloj_masini > 0 ? t('analytics.wholeMachineShare', { n: row.na_cijeloj_masini }) : null].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right font-semibold">{row.kvarovi}</td>
                       <td className="px-4 py-2.5 text-right">{row.zastoj_min ? format.duration(row.zastoj_min) : '—'}</td>
@@ -303,6 +307,29 @@ export default function Analytics() {
             </>
           )}
         </Panel>
+
+        {d && d.komponente?.length > 0 && (
+          <Panel title={t('analytics.components')} hint={t('analytics.componentsHint')} className="lg:col-span-5">
+            <ul className="divide-y divide-rule">
+              {d.komponente.map((row) => (
+                <li key={row.komponenta_id}>
+                  <Link to={`/admin/kvarovi?oprema=${row.oprema_id}&komponenta=${row.komponenta_id}`} className="flex items-baseline gap-3 px-5 py-3 hover:bg-brand-wash/50">
+                    <span className="min-w-0 flex-1">
+                      <span className="block break-words font-semibold text-ink">{row.naziv}</span>
+                      <span className="block break-words text-meta text-ink-2">{[row.oprema, row.model].filter(Boolean).join(' · ')}</span>
+                    </span>
+                    <span className="hidden shrink-0 text-right text-meta text-ink-2 sm:block">
+                      {t('analytics.colDowntime')}: {row.zastoj_min ? format.duration(row.zastoj_min) : '—'}
+                      <span className="mx-2 text-rule-strong">·</span>
+                      {t('analytics.colCost')}: {row.trosak ? format.moneyRound(row.trosak) : '—'}
+                    </span>
+                    <span className="numeral w-10 shrink-0 text-right text-lg">{row.kvarovi}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        )}
 
         <Panel title={`${t('dashboard.byMonth')} · ${new Date().getFullYear()}`} className="lg:col-span-3">
           {monthly.error ? <ErrorState error={monthly.error} onRetry={monthly.reload} /> : <MonthlyChart rows={monthly.data || []} />}

@@ -69,13 +69,18 @@ export async function chooseMachine(page, name) {
   await page.locator('label').filter({ hasText: name }).first().click()
 }
 
+/** Picks a component on the report's first step (the first choice, "Cijela mašina", is the default). */
+export async function chooseComponent(page, name) {
+  await page.getByRole('radiogroup', { name: 'Komponenta' }).locator('label').filter({ hasText: new RegExp(`^${name}`) }).first().click()
+}
+
 /**
  * Walks the three report steps and sends: machine (+ part), what is wrong, priority.
  * Leaves the page on the confirmation screen.
  */
 export async function reportFault(page, { machine, component, headline, details, priority }) {
   if (machine) await chooseMachine(page, machine)
-  if (component) await page.getByLabel('Dio mašine').selectOption({ label: component })
+  if (component) await chooseComponent(page, component)
   await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByLabel('Što se događa?').fill(headline)
   if (details) await page.getByLabel('Detalji').fill(details)

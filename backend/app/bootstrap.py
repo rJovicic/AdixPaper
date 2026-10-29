@@ -11,7 +11,7 @@ from sqlalchemy.exc import OperationalError
 from .auth import set_password
 from .config import settings
 from .database import Base, SessionLocal, engine
-from .models import Dobavljac, Korisnik, RezervniDio, RolaEnum
+from .models import Dobavljac, Korisnik, RezervniDio, RolaEnum, nova_qr_oznaka
 
 logger = logging.getLogger("adixpaper")
 
@@ -59,6 +59,8 @@ def ensure_additive_schema():
     dijelovi_columns = set(dijelovi_info)
     korisnici_columns = {c["name"] for c in inspector.get_columns("korisnici")} if "korisnici" in table_names else set()
     usage_columns = {c["name"] for c in inspector.get_columns("kvar_rezervni_dijelovi")} if "kvar_rezervni_dijelovi" in table_names else set()
+    oprema_info = {c["name"]: c for c in inspector.get_columns("oprema")} if "oprema" in table_names else {}
+    komponente_columns = {c["name"] for c in inspector.get_columns("komponente_opreme")} if "komponente_opreme" in table_names else set()
     postgres = engine.dialect.name == "postgresql"
     timestamp = "TIMESTAMP WITH TIME ZONE" if engine.dialect.name == "postgresql" else "DATETIME"
     with engine.begin() as connection:
@@ -111,6 +113,42 @@ def ensure_additive_schema():
         supplier = dijelovi_info.get("dobavljac_id")
         if supplier and not supplier["nullable"] and engine.dialect.name == "postgresql":
             connection.execute(text("ALTER TABLE rezervni_dijelovi ALTER COLUMN dobavljac_id DROP NOT NULL"))
+        # 2026-10-30: machine → component hierarchy. Identifiers (inventory and serial numbers) are
+        # optional; every machine and component gets an opaque QR identifier (qr_oznaka). Additive only.
+        if oprema_info:
+            for column, ddl in (
+                ("inventurni_broj", "VARCHAR(100)"),
+                ("qr_oznaka", "VARCHAR(32)"),
+                ("azurirano", timestamp),
+            ):
+                if column not in oprema_info:
+                    connection.execute(text(f"ALTER TABLE oprema ADD COLUMN {column} {ddl}"))
+            # The type stopped being required (a production line has no single "type"); SQLite tables
+            # from create_all already allow NULL.
+            if postgres and not oprema_info["tip"]["nullable"]:
+                connection.execute(text("ALTER TABLE oprema ALTER COLUMN tip DROP NOT NULL"))
+        if komponente_columns:
+            for column, ddl in (
+                ("proizvodac", "VARCHAR(100)"),
+                ("model", "VARCHAR(100)"),
+                ("inventurni_broj", "VARCHAR(100)"),
+                ("serijski_broj", "VARCHAR(100)"),
+                ("qr_oznaka", "VARCHAR(32)"),
+                ("azurirano", timestamp),
+            ):
+                if column not in komponente_columns:
+                    connection.execute(text(f"ALTER TABLE komponente_opreme ADD COLUMN {column} {ddl}"))
+        # Every machine and component without a QR identifier gets one (existing rows on the upgrade;
+        # never touches one already set, so printed labels keep working).
+        for table, present in (("oprema", bool(oprema_info)), ("komponente_opreme", bool(komponente_columns))):
+            if not present:
+                continue
+            for (row_id,) in connection.execute(text(f"SELECT id FROM {table} WHERE qr_oznaka IS NULL")).all():
+                connection.execute(text(f"UPDATE {table} SET qr_oznaka = :oznaka WHERE id = :id"), {"oznaka": nova_qr_oznaka(), "id": row_id})
+            connection.execute(text(f"CREATE UNIQUE INDEX IF NOT EXISTS ix_{table}_qr_oznaka ON {table} (qr_oznaka)"))
+            connection.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{table}_inventurni_broj ON {table} (inventurni_broj)"))
+        if komponente_columns:
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_komponente_opreme_serijski_broj ON komponente_opreme (serijski_broj)"))
         # Indexes for the overview, the paged fault list and the activity feed (names match create_all).
         if kvarovi_columns:
             connection.execute(text("CREATE INDEX IF NOT EXISTS ix_kvarovi_status ON kvarovi (status)"))

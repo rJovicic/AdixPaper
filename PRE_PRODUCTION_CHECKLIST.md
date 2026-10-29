@@ -146,3 +146,13 @@ Nothing below was done by Claude: each needs the owner or someone with productio
 | 6 | **Dangerous variables**: `RESET_USERNAME` / `RESET_PASSWORD` and `ADMIN_RESET_PASSWORD=true` re-apply on **every** start: they overwrite that person's own password and sign them out everywhere. | Silent account takeover risk and lock-outs after each deploy. | Read-only check 2026-10-29 (variable names only, values never read): **none of the three is set** in production. Keep it that way; if one is ever used for a recovery, remove it right after the next successful start. | Verified absent |
 | 7 | 🔒 **Repository privacy**: make the GitHub repository private, **or** rewrite history to drop the old `spareparts.csv` contents (`git filter-repo --path backend/app/seed_data/spareparts.csv --invert-paths`, then re-add the clean file, force-push all branches and tags, ask GitHub support to purge cached views; every clone must re-clone). | Supplier prices and stock levels are public in history even after the file was cleaned on the branch. Forks and clones already made keep them either way. | `git log --all -p -- backend/app/seed_data/spareparts.csv` shows no price column in any commit; or the repository shows "Private". Check the GitHub plan's Actions minutes before going private. | Owner decision; Claude did not change visibility or history |
 | 8 | Privacy notice, Railway DPA, retention periods (§8). | GDPR. | Documents on file. | Open |
+
+### 10a. Machine → component release (2026-10-30)
+
+| # | Action | Status |
+|---|---|---|
+| 1 | Manual backup before merging (the release adds columns and fills QR identifiers). | Open |
+| 2 | After deploy: dry-run then apply `python -m app.seed_assets` in the production shell (`--confirm-database` with the production database's name). Check AMICA MATRIX shows 13 components with "Nije uneseno" identifiers. | Open; **not run by Claude** |
+| 3 | Print the AMICA MATRIX sheet; scan the machine label and two component labels with a real **iPhone** (camera app → Safari, and the in-app scanner in the installed app) and a real **Android** phone, signed out and signed in, as a worker and as a lead. Expected: component label → report with that component chosen; machine label → report with "Cijela mašina" chosen and the components offered; lead → the machine/component page. | Open; **not tested on physical devices** |
+| 4 | Confirm the spellings "AKOMULATOR LOGOVA" and "PALIETIZING SYSTEM" (kept as supplied). | Owner |
+| 5 | Old test faults in production: decide whether they are test data. If yes: backup, then delete with production access (the reset command deliberately refuses production). If unsure: keep them. | Owner; **nothing deleted in production** |

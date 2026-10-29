@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ADMIN, PHONE, apiToken, faultNumber, openAccountMenu, reportFault, settle, setupFixture, signIn } from './helpers'
+import { ADMIN, PHONE, apiToken, faultNumber, openAccountMenu, reportFault, settle, setupFixture, signIn, chooseComponent } from './helpers'
 
 // Real-time updates, new-fault alerts, the active/resolved split and the install prompt.
 // Each test opens separate browser contexts (a lead at a desk, a worker on a phone), so nothing
@@ -222,9 +222,9 @@ test('the report form on a phone: no bars covering fields, clear progress, and n
   await page.setViewportSize(PHONE)
   await signIn(page, worker)
   await page.goto(`/radnik/prijava?oprema=${machine.id}`)
-  await expect(page.getByText('Odabrano skeniranjem QR oznake na mašini.')).toBeVisible()
+  await expect(page.getByText('Skenirana mašina')).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Glavna navigacija' })).toBeHidden()
-  await page.getByLabel('Dio mašine').selectOption({ label: 'Nož' })
+  await chooseComponent(page, 'Nož')
   await page.getByRole('button', { name: 'Dalje' }).click()
   await page.getByLabel('Što se događa?').fill('Dvostruki dodir E2E')
   await page.getByRole('button', { name: 'Dalje' }).click()

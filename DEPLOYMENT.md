@@ -59,6 +59,30 @@ Before merging a release, work through [PRE_PRODUCTION_CHECKLIST.md](PRE_PRODUCT
 - **Photos live in Postgres** (`kvar_prilozi.sadrzaj`, re-encoded JPEG, typically 150–400 kB, at most 6 per fault). Watch the Postgres volume size on Railway; at 50 photos a week that is roughly 1 GB a year. Backups include them. Photos are removed 12 months after the fault is resolved (below).
 - **Backups: agreed by the owner on 2026-10-29, not yet enabled** (they were declined on 2026-10-28). Enable Daily + Weekly, check retention and that the volume backup covers all data including photos, then practise a restore on staging: PRE_PRODUCTION_CHECKLIST.md §10. Until then, deleted or damaged data cannot be recovered, and a deployment rollback restores code only.
 
+## Machines, components and QR labels (2026-10-30)
+
+- **Upgrade (automatic, additive):** on the first start of this release, `oprema` gains `inventurni_broj`, `qr_oznaka`, `azurirano` and `tip` becomes nullable; `komponente_opreme` gains `proizvodac`, `model`, `inventurni_broj`, `serijski_broj`, `qr_oznaka`, `azurirano`; a new table `postavke` is created. Every existing machine and component gets a random QR identifier (only where empty). No fault, timeline entry or other value is changed. Verified locally against a database created by the release on `main` (PostgreSQL 16) and on a database with 170 machines, 128 components and 76 faults; CI's `upgrade` job repeats it on PostgreSQL 18.
+- **Initial AMICA MATRIX data (manual, once):** not loaded on startup. In the Railway service shell (`railway ssh`, or the dashboard's shell):
+  ```
+  python -m app.seed_assets                                   # dry run: shows what would be created
+  python -m app.seed_assets --apply --confirm-database railway   # production needs the database's name
+  ```
+  It creates the machine and its 13 components without inventory/serial numbers and reports anything it would not change. Running it again changes nothing.
+- **Print labels** from Mašine → the machine → "Naljepnice (mašina + komponente)": one A4 sheet with the machine's label and one per active component. Scan one label with an iPhone and an Android phone before printing all (checklist §10).
+- **Old labels** (`/m/<id>`) keep working; new ones use `/q/<identifier>`.
+
+## Resetting test data (disposable databases only)
+
+`python -m app.reset_test_data` deletes all faults and their photos, parts used and timeline, keeping users, machines, components and the parts catalogue. It refuses in a production environment (Railway production / `APP_ENV=production`), refuses unless `--confirm-database` names the connected database, refuses a remote database unless `--allow-remote-host <that host>`, and refuses unless the database was first marked disposable:
+
+```
+python -m app.reset_test_data status
+python -m app.reset_test_data mark-disposable --confirm-database <name>
+python -m app.reset_test_data reset --confirm-database <name> --yes-delete-all-faults
+```
+
+Never mark the production database disposable. If the owner decides the faults in production are only test data, that is a separate, explicitly authorised one-off: manual backup first, then deletion by someone with production access, recorded in decisions.md.
+
 ## Photo retention
 
 Owner's rule (2026-10-28): a fault's photos are removed **12 calendar months after it was resolved**, counted in plant time (Europe/Zagreb). Resolved on 15 March → removed from 00:00 on 15 March a year later; 29 February → 28 February. Reopening a fault clears its resolution date, so its photos stay; resolving again restarts the clock. The fault, its work record and its timeline stay; the timeline gets an entry "Photos removed under the retention rule".

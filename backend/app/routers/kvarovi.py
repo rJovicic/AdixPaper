@@ -161,8 +161,10 @@ def _query_kvarovi(
     limit: Optional[int] = None,
     offset: int = 0,
     rijeseno: Optional[str] = None,
+    komponenta: Optional[str] = None,
 ):
-    """Faults matching the filters, as (page, total). Without `limit`, the page is every match."""
+    """Faults matching the filters, as (page, total). Without `limit`, the page is every match.
+    `komponenta`: a component id, or "masina" for faults on the machine as a whole (no component)."""
     query = db.query(Kvar).options(
         joinedload(Kvar.oprema),
         joinedload(Kvar.komponenta),
@@ -181,6 +183,13 @@ def _query_kvarovi(
         query = query.filter(Kvar.prioritet == _enum_param(PrioritetEnum, prioritet))
     if oprema_id:
         query = query.filter(Kvar.oprema_id == oprema_id)
+    if komponenta:
+        if komponenta == "masina":
+            query = query.filter(Kvar.komponenta_id.is_(None))
+        elif komponenta.isdigit():
+            query = query.filter(Kvar.komponenta_id == int(komponenta))
+        else:
+            raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
     if cekanje:
         if cekanje not in RAZLOZI_CEKANJA:
             raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
@@ -212,6 +221,7 @@ def _query_kvarovi(
                 func.lower(Kvar.naslov).like(pattern),
                 func.lower(Oprema.naziv).like(pattern),
                 func.lower(KomponentaOpreme.naziv).like(pattern),
+                func.lower(KomponentaOpreme.model).like(pattern),
             ))
     if sort not in (None, "", "novo", "staro", "rizik", "rijeseno"):
         raise HTTPException(status_code=422, detail="Neispravna vrijednost filtra")
@@ -382,13 +392,14 @@ def list_kvarovi(
     limit: Optional[int] = Query(None, ge=1, le=200),
     offset: int = Query(0, ge=0),
     rijeseno: Optional[str] = None,
+    komponenta: Optional[str] = Query(None, max_length=12),
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(get_current_user)
 ):
     """Faults the user may see. With `limit`, one page; the total is in the X-Total-Count header."""
     records, total = _query_kvarovi(
         db, current_user, status, prioritet, oprema_id, sla, with_parts=False,
-        cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, limit=limit, offset=offset, rijeseno=rijeseno,
+        cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, limit=limit, offset=offset, rijeseno=rijeseno, komponenta=komponenta,
     )
     response.headers["X-Total-Count"] = str(total)
     return records
@@ -443,18 +454,19 @@ def export_kvarovi_xlsx(
     q: Optional[str] = Query(None, max_length=200),
     sort: Optional[str] = None,
     rijeseno: Optional[str] = None,
+    komponenta: Optional[str] = Query(None, max_length=12),
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(require_voditelj_or_admin),
 ):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
 
-    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, rijeseno=rijeseno)
+    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, rijeseno=rijeseno, komponenta=komponenta)
     wb = Workbook()
     ws = wb.active
     ws.title = "Kvarovi"
     headers = [
-        "ID", "Naslov", "Oprema", "Lokacija", "Prioritet", "Status", "Odziv",
+        "ID", "Naslov", "Oprema", "Komponenta", "Model komponente", "Inventurni broj", "Lokacija", "Prioritet", "Status", "Odziv",
         "Prijavio", "Voditelj", "Datum prijave", "Prvi odziv", "Datum pocetka", "Datum rjesavanja",
         "Trajanje min", "Troskovi EUR", "Materijal", "Sto je uradjeno"
     ]
@@ -473,6 +485,11 @@ def export_kvarovi_xlsx(
             k.id,
             k.naslov,
             k.oprema.naziv if k.oprema else "",
+            # Empty component = a fault on the machine as a whole.
+            k.komponenta.naziv if k.komponenta else "",
+            k.komponenta.model or "" if k.komponenta else "",
+            # The inventory number of what the fault is on: the component's, else the machine's.
+            (k.komponenta.inventurni_broj if k.komponenta and k.komponenta.inventurni_broj else (k.oprema.inventurni_broj if k.oprema else "")) or "",
             k.oprema.lokacija if k.oprema else "",
             _enum_value(k.prioritet),
             _enum_value(k.status),
@@ -511,13 +528,14 @@ def export_utroseni_dijelovi_xlsx(
     q: Optional[str] = Query(None, max_length=200),
     sort: Optional[str] = None,
     rijeseno: Optional[str] = None,
+    komponenta: Optional[str] = Query(None, max_length=12),
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(require_voditelj_or_admin),
 ):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
 
-    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, rijeseno=rijeseno)
+    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, rijeseno=rijeseno, komponenta=komponenta)
     kvar_ids = [k.id for k in records]
     utrosci = []
     if kvar_ids:
@@ -596,6 +614,7 @@ def export_kvarovi_pdf(
     q: Optional[str] = Query(None, max_length=200),
     sort: Optional[str] = None,
     rijeseno: Optional[str] = None,
+    komponenta: Optional[str] = Query(None, max_length=12),
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(require_voditelj_or_admin),
 ):
@@ -605,7 +624,7 @@ def export_kvarovi_pdf(
 
     from ..pdf import BRAND_BLUE, register_fonts, stylesheet
 
-    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, rijeseno=rijeseno)
+    records, _ = _query_kvarovi(db, current_user, status, prioritet, oprema_id, sla, cekanje=cekanje, preuzeo=preuzeo, q=q, sort=sort, rijeseno=rijeseno, komponenta=komponenta)
     output = BytesIO()
     doc = SimpleDocTemplate(output, pagesize=landscape(A4), rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=24)
     regular, bold = register_fonts()
@@ -616,12 +635,12 @@ def export_kvarovi_pdf(
         Spacer(1, 12),
     ]
 
-    rows = [["ID", "Naslov", "Mašina", "Prioritet", "Status", "Odziv", "Prijava", "Trošak €"]]
+    rows = [["ID", "Naslov", "Mašina → komponenta", "Prioritet", "Status", "Odziv", "Prijava", "Trošak €"]]
     for k in records:
         rows.append([
             str(k.id),
             Paragraph((k.naslov or "")[:48], styles["BodyText"]),
-            Paragraph((k.oprema.naziv if k.oprema else "")[:36], styles["BodyText"]),
+            Paragraph(" → ".join(x for x in ((k.oprema.naziv if k.oprema else ""), (k.komponenta.naziv if k.komponenta else "")) if x)[:60], styles["BodyText"]),
             _enum_value(k.prioritet),
             _enum_value(k.status),
             _sla_label(k),
@@ -677,14 +696,18 @@ def create_kvar(
     oprema = db.query(Oprema).filter(Oprema.id == data.oprema_id).first()
     if not oprema:
         raise HTTPException(status_code=404, detail="Oprema nije pronađena")
+    if not oprema.aktivna:
+        raise HTTPException(status_code=400, detail="Mašina je raspisana i ne prima nove prijave")
     if data.komponenta_id:
+        # The component must belong to the machine named in the report (no cross-machine targets).
         komponenta = db.query(KomponentaOpreme).filter(
             KomponentaOpreme.id == data.komponenta_id,
             KomponentaOpreme.oprema_id == data.oprema_id,
-            KomponentaOpreme.aktivna == True,
         ).first()
         if not komponenta:
             raise HTTPException(status_code=404, detail="Komponenta nije pronađena za odabranu opremu")
+        if not komponenta.aktivna:
+            raise HTTPException(status_code=400, detail="Komponenta nije aktivna; prijavite kvar na mašini")
 
     if data.klijent_kljuc:
         existing = _fault_for_key(db, data.klijent_kljuc, current_user)

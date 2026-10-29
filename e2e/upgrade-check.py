@@ -78,6 +78,18 @@ def verify(base, before):
         # Every fault that left "Novo" got its first response from its own record.
         assert fault_status == "Novo" or fault["datum_odziva"], f"fault {fault_id} has no first response after the upgrade"
 
+    # Machine → component hierarchy (2026-10-30): every machine and component got a QR identifier
+    # that resolves to it; identifiers stay empty; the component list still answers.
+    machines = call(base, "GET", "/api/oprema", token)[1]
+    for machine in machines:
+        assert machine["qr_oznaka"], f"machine {machine['id']} has no QR identifier"
+        status, target = call(base, "GET", f"/api/qr/{machine['qr_oznaka']}", token)
+        assert status == 200 and target["oprema"]["id"] == machine["id"], f"QR of machine {machine['id']} does not resolve"
+        for component in call(base, "GET", f"/api/oprema/{machine['id']}/komponente", token)[1]:
+            status, target = call(base, "GET", f"/api/qr/{component['qr_oznaka']}", token)
+            assert status == 200 and target["komponenta"]["id"] == component["id"], f"QR of component {component['id']} does not resolve"
+    assert len({m["qr_oznaka"] for m in machines}) == len(machines), "duplicate machine QR identifiers"
+
     fault_id = before["faults"][0][0]
     status, fault = call(base, "GET", f"/api/kvarovi/{fault_id}", token)
     assert status == 200 and fault["verzija"] == 1, "existing faults must start at version 1"

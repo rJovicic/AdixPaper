@@ -75,6 +75,28 @@ test('no serious accessibility violations on lead screens', async ({ page }) => 
   expect(await axe(page), 'fault detail').toEqual([])
 })
 
+test('no serious accessibility violations on the machine, component and component-report screens', async ({ page, request }) => {
+  const { machine, component, worker } = await setupFixture(request)
+  await signIn(page, ADMIN)
+  for (const path of [`/admin/oprema/${machine.id}`, `/admin/oprema/${machine.id}/komponente/${component.id}`]) {
+    await page.goto(path)
+    await settle(page)
+    expect(await axe(page), path).toEqual([])
+  }
+  await page.goto('/admin/oprema')
+  await page.getByRole('button', { name: 'Dodaj mašinu' }).click()
+  expect(await axe(page), 'machine dialog').toEqual([])
+
+  const phone = await (await page.context().browser().newContext({ viewport: { width: 390, height: 844 } })).newPage()
+  await signIn(phone, worker)
+  await phone.goto(`/radnik/prijava?oprema=${machine.id}`)
+  await settle(phone)
+  expect(await axe(phone), 'report: component picker').toEqual([])
+  await phone.goto(`/radnik/prijava?oprema=${machine.id}&komponenta=${component.id}`)
+  await settle(phone)
+  expect(await axe(phone), 'report: component preselected').toEqual([])
+})
+
 test('no horizontal scrolling at phone, tablet and desktop widths', async ({ page }) => {
   await signIn(page, ADMIN)
   for (const width of [360, 390, 430, 768, 1024, 1440]) {
@@ -169,7 +191,7 @@ test('iPhone: editing a machine is a full-screen sheet that never scrolls sidewa
   await page.goto('/admin/oprema')
   await page.getByRole('button', { name: /^Uredi: / }).first().click()
   const dialog = page.getByRole('dialog', { name: 'Uredi mašinu' })
-  await expect(dialog.getByText('Dijelovi mašine')).toBeAttached()
+  await expect(dialog.getByLabel('Inventurni broj')).toBeAttached()
   const box = await dialog.boundingBox()
   expect(Math.round(box.width)).toBe(390) // edge to edge
   const sideways = await page.evaluate(() => {

@@ -3,6 +3,7 @@ from sqlalchemy.orm import deferred, relationship
 from sqlalchemy.sql import func
 from datetime import timedelta
 import enum
+import secrets
 from .database import Base
 from .timeutil import utcnow, as_utc
 
@@ -57,6 +58,13 @@ CEKANJE_DUGO_SATI = 24
 RAZLOZI_PAZNJE = ("kasni", "uskoro", "hitno", "nedodijeljen", "ceka_dugo")
 
 
+def nova_qr_oznaka() -> str:
+    """An opaque, random identifier printed in a machine's or component's QR label (/q/<oznaka>).
+    12 URL-safe characters (72 bits): unguessable, never derived from database ids. A label keeps
+    working until someone explicitly generates a new one for that asset."""
+    return secrets.token_urlsafe(9)
+
+
 class Korisnik(Base):
     __tablename__ = "korisnici"
 
@@ -86,19 +94,28 @@ class Oprema(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     naziv = Column(String(200), nullable=False, index=True)
-    tip = Column(String(100), nullable=False)
+    tip = Column(String(100), nullable=True)
     tvrtka = Column(Enum(TvrtkaEnum), nullable=True)
     proizvodac = Column(String(100), nullable=True)
     model = Column(String(100), nullable=True)
     serijski_broj = Column(String(100), unique=True, nullable=True)
+    # Inventory number (inventurni broj): optional; unique across machines and components when entered.
+    inventurni_broj = Column(String(100), nullable=True, index=True)
     lokacija = Column(String(150), nullable=True)
     datum_kupnje = Column(Date, nullable=True)
     status = Column(Enum(StatusOpremaEnum), default=StatusOpremaEnum.aktivno)
     napomene = Column(Text, nullable=True)
-    qr_kod = Column(String(200), nullable=True)
+    qr_kod = Column(String(200), nullable=True)  # legacy, unused; labels use qr_oznaka
+    qr_oznaka = Column(String(32), unique=True, nullable=True, index=True, default=nova_qr_oznaka)
     kreiran = Column(DateTime(timezone=True), server_default=func.now())
+    azurirano = Column(DateTime(timezone=True), nullable=True, onupdate=func.now())
 
     kvarovi = relationship("Kvar", back_populates="oprema")
+
+    @property
+    def aktivna(self) -> bool:
+        """A decommissioned (Raspisano) machine is inactive; every other status is in use."""
+        return self.status != StatusOpremaEnum.raspisano
     komponente = relationship("KomponentaOpreme", back_populates="oprema", cascade="all, delete-orphan")
 
 
@@ -109,8 +126,14 @@ class KomponentaOpreme(Base):
     oprema_id = Column(Integer, ForeignKey("oprema.id"), nullable=False, index=True)
     naziv = Column(String(150), nullable=False, index=True)
     opis = Column(Text, nullable=True)
+    proizvodac = Column(String(100), nullable=True)
+    model = Column(String(100), nullable=True)
+    inventurni_broj = Column(String(100), nullable=True, index=True)
+    serijski_broj = Column(String(100), nullable=True, index=True)
     aktivna = Column(Boolean, default=True, nullable=False)
+    qr_oznaka = Column(String(32), unique=True, nullable=True, index=True, default=nova_qr_oznaka)
     kreiran = Column(DateTime(timezone=True), server_default=func.now())
+    azurirano = Column(DateTime(timezone=True), nullable=True, onupdate=func.now())
 
     oprema = relationship("Oprema", back_populates="komponente")
     kvarovi = relationship("Kvar", back_populates="komponenta")
@@ -314,6 +337,16 @@ class KvarPrilog(Base):
 
     kvar = relationship("Kvar", back_populates="prilozi")
     korisnik = relationship("Korisnik")
+
+
+class Postavka(Base):
+    """Small key/value facts about this database. Used for the disposable-test-database marker that
+    app/reset_test_data.py requires before it deletes anything (see that module)."""
+    __tablename__ = "postavke"
+
+    kljuc = Column(String(80), primary_key=True)
+    vrijednost = Column(Text, nullable=True)
+    kreiran = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class ZadatakIzvrsenje(Base):

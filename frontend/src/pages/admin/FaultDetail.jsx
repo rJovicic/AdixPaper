@@ -333,7 +333,7 @@ export default function FaultDetail() {
               <PriorityTile priority={item.prioritet} className="mt-0.5" />
               <div className="min-w-0 flex-1">
                 <p className="flex min-w-0 items-baseline gap-2 text-sm font-semibold text-ink-2">
-                  <span className="truncate">{item.oprema?.naziv}</span>
+                  <span className="min-w-0 break-words">{item.oprema?.naziv}{item.komponenta ? ` → ${item.komponenta.naziv}` : ''}</span>
                   <FaultNumber id={item.id} size="sm" className="shrink-0 text-base" />
                 </p>
                 <h1 className="mt-0.5 text-xl font-semibold leading-snug sm:text-2xl">{item.naslov}</h1>
@@ -369,7 +369,12 @@ export default function FaultDetail() {
               <LabelFields
                 items={[
                   { label: t('fault.machine'), value: [item.oprema?.naziv, item.oprema?.lokacija].filter(Boolean).join(' · ') },
-                  { label: t('fault.component'), value: item.komponenta?.naziv || t('fault.componentGeneral') },
+                  {
+                    label: t('fault.component'),
+                    value: item.komponenta
+                      ? <Link to={`/admin/oprema/${item.oprema_id}/komponente/${item.komponenta.id}`} className="link">{[item.komponenta.naziv, item.komponenta.model, item.komponenta.proizvodac].filter(Boolean).join(' · ')}</Link>
+                      : t('fault.componentGeneral'),
+                  },
                   { label: t('fault.reportedBy'), value: item.prijavio ? `${item.prijavio.ime} ${item.prijavio.prezime}` : '—' },
                   { label: t('fault.reportedAt'), value: format.dateTime(item.datum_prijave) },
                   { label: t('fault.assignee'), value: item.voditelj ? `${item.voditelj.ime} ${item.voditelj.prezime}` : t('fault.unassigned') },

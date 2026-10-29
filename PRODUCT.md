@@ -51,7 +51,10 @@ Built around this plant's own machines, components and spare-parts catalogue (66
 - Workers see status, assignee, waiting reason, work done, photos and public comments of their own faults; never costs, material, parts or internal notes.
 - While reporting, a worker sees the open faults already on that machine (number, title, status, part, time — no names) and may still report.
 - Two leads saving the same fault: the second save, made from an older version, is refused (409) and the page offers to load the latest. Nothing is overwritten silently.
-- Each machine can have a printed QR label linking to `/m/<id>`.
+- **Machine → component → fault.** A machine (main machine / production line, e.g. AMICA MATRIX) has components (e.g. ODMOTAČ 2, model BS 2602, PCMC). A fault always names its machine and, when known, one of that machine's components; otherwise it is on the machine as a whole. The server refuses a component of another machine, and new reports on a decommissioned machine or a deactivated component.
+- Machines and components carry optional inventory and serial numbers (never invented; "Nije uneseno" until entered). An inventory number is unique across all machines and components; a component's serial number is unique per manufacturer; a machine's serial number is unique among machines.
+- Every machine and every component has its own QR label linking to `/q/<identifier>` (opaque, random, from the server). A component label opens the report with that component chosen; a machine label opens it with "whole machine" chosen and the components offered. Reprinting keeps the code; only an explicit "New QR code" retires old labels. Labels printed before 2026-10-30 (`/m/<id>`) keep working.
+- A component with fault history is deactivated, never deleted; its history stays.
 - Single plant timezone; single currency (EUR).
 
 ## Brand Commitments

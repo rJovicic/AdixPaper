@@ -114,13 +114,19 @@ class KorisnikMini(BaseModel):
 
 
 # --- OPREMA ---
+# Inventory and serial numbers: optional (not every manufacturer supplies them, and they are often
+# entered later); letters, digits and common separators only, so a value can be typed and searched.
+AssetCode = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[0-9A-Za-zČĆĐŠŽčćđšž][0-9A-Za-zČĆĐŠŽčćđšž ./_#-]*$")]
+
+
 class OpremaBase(CleanModel):
     naziv: str
-    tip: str
+    tip: Optional[str] = None
     tvrtka: Optional[TvrtkaEnum] = None
     proizvodac: Optional[str] = None
     model: Optional[str] = None
     serijski_broj: Optional[str] = None
+    inventurni_broj: Optional[str] = None
     lokacija: Optional[str] = None
     datum_kupnje: Optional[date] = None
     status: Optional[StatusOpremaEnum] = StatusOpremaEnum.aktivno
@@ -128,10 +134,11 @@ class OpremaBase(CleanModel):
 
 class OpremaCreate(OpremaBase):
     naziv: Annotated[str, Field(min_length=1, max_length=200)]
-    tip: Name
+    tip: OptionalName = None
     proizvodac: OptionalName = None
     model: OptionalName = None
-    serijski_broj: OptionalName = None
+    serijski_broj: Optional[AssetCode] = None
+    inventurni_broj: Optional[AssetCode] = None
     lokacija: Optional[Annotated[str, Field(max_length=150)]] = None
     napomene: Optional[LongText] = None
 
@@ -139,22 +146,26 @@ class OpremaCreate(OpremaBase):
 
 class OpremaUpdate(CleanModel):
     naziv: Optional[Annotated[str, Field(min_length=1, max_length=200)]] = None
-    tip: Optional[Name] = None
+    tip: OptionalName = None
     tvrtka: Optional[TvrtkaEnum] = None
     proizvodac: OptionalName = None
     model: OptionalName = None
-    serijski_broj: OptionalName = None
+    serijski_broj: Optional[AssetCode] = None
+    inventurni_broj: Optional[AssetCode] = None
     lokacija: Optional[Annotated[str, Field(max_length=150)]] = None
     datum_kupnje: Optional[date] = None
     status: Optional[StatusOpremaEnum] = None
     napomene: Optional[LongText] = None
 
-    require_values = not_null("naziv", "tip", "status")
+    require_values = not_null("naziv", "status")
 
 class OpremaOut(OpremaBase):
     id: int
     qr_kod: Optional[str] = None
+    qr_oznaka: Optional[str] = None
+    aktivna: bool = True
     kreiran: datetime
+    azurirano: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -162,6 +173,7 @@ class OpremaMini(BaseModel):
     id: int
     naziv: str
     lokacija: Optional[str] = None
+    inventurni_broj: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -169,6 +181,10 @@ class OpremaMini(BaseModel):
 class KomponentaBase(CleanModel):
     naziv: Annotated[str, Field(min_length=1, max_length=150)]
     opis: Optional[LongText] = None
+    proizvodac: OptionalName = None
+    model: OptionalName = None
+    inventurni_broj: Optional[AssetCode] = None
+    serijski_broj: Optional[AssetCode] = None
     aktivna: bool = True
 
 
@@ -179,6 +195,10 @@ class KomponentaCreate(KomponentaBase):
 class KomponentaUpdate(CleanModel):
     naziv: Optional[Annotated[str, Field(min_length=1, max_length=150)]] = None
     opis: Optional[LongText] = None
+    proizvodac: OptionalName = None
+    model: OptionalName = None
+    inventurni_broj: Optional[AssetCode] = None
+    serijski_broj: Optional[AssetCode] = None
     aktivna: Optional[bool] = None
 
     require_values = not_null("naziv", "aktivna")
@@ -187,19 +207,62 @@ class KomponentaUpdate(CleanModel):
 class KomponentaOut(KomponentaBase):
     id: int
     oprema_id: int
+    qr_oznaka: Optional[str] = None
     kreiran: datetime
+    azurirano: Optional[datetime] = None
+    # Filled by the machine detail and component endpoints (leads/admins).
+    aktivni_kvarovi: int = 0
+    ukupno_kvarova: int = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class KomponentaDetalj(KomponentaOut):
+    oprema: Optional["OpremaMini"] = None
 
 
 class KomponentaMini(BaseModel):
     id: int
     naziv: str
+    model: Optional[str] = None
+    proizvodac: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
+class QrMasina(BaseModel):
+    id: int
+    naziv: str
+    proizvodac: Optional[str] = None
+    model: Optional[str] = None
+    lokacija: Optional[str] = None
+    aktivna: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class QrKomponenta(BaseModel):
+    id: int
+    naziv: str
+    proizvodac: Optional[str] = None
+    model: Optional[str] = None
+    aktivna: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class QrCilj(BaseModel):
+    """What a scanned label points at: a machine, or one of its components. Only what someone
+    reporting needs (names, model, manufacturer, whether it is in use); no costs or identifiers."""
+    vrsta: Literal["masina", "komponenta"]
+    oprema: QrMasina
+    komponenta: Optional[QrKomponenta] = None
+
+
 class OpremaWithStats(OpremaOut):
     broj_kvarova: int = 0
+    broj_komponenti: int = 0
+    aktivni_kvarovi: int = 0
+    hitni_kvarovi: int = 0
     # Repair cost (labour + spare parts at their recorded prices); for leads and admins, None for workers.
     ukupni_troskovi: Optional[float] = 0
     zadnji_kvar: Optional[datetime] = None
@@ -596,10 +659,23 @@ class AnalitikaMasina(BaseModel):
     naziv: str
     lokacija: Optional[str] = None
     kvarovi: int
+    na_cijeloj_masini: int = 0
     zastoj_min: int
     trosak: float
     vrijeme_do_rjesenja_min: Optional[float] = None
     mtbf_sati: Optional[float] = None
+
+
+class AnalitikaKomponenta(BaseModel):
+    komponenta_id: int
+    naziv: str
+    oprema_id: int
+    oprema: str
+    model: Optional[str] = None
+    kvarovi: int
+    zastoj_min: int
+    trosak: float
+    vrijeme_do_rjesenja_min: Optional[float] = None
 
 
 class AnalitikaCekanje(BaseModel):
@@ -640,6 +716,7 @@ class Analitika(BaseModel):
     sazetak: AnalitikaSazetak
     prethodno: AnalitikaSazetak
     masine: List[AnalitikaMasina]
+    komponente: List[AnalitikaKomponenta] = []
     cekanje: List[AnalitikaCekanje]
     ponavljanja: List[AnalitikaPonavljanje]
     dijelovi: List[AnalitikaDio]

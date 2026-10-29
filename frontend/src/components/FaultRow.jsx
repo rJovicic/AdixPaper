@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, CornerDownRight } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { slaInfo } from '../lib/sla'
 import { PriorityMark, PriorityTile, StatusMark, WaitingTag } from './ui/Marks'
@@ -47,6 +47,13 @@ export default function FaultRow({ fault, to, highlight = false, updated = false
             <span className="ml-auto shrink-0 rounded-full bg-brand px-2 py-px text-[0.6875rem] font-bold text-stock">{t('worker.updated')}</span>
           )}
         </span>
+        {/* The component on its own line, wrapping rather than cut: "ODMOTAČ 1" and "ODMOTAČ 2" must stay apart. */}
+        {fault.komponenta && (
+          <span className="mt-0.5 flex items-start gap-1 text-sm font-medium text-ink">
+            <CornerDownRight size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-ink-3" />
+            <span className="break-words">{fault.komponenta.naziv}</span>
+          </span>
+        )}
         {fault.oprema?.naziv && <span className="mt-0.5 block truncate text-sm text-ink-2">{fault.naslov}</span>}
         <span className="mt-2 flex flex-wrap items-center gap-1.5">
           {!resolved && <PriorityMark priority={fault.prioritet} className="text-[0.75rem]" />}
