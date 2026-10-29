@@ -40,11 +40,21 @@ def login(base):
     return data["access_token"]
 
 
+def _unit_price(usage):
+    if "jedinicna_cijena" in usage:
+        return usage["jedinicna_cijena"]
+    return (usage.get("rezervni_dio") or {}).get("cijena")
+
+
 def snapshot(base):
     token = login(base)
     faults = call(base, "GET", "/api/kvarovi", token)[1]
     events = {f["id"]: len(call(base, "GET", f"/api/kvarovi/{f['id']}/dogadjaji", token)[1]) for f in faults}
+    details = {f["id"]: call(base, "GET", f"/api/kvarovi/{f['id']}", token)[1] for f in faults}
     return {
+        # Parts cost per fault as the release showed it. After the upgrade it must be the same,
+        # read from the recorded unit prices (jedinicna_cijena) instead of the catalogue.
+        "parts_cost": {k: round(sum(float(u["kolicina"]) * float(_unit_price(u) or 0) for u in d.get("utroseni_dijelovi", [])), 2) for k, d in details.items()},
         "faults": sorted((f["id"], f["status"], f["prioritet"], f["naslov"]) for f in faults),
         "events": events,
         "machines": len(call(base, "GET", "/api/oprema", token)[1]),
@@ -61,6 +71,12 @@ def verify(base, before):
     for key in ("machines", "users", "parts"):
         assert after[key] == before[key], f"{key} changed: {before[key]} -> {after[key]}"
     assert before["faults"], "nothing to check: seed the old release first"
+
+    assert {int(k): v for k, v in before["parts_cost"].items()} == {int(k): v for k, v in after["parts_cost"].items()}, "parts costs changed"
+    for fault_id, fault_status, *_ in before["faults"]:
+        status, fault = call(base, "GET", f"/api/kvarovi/{fault_id}", token)
+        # Every fault that left "Novo" got its first response from its own record.
+        assert fault_status == "Novo" or fault["datum_odziva"], f"fault {fault_id} has no first response after the upgrade"
 
     fault_id = before["faults"][0][0]
     status, fault = call(base, "GET", f"/api/kvarovi/{fault_id}", token)

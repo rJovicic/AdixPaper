@@ -219,3 +219,18 @@
 ## 2026-10-28 · Live updates survive a sleeping phone
 - Decided by: Claude, from production logs (desktop streams lasted the full 10 minutes; iPhone streams ended after seconds, when the app went to the background)
 - What: the client drops a stream that has been silent for 45 s (the server pings every 20 s) and reconnects when the app returns after more than 15 s in the background or from the back-forward cache; the greeting then re-reads every screen.
+
+## 2026-10-29 · Response windows end at the first response, not at resolution
+- Decided by: the owner; definition and mechanics by Claude
+- What: 2 h / 8 h / 48 h run from the report to the first response = the first time a lead or admin moves the fault out of "Novo" (take, hold or resolve), stored once as `kvarovi.datum_odziva`. Reopening keeps it. Only faults still waiting for it are overdue / due soon. Analytics: "Time to first response" (replaces "time to take") and "Responded on time" = of faults reported in the period, first response within the window; no response after the window counts late, still-inside-window faults are not judged yet. MTTR stays separate.
+- Rejected: counting a comment or an assignment as a response (does not mean someone is acting; easy to game); measuring to `datum_pocetka` (set only on "U rješavanju", so a fault put on hold first would look unanswered).
+- Existing data: filled once when the column is added, from the first timeline change away from "Novo", else start/resolution time; faults still new stay empty. Faults that left "Novo" with no trace stay empty and are not judged.
+
+## 2026-10-29 · Spare-part usage keeps its unit price
+- Decided by: the owner; mechanics by Claude
+- What: `kvar_rezervni_dijelovi.jedinicna_cijena` is copied from the catalogue when a part is added to a fault and carried over when the list is re-saved. Costs everywhere use it. Rows that existed before got the catalogue price at the upgrade, flagged `cijena_naknadno` (shown in the parts export), because the price on the day of use is unknown.
+- Rejected: a price-history table (more machinery than the need); computing from the catalogue at read time (the problem being fixed).
+
+## 2026-10-29 · Catalogue prices and stock removed from the tracked seed file
+- Decided by: Claude (owner: treat supplier prices and stock as commercially sensitive)
+- What: `backend/app/seed_data/spareparts.csv` keeps supplier, code, name, unit. Production is unaffected (the seed loads only into an empty table). The old file remains in Git history (commit `08db6e1`) until the owner authorises a history rewrite or makes the repository private.

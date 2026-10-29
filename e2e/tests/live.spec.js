@@ -307,3 +307,17 @@ test('the icon family is served: rounded and full-bleed sizes, an SVG favicon, t
   // PNG colour type byte (offset 25): 2 = RGB without alpha, which iOS needs to avoid a black ground.
   expect(apple[25]).toBe(2)
 })
+
+test('offline, every screen says the data may be behind; back online, the notice goes away', async ({ page, context, request }) => {
+  const { worker } = await setupFixture(request)
+  await page.setViewportSize(PHONE)
+  await signIn(page, worker)
+  await page.goto('/radnik/kvarovi')
+  await settle(page)
+  const notice = page.getByText('Izvan mreže · prikazani su posljednji učitani podaci')
+  await expect(notice).toHaveCount(0)
+  await context.setOffline(true)
+  await expect(notice).toBeVisible()
+  await context.setOffline(false)
+  await expect(notice).toHaveCount(0, { timeout: 15_000 })
+})

@@ -89,7 +89,8 @@ def send_notification(
 
         if not settings.VAPID_PRIVATE_KEY:
             raise HTTPException(status_code=400, detail="Push notifikacije nisu konfigurirane")
-        pretplate = db.query(PushPretplata).all()
+        # Active accounts only: a deactivated person's phone keeps no line into the plant.
+        pretplate = db.query(PushPretplata).join(Korisnik, PushPretplata.korisnik_id == Korisnik.id).filter(Korisnik.aktivan == True).all()  # noqa: E712
         sent = 0
         mrtve = []
         for p in pretplate:

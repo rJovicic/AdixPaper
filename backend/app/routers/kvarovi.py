@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, or_
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from io import BytesIO
 import json
@@ -26,7 +26,6 @@ from ..models import (
     RolaEnum,
     PrioritetEnum,
     StatusKvaraEnum,
-    SLA_SATI,
     RAZLOZI_CEKANJA,
 )
 from ..schemas import (
@@ -60,6 +59,12 @@ def _enum_value(value) -> str:
 OPEN_FILTER = "otvoreni"
 MAX_PRILOGA = 6
 CONFLICT_DETAIL = "Kvar je u međuvremenu izmijenjen. Učitajte najnovije stanje pa ponovite promjenu."
+WORK_DONE_REQUIRED = "Prije zatvaranja kvara upišite što je napravljeno"
+INVALID_DATES = "Neispravan datum: ne može biti prije prijave, u budućnosti ni proturječiti statusu kvara"
+# Resolution details only leads and admins see (KVAR_INTERNAL_FIELDS); changes to them stay off the worker's timeline.
+INTERNAL_DETAIL_FIELDS = {"materijal", "troskovi", "napomene_voditelja"}
+# Tolerance for a client clock slightly ahead of the server's when a lead corrects a date.
+CLOCK_SKEW = timedelta(minutes=2)
 
 
 def _enum_param(enum_cls, value: Optional[str]):
@@ -95,19 +100,10 @@ def _kvar_for(kvar: Kvar, user: Korisnik) -> KvarOut:
     return out
 
 
-def _sla_ratio(kvar: Kvar, now: Optional[datetime] = None) -> Optional[float]:
-    if kvar.status == StatusKvaraEnum.rijeseno:
-        return None
-    limit = SLA_SATI.get(_enum_value(kvar.prioritet))
-    if not limit or not kvar.datum_prijave:
-        return None
-    now = now or utcnow()
-    elapsed = (now - as_utc(kvar.datum_prijave)).total_seconds() / 3600
-    return elapsed / limit
-
-
 def _sla_state(kvar: Kvar, now: Optional[datetime] = None) -> str:
-    ratio = _sla_ratio(kvar, now)
+    """Against the response window, for faults still waiting for a first response:
+    kasni / uskoro (last quarter) / ok. Everything else (responded, resolved) is "nema"."""
+    ratio = kvar.udio_roka_u(now or utcnow())
     if ratio is None:
         return "nema"
     if ratio >= 1:
@@ -117,10 +113,13 @@ def _sla_state(kvar: Kvar, now: Optional[datetime] = None) -> str:
     return "ok"
 
 
-SLA_LABELS = {"kasni": "Kasni", "uskoro": "Ističe uskoro", "ok": "U roku", "nema": "—"}
+SLA_LABELS = {"kasni": "Odziv kasni", "uskoro": "Odziv uskoro", "ok": "Čeka odziv", "nema": "—"}
 
 
 def _sla_label(kvar: Kvar) -> str:
+    """The response-window column of exports: still waiting, or how the first response went."""
+    if kvar.odziv_u_roku is not None:
+        return "Odziv u roku" if kvar.odziv_u_roku else "Odziv izvan roka"
     return SLA_LABELS[_sla_state(kvar)]
 
 
@@ -234,7 +233,8 @@ def _query_kvarovi(
             records = [k for k in records if _sla_state(k) == wanted_sla]
         if sort == "rizik":
             far = datetime.max.replace(tzinfo=timezone.utc)
-            records.sort(key=lambda k: (k.rok if k.otvoren and k.rok else far))
+            # Faults still waiting for a first response, nearest deadline first; the rest after.
+            records.sort(key=lambda k: (k.rok if k.ceka_odziv and k.rok else far))
         total = len(records)
         return (records[offset:offset + limit] if limit else records), total
     if limit:
@@ -332,6 +332,27 @@ def _parts_signature(items) -> list:
         get = item.get if isinstance(item, dict) else lambda key, _i=item: getattr(_i, key)
         rows.append((int(get("rezervni_dio_id")), Decimal(str(get("kolicina"))).normalize(), get("napomena") or None))
     return sorted(rows, key=lambda row: (row[0], row[1], row[2] or ""))
+
+
+def _check_lifecycle_dates(kvar: Kvar, update_data: dict) -> None:
+    """Dates a lead sets by hand must fit the record: not before the report, not in the future,
+    start before resolution, and a resolution date only on a resolved fault."""
+    supplied = [field for field in ("datum_pocetka", "datum_rjesavanja") if field in update_data]
+    if not supplied:
+        return
+    latest = utcnow() + CLOCK_SKEW
+    reported = as_utc(kvar.datum_prijave) if kvar.datum_prijave else None
+    for field in supplied:
+        value = getattr(kvar, field)
+        if value is None:  # cleared by a status change in the same save
+            continue
+        value = as_utc(value)
+        if value > latest or (reported is not None and value < reported):
+            raise HTTPException(status_code=400, detail=INVALID_DATES)
+    if "datum_rjesavanja" in supplied and kvar.status != StatusKvaraEnum.rijeseno:
+        raise HTTPException(status_code=400, detail=INVALID_DATES)
+    if kvar.datum_pocetka and kvar.datum_rjesavanja and as_utc(kvar.datum_pocetka) > as_utc(kvar.datum_rjesavanja):
+        raise HTTPException(status_code=400, detail=INVALID_DATES)
 
 
 def _load_kvar(kvar_id: int, db: Session) -> Kvar:
@@ -433,8 +454,8 @@ def export_kvarovi_xlsx(
     ws = wb.active
     ws.title = "Kvarovi"
     headers = [
-        "ID", "Naslov", "Oprema", "Lokacija", "Prioritet", "Status", "Rok",
-        "Prijavio", "Voditelj", "Datum prijave", "Datum pocetka", "Datum rjesavanja",
+        "ID", "Naslov", "Oprema", "Lokacija", "Prioritet", "Status", "Odziv",
+        "Prijavio", "Voditelj", "Datum prijave", "Prvi odziv", "Datum pocetka", "Datum rjesavanja",
         "Trajanje min", "Troskovi EUR", "Materijal", "Sto je uradjeno"
     ]
     ws.append(headers)
@@ -459,6 +480,7 @@ def export_kvarovi_xlsx(
             _user_label(k.prijavio),
             _user_label(k.voditelj),
             local_naive(k.datum_prijave),
+            local_naive(k.datum_odziva),
             local_naive(k.datum_pocetka),
             local_naive(k.datum_rjesavanja),
             k.trajanje_min or 0,
@@ -522,7 +544,7 @@ def export_utroseni_dijelovi_xlsx(
         ws = wb.create_sheet(title=title)
         headers = [
             "Dobavljac", "Kvar ID", "Datum", "Oprema", "Komponenta", "Dio",
-            "Sifra", "Kolicina", "Jedinica", "Zaliha", "Cijena EUR", "Ukupno EUR", "Napomena"
+            "Sifra", "Kolicina", "Jedinica", "Zaliha", "Cijena EUR", "Ukupno EUR", "Napomena", "Cijena upisana naknadno"
         ]
         ws.append(headers)
         for cell in ws[1]:
@@ -533,7 +555,8 @@ def export_utroseni_dijelovi_xlsx(
             dio = item.rezervni_dio
             kvar = item.kvar
             qty = float(item.kolicina or 0)
-            price = float(dio.cijena or 0) if dio else 0
+            # The price recorded when the part was used, not today's catalogue price.
+            price = float(item.jedinicna_cijena or 0)
             ws.append([
                 supplier,
                 kvar.id if kvar else "",
@@ -548,6 +571,7 @@ def export_utroseni_dijelovi_xlsx(
                 price,
                 qty * price,
                 item.napomena or "",
+                "da" if item.cijena_naknadno else "",
             ])
 
         for column in ws.columns:
@@ -592,7 +616,7 @@ def export_kvarovi_pdf(
         Spacer(1, 12),
     ]
 
-    rows = [["ID", "Naslov", "Mašina", "Prioritet", "Status", "Rok", "Prijava", "Trošak €"]]
+    rows = [["ID", "Naslov", "Mašina", "Prioritet", "Status", "Odziv", "Prijava", "Trošak €"]]
     for k in records:
         rows.append([
             str(k.id),
@@ -605,7 +629,7 @@ def export_kvarovi_pdf(
             f"{float(k.troskovi or 0):.2f}",
         ])
 
-    table = Table(rows, repeatRows=1, colWidths=[34, 180, 150, 72, 86, 58, 72, 58])
+    table = Table(rows, repeatRows=1, colWidths=[34, 170, 150, 72, 86, 92, 72, 58])
     table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(BRAND_BLUE)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -779,9 +803,14 @@ def update_kvar(
     expected_version = update_data.pop("verzija", None)
     if expected_version is not None and expected_version != kvar.verzija:
         raise HTTPException(status_code=409, detail=CONFLICT_DETAIL)
-    for required in ("status", "prioritet"):
+    # Explicit nulls cannot clear these: status and priority are required, and the lifecycle
+    # dates are set and cleared by status changes, not by the client.
+    for required in ("status", "prioritet", "datum_pocetka", "datum_rjesavanja"):
         if update_data.get(required, "") is None:
             update_data.pop(required)
+    for field in ("datum_pocetka", "datum_rjesavanja"):
+        if field in update_data:
+            update_data[field] = as_utc(update_data[field])
     parts_payload = update_data.pop("utroseni_dijelovi", None)
     waiting_reason = update_data.pop("razlog_cekanja", None)
     old_waiting_reason = kvar.razlog_cekanja
@@ -812,6 +841,9 @@ def update_kvar(
 
     if "status" in update_data and _enum_value(update_data["status"]) != old_status:
         new_status = update_data["status"]
+        if old_status == StatusKvaraEnum.novo.value and kvar.datum_odziva is None:
+            # First response: the first time a lead moves the fault on from "Novo".
+            kvar.datum_odziva = utcnow()
         if new_status == StatusKvaraEnum.u_rjesavanju:
             if not kvar.datum_pocetka:
                 kvar.datum_pocetka = utcnow()
@@ -820,8 +852,6 @@ def update_kvar(
             if not kvar.voditelj_id:
                 kvar.voditelj_id = current_user.id
         if new_status == StatusKvaraEnum.rijeseno:
-            if not (kvar.sto_je_uradjeno or "").strip():
-                raise HTTPException(status_code=400, detail="Prije zatvaranja kvara upišite što je napravljeno")
             if not kvar.datum_rjesavanja:
                 kvar.datum_rjesavanja = utcnow()
         else:
@@ -839,6 +869,11 @@ def update_kvar(
     else:
         kvar.razlog_cekanja = None
         kvar.cekanje_od = None
+
+    # A resolved fault always says what was done, whether it was just resolved or edited later.
+    if kvar.status == StatusKvaraEnum.rijeseno and not (kvar.sto_je_uradjeno or "").strip():
+        raise HTTPException(status_code=400, detail=WORK_DONE_REQUIRED)
+    _check_lifecycle_dates(kvar, update_data)
 
     db.flush()
 
@@ -902,16 +937,21 @@ def update_kvar(
         field for field in detail_fields
         if field in update_data and _normalized(old_details[field]) != _normalized(getattr(kvar, field))
     )
-    if changed_details:
-        _add_event(
-            db,
-            kvar,
-            current_user,
-            "details",
-            "Ažurirani detalji rješavanja",
-            podaci={"fields": changed_details},
-            interno=changed_details == ["napomene_voditelja"],
-        )
+    # One entry for what the reporter may see (work done, downtime), one internal for the rest.
+    for fields, interno in (
+        ([f for f in changed_details if f not in INTERNAL_DETAIL_FIELDS], False),
+        ([f for f in changed_details if f in INTERNAL_DETAIL_FIELDS], True),
+    ):
+        if fields:
+            _add_event(
+                db,
+                kvar,
+                current_user,
+                "details",
+                "Ažurirani detalji rješavanja",
+                podaci={"fields": fields},
+                interno=interno,
+            )
 
     if parts_payload is not None and _parts_signature(parts_payload) == _parts_signature(
         [{"rezervni_dio_id": u.rezervni_dio_id, "kolicina": u.kolicina, "napomena": u.napomena} for u in kvar.utroseni_dijelovi]
@@ -919,6 +959,9 @@ def update_kvar(
         parts_payload = None  # unchanged: keep rows and avoid a spurious timeline entry
 
     if parts_payload is not None:
+        # Parts already on this fault stay valid after they leave the catalogue; new ones must be active.
+        # Their recorded unit price is carried over, so re-saving the list never re-prices the past.
+        parts_on_fault = {u.rezervni_dio_id: (u.jedinicna_cijena, u.cijena_naknadno) for u in kvar.utroseni_dijelovi}
         db.query(KvarRezervniDio).filter(KvarRezervniDio.kvar_id == kvar.id).delete()
         for item in parts_payload:
             rezervni_dio_id = item.get("rezervni_dio_id") if isinstance(item, dict) else item.rezervni_dio_id
@@ -927,12 +970,16 @@ def update_kvar(
 
             if kolicina <= 0:
                 raise HTTPException(status_code=400, detail="Količina rezervnog dijela mora biti veća od nule")
-            if not db.query(RezervniDio.id).filter(RezervniDio.id == rezervni_dio_id, RezervniDio.aktivan == True).first():
+            part = db.query(RezervniDio.id, RezervniDio.aktivan, RezervniDio.cijena).filter(RezervniDio.id == rezervni_dio_id).first()
+            if not part or not (part.aktivan or rezervni_dio_id in parts_on_fault):
                 raise HTTPException(status_code=404, detail="Rezervni dio nije pronađen")
+            price, recorded_later = parts_on_fault.get(rezervni_dio_id, (part.cijena, False))
             db.add(KvarRezervniDio(
                 kvar_id=kvar.id,
                 rezervni_dio_id=rezervni_dio_id,
                 kolicina=kolicina,
+                jedinicna_cijena=price,
+                cijena_naknadno=recorded_later,
                 napomena=napomena,
             ))
         _add_event(
@@ -942,6 +989,7 @@ def update_kvar(
             "parts",
             "Ažurirani utrošeni rezervni dijelovi",
             podaci={"count": len(parts_payload)},
+            interno=True,
         )
 
     kvar.verzija = (kvar.verzija or 1) + 1
@@ -989,9 +1037,12 @@ def add_prilog(
     db: Session = Depends(get_db),
     current_user: Korisnik = Depends(get_current_user),
 ):
-    """Attach a photo. The reporter (worker) and leads/admins may add up to MAX_PRILOGA per fault."""
+    """Attach a photo, up to MAX_PRILOGA per fault: the reporter (worker) while the fault is open,
+    leads/admins at any time."""
     kvar = _load_kvar(kvar_id, db)
     _ensure_kvar_access(kvar, current_user)
+    if not _can_manage(current_user) and not kvar.otvoren:
+        raise HTTPException(status_code=403, detail="Fotografije se mogu dodati samo dok je kvar otvoren")
     if db.query(func.count(KvarPrilog.id)).filter(KvarPrilog.kvar_id == kvar_id).scalar() >= MAX_PRILOGA:
         raise HTTPException(status_code=400, detail=f"Kvar može imati najviše {MAX_PRILOGA} fotografija")
     raw = datoteka.file.read(12 * 1024 * 1024 + 1)

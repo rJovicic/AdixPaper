@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Pencil, Plus, UserCheck, UserX, Users as UsersIcon } from 'lucide-react'
+import { Pencil, Plus, Search, SearchX, UserCheck, UserX, Users as UsersIcon } from 'lucide-react'
 import { api, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
@@ -132,14 +132,22 @@ export default function Users() {
   const { user: me } = useAuth()
   const [editing, setEditing] = useState(null)
   const [deactivating, setDeactivating] = useState(null)
+  const [query, setQuery] = useState('')
+  const [roleFilter, setRoleFilter] = useState('')
   const users = useAsync(() => api.get('/korisnici').then((response) => asArray(response.data)), [])
 
   useEffect(() => {
     document.title = `${t('users.title')} · ${t('app.name')}`
   }, [t])
 
-  const rows = useMemo(() => [...(users.data || [])].sort((a, b) => Number(b.aktivan) - Number(a.aktivan)), [users.data])
-  const activeCount = rows.filter((user) => user.aktivan).length
+  const all = useMemo(() => [...(users.data || [])].sort((a, b) => Number(b.aktivan) - Number(a.aktivan)), [users.data])
+  const activeCount = all.filter((user) => user.aktivan).length
+  const filtered = Boolean(query.trim() || roleFilter)
+  const rows = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase()
+    return all.filter((user) => (!roleFilter || user.rola === roleFilter)
+      && (!q || `${user.ime} ${user.prezime} ${user.username} ${user.odjel || ''}`.toLocaleLowerCase().includes(q)))
+  }, [all, query, roleFilter])
 
   const setActive = async (user, aktivan) => {
     try {
@@ -203,14 +211,30 @@ export default function Users() {
         actions={<button type="button" className="btn-primary" onClick={() => setEditing('new')}><Plus size={18} aria-hidden="true" /> {t('users.add')}</button>}
       />
 
+      <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem]">
+        <div className="relative">
+          <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
+          <input type="search" className="control pl-9" aria-label={t('common.search')} placeholder={t('users.searchPlaceholder')} value={query} onChange={(event) => setQuery(event.target.value)} />
+        </div>
+        <select className="control" aria-label={t('users.role')} value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+          <option value="">{t('users.allRoles')}</option>
+          {ROLES.map((value) => <option key={value} value={value}>{role(value)}</option>)}
+        </select>
+      </div>
+
       {users.loading && !users.data ? (
         <div className="surface"><LoadingRows rows={4} /></div>
       ) : users.error ? (
         <div className="surface"><ErrorState error={users.error} onRetry={users.reload} /></div>
       ) : rows.length === 0 ? (
-        <div className="surface"><EmptyState icon={UsersIcon} title={t('users.emptyTitle')} /></div>
+        <div className="surface">
+          {filtered
+            ? <EmptyState icon={SearchX} title={t('users.noMatchTitle')} action={<button type="button" className="btn-secondary" onClick={() => { setQuery(''); setRoleFilter('') }}>{t('common.clearFilters')}</button>} />
+            : <EmptyState icon={UsersIcon} title={t('users.emptyTitle')} />}
+        </div>
       ) : (
         <>
+          {filtered && <p className="mb-2 text-meta text-ink-2" role="status">{t('common.results', { n: rows.length })}</p>}
           <ul className="space-y-3 md:hidden">
             {rows.map((user) => (
               <li key={user.id} className={`surface flex items-start gap-3 px-4 py-3 ${user.aktivan ? '' : 'bg-ground/60'}`}>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { PackageSearch, Pencil, Plus, Search, SearchX, Trash2 } from 'lucide-react'
+import { PackageSearch, Pencil, Plus, RotateCcw, Search, SearchX, Trash2 } from 'lucide-react'
 import { api, errorMessage, fieldErrors } from '../../api/client'
 import { asArray, useAsync } from '../../lib/useAsync'
 import { useI18n } from '../../i18n'
@@ -9,6 +9,7 @@ import Dialog from '../../components/ui/Dialog'
 import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import Field from '../../components/ui/Field'
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from '../../components/ui/States'
+import { Badge } from '../../components/ui/Marks'
 
 const PAGE = 100
 const EMPTY_PART = { naziv: '', sifra: '', jedinica: 'kom', cijena: '' }
@@ -79,7 +80,7 @@ function PartDialog({ part, onClose, onSaved }) {
         <Field label={t('parts.unit')} error={errors.jedinica}>
           {(props) => <input {...props} className="control" maxLength={30} value={form.jedinica} onChange={update('jedinica')} />}
         </Field>
-        <Field label={t('parts.price')} error={errors.cijena} optional>
+        <Field label={t('parts.price')} error={errors.cijena} optional hint={part ? t('parts.priceHint') : undefined}>
           {(props) => <input {...props} className="control tabular" type="number" inputMode="decimal" min="0" step="0.01" value={form.cijena} onChange={update('cijena')} />}
         </Field>
       </form>
@@ -95,7 +96,12 @@ export default function SpareParts() {
   const [limit, setLimit] = useState(PAGE)
   const [editing, setEditing] = useState(null) // null | 'new' | part
   const [removing, setRemoving] = useState(null)
-  const parts = useAsync(() => api.get('/rezervni-dijelovi').then((response) => asArray(response.data)), [])
+  // Removed parts stay in the database (fault records point at them); this shows them, to restore one.
+  const [showRemoved, setShowRemoved] = useState(false)
+  const parts = useAsync(
+    () => api.get('/rezervni-dijelovi', { params: showRemoved ? { include_inactive: true } : {} }).then((response) => asArray(response.data)),
+    [showRemoved],
+  )
 
   useEffect(() => {
     document.title = `${t('parts.title')} · ${t('app.name')}`
@@ -111,26 +117,45 @@ export default function SpareParts() {
     try {
       await api.delete(`/rezervni-dijelovi/${removing.id}`)
       toast.success(t('parts.deactivated'))
-      parts.setData((list) => list.filter((part) => part.id !== removing.id))
+      parts.setData((list) => (showRemoved
+        ? list.map((part) => (part.id === removing.id ? { ...part, aktivan: false } : part))
+        : list.filter((part) => part.id !== removing.id)))
     } catch (error) {
       toast.error(errorMessage(error, i18n))
       throw error
     }
   }
 
+  const restore = async (part) => {
+    try {
+      await api.put(`/rezervni-dijelovi/${part.id}`, { aktivan: true })
+      toast.success(t('parts.restored'))
+      parts.setData((list) => list.map((item) => (item.id === part.id ? { ...item, aktivan: true } : item)))
+    } catch (error) {
+      toast.error(errorMessage(error, i18n))
+    }
+  }
+
   const filtered = Boolean(query)
+  const activeCount = (parts.data || []).filter((part) => part.aktivan !== false).length
 
   return (
     <div>
       <PageHeader
         title={t('parts.title')}
-        meta={parts.data ? t('parts.summary', { parts: parts.data.length }) : ' '}
+        meta={parts.data ? t('parts.summary', { parts: activeCount }) : ' '}
         actions={<button type="button" className="btn-primary" onClick={() => setEditing('new')}><Plus size={18} aria-hidden="true" /> {t('parts.add')}</button>}
       />
 
-      <div className="relative mb-4">
-        <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
-        <input type="search" className="control pl-9" aria-label={t('common.search')} placeholder={t('parts.searchPlaceholder')} value={query} onChange={(event) => setQuery(event.target.value)} />
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search size={17} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3" />
+          <input type="search" className="control pl-9" aria-label={t('common.search')} placeholder={t('parts.searchPlaceholder')} value={query} onChange={(event) => setQuery(event.target.value)} />
+        </div>
+        <label className="inline-flex min-h-[2.75rem] cursor-pointer items-center gap-2 text-sm text-ink-2">
+          <input type="checkbox" checked={showRemoved} onChange={(event) => setShowRemoved(event.target.checked)} className="h-5 w-5 accent-[rgb(var(--brand))]" />
+          {t('parts.showRemoved')}
+        </label>
       </div>
 
       {parts.loading && !parts.data ? (
@@ -150,18 +175,22 @@ export default function SpareParts() {
             <table className="w-full text-[0.9375rem]">
               <thead className="table-head">
                 <tr>
-                  <th scope="col" className="px-4 py-2.5 font-medium">{t('parts.name')}</th>
-                  <th scope="col" className="hidden px-4 py-2.5 font-medium sm:table-cell">{t('parts.unit')}</th>
-                  <th scope="col" className="hidden px-4 py-2.5 text-right font-medium sm:table-cell">{t('parts.price')}</th>
+                  <th scope="col" className="w-full px-4 py-2.5 font-medium">{t('parts.name')}</th>
+                  <th scope="col" className="hidden whitespace-nowrap px-4 py-2.5 font-medium sm:table-cell">{t('parts.unit')}</th>
+                  <th scope="col" className="hidden whitespace-nowrap px-4 py-2.5 text-right font-medium sm:table-cell">{t('parts.price')}</th>
                   <th scope="col" className="w-24 px-4 py-2.5"><span className="sr-only">{t('common.edit')}</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-rule">
                 {rows.slice(0, limit).map((part) => (
-                  <tr key={part.id} className="hover:bg-ground/40">
-                    <td className="max-w-0 px-4 py-2.5">
-                      <span className="block truncate font-medium">{part.naziv}</span>
-                      <span className="block truncate text-meta text-ink-2 tabular">{part.sifra || t('fault.noCode')}</span>
+                  <tr key={part.id} className={part.aktivan === false ? 'bg-ground/50 text-ink-2' : 'hover:bg-ground/40'}>
+                    <td className="px-4 py-2.5">
+                      {/* Two lines before cutting: part names are long and the tail often tells parts apart. */}
+                      <span className="line-clamp-2 break-words font-medium" title={part.naziv}>{part.naziv}</span>
+                      <span className="flex flex-wrap items-center gap-2 text-meta text-ink-2 tabular">
+                        {part.sifra || t('fault.noCode')}
+                        {part.aktivan === false && <Badge tone="neutral" hollow>{t('parts.removed')}</Badge>}
+                      </span>
                     </td>
                     <td className="hidden whitespace-nowrap px-4 py-2.5 text-ink-2 sm:table-cell">{part.jedinica}</td>
                     <td className="hidden px-4 py-2.5 text-right tabular sm:table-cell">{part.cijena === null || part.cijena === undefined ? '—' : format.money(part.cijena)}</td>
@@ -170,9 +199,15 @@ export default function SpareParts() {
                         <button type="button" className="btn-icon" aria-label={`${t('common.edit')}: ${part.naziv}`} onClick={() => setEditing(part)}>
                           <Pencil size={18} aria-hidden="true" />
                         </button>
-                        <button type="button" className="btn-icon hover:bg-urgent-wash hover:text-urgent" aria-label={`${t('parts.deactivate')}: ${part.naziv}`} onClick={() => setRemoving(part)}>
-                          <Trash2 size={18} aria-hidden="true" />
-                        </button>
+                        {part.aktivan === false ? (
+                          <button type="button" className="btn-icon hover:bg-ok-wash hover:text-ok" aria-label={`${t('parts.restore')}: ${part.naziv}`} title={t('parts.restore')} onClick={() => restore(part)}>
+                            <RotateCcw size={18} aria-hidden="true" />
+                          </button>
+                        ) : (
+                          <button type="button" className="btn-icon hover:bg-urgent-wash hover:text-urgent" aria-label={`${t('parts.deactivate')}: ${part.naziv}`} onClick={() => setRemoving(part)}>
+                            <Trash2 size={18} aria-hidden="true" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

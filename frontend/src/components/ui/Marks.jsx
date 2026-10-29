@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowDown, Clock, Wrench } from 'lucide-react'
+import { AlertTriangle, ArrowDown, Check, Clock, Wrench } from 'lucide-react'
 import { useI18n } from '../../i18n'
 import { slaInfo } from '../../lib/sla'
 
@@ -58,7 +58,7 @@ export function PriorityTile({ priority, size = 'md', className = '' }) {
   )
 }
 
-/** Time left in the response window, or how late it is. Renders nothing for resolved faults. */
+/** Time left to the first response, or how late it is. Renders nothing once someone has responded. */
 export function DueTag({ fault, className = '', wrap = false }) {
   const { t, format } = useI18n()
   const info = slaInfo(fault)
@@ -69,6 +69,22 @@ export function DueTag({ fault, className = '', wrap = false }) {
     <span className={`inline-flex items-center gap-1 ${wrap ? '' : 'whitespace-nowrap'} text-sm tabular ${tone} ${className}`}>
       <Clock size={14} aria-hidden="true" className="shrink-0" />
       {info.state === 'late' ? t('sla.overdue', { time }) : t('sla.left', { time })}
+    </span>
+  )
+}
+
+/**
+ * How the first response went, once there is one: "Responded on time" / "Responded late".
+ * Nothing while waiting (DueTag speaks then) or when the record predates first responses.
+ */
+export function ResponseOutcome({ fault, className = '' }) {
+  const { t } = useI18n()
+  if (fault?.odziv_u_roku === null || fault?.odziv_u_roku === undefined) return null
+  const late = fault.odziv_u_roku === false
+  return (
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap text-sm ${late ? 'font-semibold text-urgent' : 'text-ink-2'} ${className}`}>
+      {late ? <Clock size={14} aria-hidden="true" className="shrink-0" /> : <Check size={14} aria-hidden="true" className="shrink-0" />}
+      {t(late ? 'sla.respondedLate' : 'sla.respondedOnTime')}
     </span>
   )
 }

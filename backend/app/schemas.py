@@ -200,7 +200,8 @@ class KomponentaMini(BaseModel):
 
 class OpremaWithStats(OpremaOut):
     broj_kvarova: int = 0
-    ukupni_troskovi: float = 0
+    # Repair cost (labour + spare parts at their recorded prices); for leads and admins, None for workers.
+    ukupni_troskovi: Optional[float] = 0
     zadnji_kvar: Optional[datetime] = None
 
 
@@ -326,6 +327,8 @@ class KvarRezervniDioOut(BaseModel):
     kvar_id: int
     rezervni_dio_id: int
     kolicina: Decimal
+    jedinicna_cijena: Optional[Decimal] = None
+    cijena_naknadno: bool = False
     napomena: Optional[str] = None
     rezervni_dio: Optional[RezervniDioOut] = None
 
@@ -351,6 +354,8 @@ class KvarOut(BaseModel):
     datum_prijave: datetime
     datum_pocetka: Optional[datetime] = None
     datum_rjesavanja: Optional[datetime] = None
+    datum_odziva: Optional[datetime] = None
+    odziv_u_roku: Optional[bool] = None
     oprema: Optional[OpremaMini] = None
     komponenta: Optional[KomponentaMini] = None
     prijavio: Optional[KorisnikMini] = None
@@ -380,6 +385,8 @@ class KvarListOut(BaseModel):
     datum_prijave: datetime
     datum_pocetka: Optional[datetime] = None
     datum_rjesavanja: Optional[datetime] = None
+    datum_odziva: Optional[datetime] = None
+    odziv_u_roku: Optional[bool] = None
     oprema: Optional[OpremaMini] = None
     komponenta: Optional[KomponentaMini] = None
     prijavio: Optional[KorisnikMini] = None
@@ -444,7 +451,15 @@ class PushSubscribeData(BaseModel):
 class PushSend(BaseModel):
     title: ShortText
     body: Annotated[str, Field(max_length=1000)]
-    url: Optional[str] = None
+    # A path inside the app ("/admin/kvarovi/12"); a notification never opens another site.
+    url: Optional[Annotated[str, Field(max_length=500)]] = None
+
+    @field_validator("url")
+    @classmethod
+    def _in_app_path(cls, value):
+        if value is not None and (not value.startswith("/") or value[1:2] in ("/", "\\") or any(c.isspace() or c == "\\" for c in value)):
+            raise PydanticCustomError("in_app_path", "Poveznica mora biti stranica aplikacije")
+        return value
 
 
 # --- DASHBOARD ---
@@ -563,9 +578,12 @@ class AnalitikaSazetak(BaseModel):
     prijavljeno: int
     rijeseno: int
     vrijeme_do_rjesenja_min: Optional[float] = None
-    vrijeme_do_preuzimanja_min: Optional[float] = None
+    # Mean report → first response, over faults first responded to in the period.
+    vrijeme_do_odziva_min: Optional[float] = None
     vrijeme_popravka_min: Optional[float] = None
+    # Faults reported in the period: first response within the window, out of those judged so far.
     sla_u_roku: int
+    sla_ocijenjeno: int = 0
     sla_postotak: Optional[float] = None
     zastoj_min: int
     zastoj_evidentiran: int

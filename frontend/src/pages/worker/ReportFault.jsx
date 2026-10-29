@@ -134,7 +134,9 @@ function MachinePicker({ machines, value, onChange, error, inputRef, scanned }) 
         aria-labelledby={labelId}
         aria-describedby={error ? errorId : undefined}
         aria-invalid={error ? true : undefined}
-        className={`max-h-[min(26rem,52dvh)] overflow-y-auto rounded-md border ${error ? 'border-urgent' : 'border-rule'}`}
+        // relative: the visually hidden radios are positioned inside the scroll box; without it they
+        // escaped it and stretched the page by the full list length (blank scroll on phones).
+        className={`relative max-h-[min(26rem,52dvh)] overflow-y-auto rounded-md border ${error ? 'border-urgent' : 'border-rule'}`}
       >
         {shown.length === 0 ? (
           <p className="px-4 py-5 text-center text-ink-2">{t('report.machineNone')}</p>
@@ -143,7 +145,7 @@ function MachinePicker({ machines, value, onChange, error, inputRef, scanned }) 
           return (
             <label
               key={machine.id}
-              className={`flex min-h-[3.5rem] cursor-pointer items-center gap-3 border-b border-rule px-3 py-2.5 transition-colors last:border-b-0
+              className={`relative flex min-h-[3.5rem] cursor-pointer items-center gap-3 border-b border-rule px-3 py-2.5 transition-colors last:border-b-0
                 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:-outline-offset-2 has-[:focus-visible]:outline-brand
                 ${checked ? 'bg-brand-wash' : 'bg-stock hover:bg-ground/70'}`}
             >

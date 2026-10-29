@@ -6,9 +6,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
 from ..database import get_db
-from ..models import Oprema, Kvar, Korisnik, KomponentaOpreme, StatusOpremaEnum, TvrtkaEnum
+from ..models import Oprema, Kvar, Korisnik, KomponentaOpreme, KvarRezervniDio, StatusOpremaEnum, TvrtkaEnum
 from ..schemas import OpremaCreate, OpremaOut, OpremaUpdate, OpremaWithStats, KomponentaCreate, KomponentaUpdate, KomponentaOut
-from ..auth import get_current_user, require_admin, require_voditelj_or_admin
+from ..auth import get_current_user, require_admin, require_voditelj_or_admin, role_value
 from ..config import settings
 
 router = APIRouter(prefix="/api/oprema", tags=["oprema"])
@@ -19,7 +19,7 @@ def get_oprema(
     status: Optional[StatusOpremaEnum] = Query(None),
     tvrtka: Optional[TvrtkaEnum] = Query(None),
     db: Session = Depends(get_db),
-    _: Korisnik = Depends(get_current_user)
+    current_user: Korisnik = Depends(get_current_user)
 ):
     query = db.query(Oprema)
     if search:
@@ -47,17 +47,37 @@ def get_oprema(
         ).group_by(Kvar.oprema_id).all()
     }
 
+    parts = _parts_cost(db)
+
     result = []
     for o in oprema_list:
         item = OpremaWithStats.model_validate(o)
         row = stats.get(o.id)
         if row:
             item.broj_kvarova = row.broj or 0
-            item.ukupni_troskovi = float(row.troskovi or 0)
+            item.ukupni_troskovi = float(row.troskovi or 0) + parts.get(o.id, 0.0)
             item.zadnji_kvar = row.zadnji
-        result.append(item)
+        result.append(_for_user(item, current_user))
 
     return result
+
+def _parts_cost(db: Session, oprema_id: Optional[int] = None) -> dict:
+    """Spare-part cost per machine at the prices recorded when the parts were used."""
+    query = db.query(
+        Kvar.oprema_id,
+        func.coalesce(func.sum(KvarRezervniDio.kolicina * func.coalesce(KvarRezervniDio.jedinicna_cijena, 0)), 0),
+    ).join(Kvar, KvarRezervniDio.kvar_id == Kvar.id)
+    if oprema_id is not None:
+        query = query.filter(Kvar.oprema_id == oprema_id)
+    return {machine: float(total or 0) for machine, total in query.group_by(Kvar.oprema_id).all()}
+
+
+def _for_user(item: OpremaWithStats, user: Korisnik) -> OpremaWithStats:
+    """Workers pick machines to report on; repair costs are not theirs to see."""
+    if role_value(user.rola) == "radnik":
+        item.ukupni_troskovi = None
+    return item
+
 
 def machine_link(base_url: str, oprema_id: int) -> str:
     """What a machine's QR code opens: workers land on the report form, leads on its faults."""
@@ -167,7 +187,7 @@ def machine_qr_labels(
 
 
 @router.get("/{oprema_id}", response_model=OpremaWithStats)
-def get_oprema_by_id(oprema_id: int, db: Session = Depends(get_db), _: Korisnik = Depends(get_current_user)):
+def get_oprema_by_id(oprema_id: int, db: Session = Depends(get_db), current_user: Korisnik = Depends(get_current_user)):
     o = db.query(Oprema).filter(Oprema.id == oprema_id).first()
     if not o:
         raise HTTPException(status_code=404, detail="Oprema nije pronađena")
@@ -180,9 +200,9 @@ def get_oprema_by_id(oprema_id: int, db: Session = Depends(get_db), _: Korisnik 
 
     item = OpremaWithStats.model_validate(o)
     item.broj_kvarova = stats.broj or 0
-    item.ukupni_troskovi = float(stats.troskovi or 0)
+    item.ukupni_troskovi = float(stats.troskovi or 0) + _parts_cost(db, o.id).get(o.id, 0.0)
     item.zadnji_kvar = stats.zadnji
-    return item
+    return _for_user(item, current_user)
 
 @router.post("", response_model=OpremaOut)
 def create_oprema(data: OpremaCreate, db: Session = Depends(get_db), _: Korisnik = Depends(require_voditelj_or_admin)):

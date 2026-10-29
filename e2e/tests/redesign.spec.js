@@ -35,6 +35,20 @@ test('phone tab bar: "+" opens the report; the steps go back and forth without l
   await expect(page.getByRole('radio', { name: new RegExp(machine.naziv) })).not.toBeChecked()
 })
 
+test('phone: a long machine list scrolls inside its box and never stretches the page', async ({ page, request }) => {
+  const { headers, worker } = await setupFixture(request)
+  // Enough machines that the list overflows its box (the e2e database grows with every run).
+  for (let i = 0; i < 12; i++) {
+    await request.post('/api/oprema', { headers, data: { naziv: `Duga lista ${Date.now()}-${i}`, tip: 'Test' } })
+  }
+  await page.setViewportSize(PHONE)
+  await signIn(page, worker)
+  await page.goto('/radnik/prijava')
+  await settle(page)
+  const { page: pageHeight, viewport } = await page.evaluate(() => ({ page: document.documentElement.scrollHeight, viewport: innerHeight }))
+  expect(pageHeight).toBeLessThan(viewport + 200)
+})
+
 test('a scanned machine with no parts starts on the description step', async ({ page, request }) => {
   const { headers, worker } = await setupFixture(request)
   const bare = await (await request.post('/api/oprema', { headers, data: { naziv: `Bez dijelova ${Date.now()}`, tip: 'Test', lokacija: 'Hala E2E' } })).json()

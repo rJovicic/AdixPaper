@@ -58,6 +58,8 @@ def ensure_additive_schema():
     dijelovi_info = {c["name"]: c for c in inspector.get_columns("rezervni_dijelovi")} if "rezervni_dijelovi" in table_names else {}
     dijelovi_columns = set(dijelovi_info)
     korisnici_columns = {c["name"] for c in inspector.get_columns("korisnici")} if "korisnici" in table_names else set()
+    usage_columns = {c["name"] for c in inspector.get_columns("kvar_rezervni_dijelovi")} if "kvar_rezervni_dijelovi" in table_names else set()
+    postgres = engine.dialect.name == "postgresql"
     timestamp = "TIMESTAMP WITH TIME ZONE" if engine.dialect.name == "postgresql" else "DATETIME"
     with engine.begin() as connection:
         if kvarovi_columns and "komponenta_id" not in kvarovi_columns:
@@ -73,6 +75,33 @@ def ensure_additive_schema():
             connection.execute(text(f"ALTER TABLE kvarovi ADD COLUMN azurirano {timestamp}"))
         if kvarovi_columns and "klijent_kljuc" not in kvarovi_columns:
             connection.execute(text("ALTER TABLE kvarovi ADD COLUMN klijent_kljuc VARCHAR(64)"))
+        # 2026-10-29: first response (the response window now ends at it, not at resolution).
+        # Filled once, in the same transaction that adds the column, from the record itself:
+        # the first status change away from "Novo" in the timeline, else the start of work or the
+        # resolution for faults that left "Novo" before the timeline recorded it. Faults still
+        # new with no such change stay NULL (waiting). Only the new column is written.
+        if kvarovi_columns and "datum_odziva" not in kvarovi_columns:
+            connection.execute(text(f"ALTER TABLE kvarovi ADD COLUMN datum_odziva {timestamp}"))
+            if "kvar_dogadjaji" in table_names:
+                old_status = "e.podaci->>'old'" if postgres else "json_extract(e.podaci, '$.old')"
+                connection.execute(text(f"""
+                    UPDATE kvarovi SET datum_odziva = COALESCE(
+                        (SELECT MIN(e.kreiran) FROM kvar_dogadjaji e
+                         WHERE e.kvar_id = kvarovi.id AND e.tip = 'status' AND {old_status} = 'Novo'),
+                        CASE WHEN status <> 'novo' THEN COALESCE(datum_pocetka, datum_rjesavanja) END
+                    )
+                """))
+        # 2026-10-29: unit price at the time of use, so later catalogue edits do not rewrite past
+        # costs. Existing rows get the catalogue price as it stands at the upgrade, flagged as
+        # recorded later (cijena_naknadno) because the price on the day of use is not known.
+        if usage_columns and "jedinicna_cijena" not in usage_columns:
+            connection.execute(text("ALTER TABLE kvar_rezervni_dijelovi ADD COLUMN jedinicna_cijena NUMERIC(10, 2)"))
+            connection.execute(text("ALTER TABLE kvar_rezervni_dijelovi ADD COLUMN cijena_naknadno BOOLEAN NOT NULL DEFAULT FALSE"))
+            connection.execute(text("""
+                UPDATE kvar_rezervni_dijelovi SET
+                    jedinicna_cijena = (SELECT r.cijena FROM rezervni_dijelovi r WHERE r.id = kvar_rezervni_dijelovi.rezervni_dio_id),
+                    cijena_naknadno = TRUE
+            """))
         if korisnici_columns and "sesije_od" not in korisnici_columns:
             connection.execute(text(f"ALTER TABLE korisnici ADD COLUMN sesije_od {timestamp}"))
         if dijelovi_columns and "zaliha" not in dijelovi_columns:
@@ -116,7 +145,12 @@ def _decimal_or_none(value):
 
 
 def seed_spare_parts():
-    """Load the spare-parts catalogue once, only into an empty table."""
+    """Load the spare-parts catalogue once, only into an empty table.
+
+    The tracked file holds names and codes only. Prices and stock are commercially sensitive and
+    were removed from it (2026-10-29); "price"/"stock" columns are still read if an operator loads
+    a private copy with them, but they must never be committed again.
+    """
     if not settings.AUTO_SEED_SPARE_PARTS or not SEED_FILE.exists():
         return
 

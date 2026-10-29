@@ -38,7 +38,9 @@ class StatusKvaraEnum(str, enum.Enum):
     rijeseno = "Riješeno"
 
 
-# SLA sati po prioritetu
+# Response windows per priority (owner, 2026-10-29): hours from the report until the FIRST RESPONSE,
+# i.e. until a lead or admin first moves the fault out of "Novo" (takes it, puts it on hold or
+# resolves it) — see Kvar.datum_odziva. Time to resolution is a separate metric with no target.
 SLA_SATI = {
     "Hitno": 2,
     "Normalno": 8,
@@ -167,6 +169,9 @@ class Kvar(Base):
     datum_prijave = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     datum_pocetka = Column(DateTime(timezone=True), nullable=True)
     datum_rjesavanja = Column(DateTime(timezone=True), nullable=True)
+    # First response: set once, by the server, when a lead or admin first moves the fault out of
+    # "Novo". Reopening keeps it: the response window applies to the first response only.
+    datum_odziva = Column(DateTime(timezone=True), nullable=True)
 
     # On hold: why (one of RAZLOZI_CEKANJA) and since when. Cleared when the fault leaves "Na čekanju".
     razlog_cekanja = Column(String(30), nullable=True)
@@ -196,6 +201,19 @@ class Kvar(Base):
         return self.status != StatusKvaraEnum.rijeseno
 
     @property
+    def ceka_odziv(self) -> bool:
+        """Still waiting for its first response: new and never moved on by a lead."""
+        return self.status == StatusKvaraEnum.novo and self.datum_odziva is None
+
+    @property
+    def odziv_u_roku(self):
+        """True/False once the first response is recorded; None while waiting or when unknown."""
+        rok = self.rok
+        if self.datum_odziva is None or rok is None:
+            return None
+        return as_utc(self.datum_odziva) <= rok
+
+    @property
     def rok(self):
         """When the response window ends: reported + the priority's SLA hours."""
         hours = SLA_SATI.get(getattr(self.prioritet, "value", self.prioritet))
@@ -203,12 +221,21 @@ class Kvar(Base):
             return None
         return as_utc(self.datum_prijave) + timedelta(hours=hours)
 
+    def udio_roka_u(self, now):
+        """Share of the response window used, for a fault still waiting for its first response
+        (1.0 = due now, above = late); None otherwise."""
+        hours = SLA_SATI.get(getattr(self.prioritet, "value", self.prioritet))
+        if not self.ceka_odziv or not hours or not self.datum_prijave:
+            return None
+        return (now - as_utc(self.datum_prijave)).total_seconds() / 3600 / hours
+
     def razlozi_paznje_u(self, now) -> list:
         if not self.otvoren:
             return []
         reasons = []
         rok = self.rok
-        if rok is not None:
+        # Only a fault still waiting for its first response can be overdue or due soon.
+        if rok is not None and self.ceka_odziv:
             hours = SLA_SATI[getattr(self.prioritet, "value", self.prioritet)]
             left = (rok - now).total_seconds() / 3600
             if left <= 0:
@@ -240,6 +267,11 @@ class KvarRezervniDio(Base):
     kvar_id = Column(Integer, ForeignKey("kvarovi.id"), nullable=False, index=True)
     rezervni_dio_id = Column(Integer, ForeignKey("rezervni_dijelovi.id"), nullable=False, index=True)
     kolicina = Column(Numeric(10, 2), default=1, nullable=False)
+    # Catalogue price per unit when the part was recorded on the fault; costs use this, never
+    # today's catalogue price. NULL = the part had no price. `cijena_naknadno`: rows that existed
+    # before prices were recorded got the catalogue price at the upgrade (2026-10-29) instead.
+    jedinicna_cijena = Column(Numeric(10, 2), nullable=True)
+    cijena_naknadno = Column(Boolean, default=False, server_default="false", nullable=False)
     napomena = Column(Text, nullable=True)
     kreiran = Column(DateTime(timezone=True), server_default=func.now())
 
