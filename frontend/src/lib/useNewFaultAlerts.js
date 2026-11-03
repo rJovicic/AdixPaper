@@ -48,8 +48,10 @@ export function useNewFaultAlerts(user) {
       list.forEach((fault) => announced.current.add(fault.id))
       // First use on this device: what was reported before is not "unread".
       setSeen((current) => {
-        if (current !== null) return current
         const newest = list.length ? Math.max(...list.map((fault) => fault.id)) : 0
+        // Kept unless numbering went backwards (test faults cleared and numbering restarted at 1):
+        // then the old marker would hide every new report from the unread count.
+        if (current !== null && current <= newest) return current
         writeSeen(userId, newest)
         return newest
       })
